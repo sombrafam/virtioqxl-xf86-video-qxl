@@ -440,7 +440,7 @@ qxlSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 
     if (!loaded) {
 	loaded = TRUE;
-	xf86AddDriver(&qxl_driver, module, 0);
+	xf86AddDriver(&qxl_driver, module, HaveDriverFuncs);
 	return (void *)1;
     } else {
 	if (errmaj)
