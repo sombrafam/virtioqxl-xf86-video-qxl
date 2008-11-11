@@ -239,7 +239,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     if (!pScrn->driverPrivate)
-	pScrn->driverPrivate = qxl = xnfcalloc(sizeof(qxlScreen), 1);
+	pScrn->driverPrivate = xnfcalloc(sizeof(qxlScreen), 1);
+    qxl = pScrn->driverPrivate;
     
     qxl->entity = xf86GetEntityInfo(pScrn->entityList[0]);
     qxl->pci = xf86GetPciInfoForEntity(qxl->entity->index);
