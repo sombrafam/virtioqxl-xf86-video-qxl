@@ -39,10 +39,15 @@
 
 #define PCI_CHIP_QXL_0100	0x0100
 
+#define QXL_ROM_MAGIC		"QXRO"
+#define QXL_RAM_MAGIC		"QXRA"
+
 typedef struct _qxlScreen
 {
-    void *			reg;
-    void *			mem;
+    /* qxl calls these ram, vram, and rom */
+    void *			cram; /* Command RAM */
+    void *			vram; /* Video RAM */
+    void *			pram; /* Parameter RAM */
 
     EntityInfoPtr		entity;
 

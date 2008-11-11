@@ -42,15 +42,21 @@ static void
 qxlUnmapMemory(qxlScreen *qxl, int scrnIndex)
 {
 #ifdef XSERVER_LIBPCIACCESS
-    if (qxl->mem)
-	pci_device_unmap_range(qxl->pci, qxl->mem, 0 /* size */);
+    if (qxl->cram)
+	pci_device_unmap_range(qxl->pci, qxl->cram, qxl->pci->regions[0].size);
+    if (qxl->vram)
+	pci_device_unmap_range(qxl->pci, qxl->vram, qxl->pci->regions[1].size);
+    if (qxl->pram)
+	pci_device_unmap_range(qxl->pci, qxl->pram, qxl->pci->regions[2].size);
 #else
-    if (qxl->mem)
-	xf86UnMapVidMem(scrnIndex, qxl->mem, 1 << qxl->pci->size[0]);
-    if (qxl->reg)
-	xf86UnMapVidMem(scrnIndex, qxl->reg, 8 * 1024);
+    if (qxl->cram)
+	xf86UnMapVidMem(scrnIndex, qxl->cram, qxl->pci->size[0]);
+    if (qxl->vram)
+	xf86UnMapVidMem(scrnIndex, qxl->vram, qxl->pci->size[1]);
+    if (qxl->pram)
+	xf86UnMapVidMem(scrnIndex, qxl->pram, qxl->pci->size[2]);
 #endif
-    qxl->mem = qxl->reg = NULL;
+    qxl->cram = qxl->vram = qxl->pram = NULL;
 }
 
 static Bool
@@ -75,26 +81,35 @@ static Bool
 qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 {
 #ifdef XSERVER_LIBPCIACCESS
-    pci_device_map_range(qxl->pci, 0, 0, /* base, size */
+    pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
+			 qxl->pci->regions[0].size,
+			 PCI_DEV_MAP_FLAG_WRITABLE,
+			 &qxl->cram);
+
+    pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
+			 qxl->pci->regions[1].size,
 			 PCI_DEV_MAP_FLAG_WRITABLE |
 			    PCI_DEV_MAP_FLAG_WRITE_COMBINE,
-			 &qxl->mem);
+			 &qxl->vram);
 
-    if (!qxl->mem)
-	return FALSE;
+    pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
+			 qxl->pci->regions[2].size, 0,
+			 &qxl->pram);
 #else
-    qxl->mem = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER, qxl->pciTag,
-			     qxl->pci->memBase[0],
-			     (1 << qxl->pci->size[0]));
-    if (!qxl->mem)
-	return FALSE;
+    qxl->cram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			      qxl->pciTag, qxl->pci->memBase[0],
+			      qxl->pci->size[0]);
 
-    qxl->reg = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			     qxl->pciTag, qxl->pci->memBase[1],
-			     8 * 1024);
-    if (!qxl->reg)
-	return FALSE;
+    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER, qxl->pciTag,
+			     qxl->pci->memBase[1],
+			     qxl->pci->size[1]);
+
+    qxl->pram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			      qxl->pciTag, qxl->pci->memBase[2],
+			      qxl->pci->size[2]);
 #endif
+    if (!qxl->cram || !qxl->vram || !qxl->pram)
+	return FALSE;
 }
 
 static Bool
@@ -116,7 +131,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	goto out;
     if (!miSetPixmapDepths())
 	goto out;
-    if (!fbScreenInit(pScreen, qxl->mem, pScrn->virtualX, pScrn->virtualY,
+    if (!fbScreenInit(pScreen, qxl->vram, pScrn->virtualX, pScrn->virtualY,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
 	goto out;
