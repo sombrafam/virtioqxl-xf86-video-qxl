@@ -39,7 +39,7 @@ qxlBlankScreen(ScreenPtr pScreen, int mode)
 }
 
 static void
-qxlUnmapMem(qxlScreen *qxl, int scrnIndex)
+qxlUnmapMemory(qxlScreen *qxl, int scrnIndex)
 {
 #ifdef XSERVER_LIBPCIACCESS
     if (qxl->mem)
@@ -60,7 +60,7 @@ qxlCloseScreen(int scrnIndex, ScreenPtr pScreen)
     qxlScreen *qxl = pScrn->driverPrivate;
 
     if (pScrn->vtSema)
-	qxlUnmapMem(qxl, scrnIndex);
+	qxlUnmapMemory(qxl, scrnIndex);
 #if 0 /* exa */
     qxlExaFini(pScreen);
 #endif
@@ -272,7 +272,7 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 	goto out;
 
     /* hate */
-    qxlUnmapMem(qxl, scrnIndex);
+    qxlUnmapMemory(qxl, scrnIndex);
 
     xf86DrvMsg(scrnIndex, X_INFO, "PreInit complete\n");
     return TRUE;
