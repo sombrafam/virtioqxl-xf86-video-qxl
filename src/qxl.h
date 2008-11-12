@@ -39,8 +39,16 @@
 
 #define PCI_CHIP_QXL_0100	0x0100
 
-#define QXL_ROM_MAGIC		"QXRO"
-#define QXL_RAM_MAGIC		"QXRA"
+struct qxl_mode {
+    unsigned int id;
+    unsigned int x_res;
+    unsigned int y_res;
+    unsigned int bits;
+    unsigned int stride;
+    unsigned int x_mili;
+    unsigned int y_mili;
+    unsigned int orientation;
+};
 
 typedef struct _qxlScreen
 {

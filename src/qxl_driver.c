@@ -225,12 +225,13 @@ qxlColorSetup(ScrnInfoPtr pScrn)
 }
 
 static void
-qxlPrintMode(int scrnIndex, CARD32 *mode)
+qxlPrintMode(int scrnIndex, void *p)
 {
+    struct qxl_mode *m = p;
     xf86DrvMsg(scrnIndex, X_INFO,
 	       "%d: %dx%d, %d bits, stride %d, %dmm x %dmm, orientation %d\n",
-	       mode[0], mode[1], mode[2], mode[3], mode[4], mode[5], mode[6],
-	       mode[7]);
+	       m->id, m->x_res, m->y_res, m->bits, m->stride, m->x_mili,
+	       m->y_mili, m->orientation);
 }
 
 static Bool
