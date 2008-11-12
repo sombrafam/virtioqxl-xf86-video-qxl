@@ -39,6 +39,18 @@
 
 #define PCI_CHIP_QXL_0100	0x0100
 
+/* I/O port definitions */
+enum {
+    QXL_IO_NOTIFY_CMD,
+    QXL_IO_NOTIFY_CURSOR,
+    QXL_IO_UPDATE_AREA,
+    QXL_IO_UPDATE_IRQ,
+    QXL_IO_NOTIFY_OOM,
+    QXL_IO_RESET,
+    QXL_IO_SET_MODE,
+    QXL_IO_LOG,
+};
+
 struct qxl_mode {
     unsigned int id;
     unsigned int x_res;
@@ -60,6 +72,8 @@ typedef struct _qxlScreen
     /* mode list */
     int				num_modes;
     struct qxl_mode *		modes;
+
+    int				io_base;
 
     EntityInfoPtr		entity;
 

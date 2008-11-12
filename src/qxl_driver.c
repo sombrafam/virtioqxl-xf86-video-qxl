@@ -95,6 +95,8 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
     pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
 			 qxl->pci->regions[2].size, 0,
 			 &qxl->pram);
+
+    qxl->io_base = qxl->pci->regions[3].base_addr;
 #else
     qxl->cram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
 			      qxl->pciTag, qxl->pci->memBase[0],
@@ -107,9 +109,13 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
     qxl->pram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
 			      qxl->pciTag, qxl->pci->memBase[2],
 			      qxl->pci->size[2]);
+
+    qxl->io_base = qxl->pci->ioBase[3];
 #endif
     if (!qxl->cram || !qxl->vram || !qxl->pram)
 	return FALSE;
+
+    return TRUE;
 }
 
 static Bool
