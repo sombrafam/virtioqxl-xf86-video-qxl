@@ -272,9 +272,11 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     }
 
     mode_offset = pram[7] / 4;
-    xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", pram[mode_offset]);
-    for (i = 0; i < pram[mode_offset]; i++)
-	qxlPrintMode(scrnIndex, &pram[mode_offset + 1 + (i * 8)]);
+    qxl->num_modes = pram[mode_offset];
+    xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
+    qxl->modes = (void *)(pram + mode_offset + 1);
+    for (i = 0; i < qxl->num_modes; i++)
+	qxlPrintMode(scrnIndex, qxl->modes + i);
 
     return TRUE;
 }

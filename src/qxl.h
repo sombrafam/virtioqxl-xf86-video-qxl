@@ -57,6 +57,10 @@ typedef struct _qxlScreen
     void *			vram; /* Video RAM */
     void *			pram; /* Parameter RAM */
 
+    /* mode list */
+    int				num_modes;
+    struct qxl_mode *		modes;
+
     EntityInfoPtr		entity;
 
 #ifdef XSERVER_LIBPCIACCESS
