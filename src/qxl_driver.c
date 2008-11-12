@@ -262,8 +262,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "Available modes:\n");
-    mode_offset = pram[7];
+    mode_offset = pram[7] / 4;
+    xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", pram[mode_offset]);
     for (i = 0; i < pram[mode_offset]; i++)
 	qxlPrintMode(scrnIndex, &pram[mode_offset + 1 + (i * 8)]);
 
