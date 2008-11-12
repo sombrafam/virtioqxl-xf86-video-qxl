@@ -230,7 +230,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int scrnIndex = pScrn->scrnIndex;
     CARD32 *pram = qxl->pram;
 
-    if (pram[0] != 0x5158524f) { /* "QXRO" */
+    if (pram[0] != 0x4f525851) { /* "QXRO" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", pram[0]);
 	return FALSE;
     }
