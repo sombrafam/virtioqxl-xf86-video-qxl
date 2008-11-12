@@ -305,6 +305,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     if (!qxlMapMemory(qxl, scrnIndex))
 	goto out;
 
+    pScrn->videoRam = qxl->pci->regions[1].size / 1024;
+
     if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
 
