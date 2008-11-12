@@ -225,6 +225,25 @@ qxlColorSetup(ScrnInfoPtr pScrn)
 }
 
 static Bool
+qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
+{
+    int scrnIndex = pScrn->scrnIndex;
+    CARD32 *pram = qxl->pram;
+
+    if (pram[0] != 0x5158524f) /* "QXRO" */
+	return FALSE;
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Device version %d.%d\n",
+	       pram[1], pram[2]);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Compression level %d, hash level %d, "
+	       "log level %d\n",
+	       pram[3], pram[4], pram[5]);
+
+    return TRUE;
+}
+
+static Bool
 qxlPreInit(ScrnInfoPtr pScrn, int flags)
 {
     int scrnIndex = pScrn->scrnIndex;
@@ -257,6 +276,9 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     xf86CollectOptions(pScrn, NULL);
     
     if (!qxlMapMemory(qxl, scrnIndex))
+	goto out;
+
+    if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
 
     /* ddc stuff here */
