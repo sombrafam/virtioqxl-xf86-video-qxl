@@ -119,6 +119,19 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 }
 
 static Bool
+qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
+{
+    qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
+    struct qxl_mode *m = (void *)p->Private;
+
+    if (!m)
+	return FALSE;
+
+    outl(qxl->io_base + QXL_IO_SET_MODE, m->id);
+}
+
+
+static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
@@ -129,7 +142,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     qxlSaveState(qxl);
     qxlBlankScreen(pScreen, SCREEN_SAVER_ON);
-    /* mode set */
+    qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);
 
     miClearVisualTypes();
     if (!miSetVisualTypes(pScrn->depth, miGetDefaultVisualMask(pScrn->depth),
@@ -188,11 +201,12 @@ out:
 static Bool
 qxlEnterVT(int scrnIndex, int flags)
 {
-    qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
+    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    qxlScreen *qxl = pScrn->driverPrivate;
 
     qxlSaveState(qxl);
 
-    /* mode set */
+    qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);
     return TRUE;
 }
 
@@ -312,18 +326,6 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
        return MODE_NOMODE;	
 
     return MODE_OK;
-}
-
-static Bool
-qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
-{
-    qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
-    struct qxl_mode *m = (void *)p->Private;
-
-    if (!m)
-	return FALSE;
-
-    outl(qxl->io_base + QXL_IO_SET_MODE, m->id);
 }
 
 static Bool
