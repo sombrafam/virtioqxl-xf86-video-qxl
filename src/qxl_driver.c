@@ -242,6 +242,18 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 	       "log level %d\n",
 	       pram[3], pram[4], pram[5]);
 
+    xf86DrvMsg(scrnIndex, X_INFO, "Currently using mode #%d, list at 0x%x\n",
+	       pram[6], pram[7]);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n", pram[8], pram[9]);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n", pram[10],
+	       pram[11]);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
+
+    /* print mode list */
+
     return TRUE;
 }
 
