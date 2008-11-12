@@ -287,18 +287,18 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     return TRUE;
 }
 
-static Bool
-qxlCheckOneMode(qxlScreen *qxl, DisplayModePtr p)
+static struct qxl_mode *
+qxlFindNativeMode(qxlScreen *qxl, DisplayModePtr p)
 {
     int i;
 
     for (i = 0; i < qxl->num_modes; i++) {
 	struct qxl_mode *m = qxl->modes + i;
 	if (m->x_res == p->HDisplay && m->y_res == p->VDisplay)
-	    return TRUE;
+	    return m;
     }
 
-    return FALSE;	
+    return NULL;	
 }
 
 static ModeStatus
@@ -307,10 +307,23 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     ScrnInfoPtr pScrn = xf86Screens[scrn];
     qxlScreen *qxl = pScrn->driverPrivate;
 
-    if (!qxlCheckOneMode(qxl, p))
-	return MODE_NOMODE;
+    p->Private = (void *)qxlFindNativeMode(qxl, p);
+    if (!p->Private)
+       return MODE_NOMODE;	
 
     return MODE_OK;
+}
+
+static Bool
+qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
+{
+    qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
+    struct qxl_mode *m = (void *)p->Private;
+
+    if (!m)
+	return FALSE;
+
+    outl(qxl->io_base + QXL_IO_SET_MODE, m->id);
 }
 
 static Bool
@@ -440,6 +453,7 @@ qxlInitScrn(ScrnInfoPtr pScrn)
     pScrn->driverName	    = pScrn->name = "qxl";
     pScrn->PreInit	    = qxlPreInit;
     pScrn->ScreenInit	    = qxlScreenInit;
+    pScrn->SwitchMode	    = qxlSwitchMode;
     pScrn->ValidMode	    = qxlValidMode;
     pScrn->EnterVT	    = qxlEnterVT;
     pScrn->LeaveVT	    = qxlLeaveVT;
