@@ -22,6 +22,7 @@
 
 #include "config.h"
 
+#include "compiler.h"
 #include "xf86.h"
 #include "xf86Resources.h"
 #include "xf86PciInfo.h"
