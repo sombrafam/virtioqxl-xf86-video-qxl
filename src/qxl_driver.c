@@ -224,10 +224,20 @@ qxlColorSetup(ScrnInfoPtr pScrn)
     return TRUE;
 }
 
+static void
+qxlPrintMode(int scrnIndex, CARD32 *mode)
+{
+    xf86DrvMsg(scrnIndex, X_INFO,
+	       "%d: %dx%d, %d bits, stride %d, %dmm x %dmm, orientation %d\n",
+	       mode[0], mode[1], mode[2], mode[3], mode[4], mode[5], mode[6],
+	       mode[7]);
+}
+
 static Bool
 qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
+    int i, mode_offset;
     CARD32 *pram = qxl->pram;
 
     if (pram[0] != 0x4f525851) { /* "QXRO" little-endian */
@@ -252,7 +262,10 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
 
-    /* print mode list */
+    xf86DrvMsg(scrnIndex, X_INFO, "Available modes:\n");
+    mode_offset = pram[7];
+    for (i = 0; i < pram[mode_offset]; i++)
+	qxlPrintMode(scrnIndex, &pram[mode_offset + 1 + (i * 8)]);
 
     return TRUE;
 }
