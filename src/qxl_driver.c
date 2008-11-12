@@ -239,6 +239,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
     CARD32 *pram = qxl->pram;
+    CARD32 *cram = qxl->cram;
 
     if (pram[0] != 0x4f525851) { /* "QXRO" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", pram[0]);
@@ -261,6 +262,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 	       pram[11]);
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "RAM signature: %x\n", cram[pram[12] / 4]);
 
     mode_offset = pram[7] / 4;
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", pram[mode_offset]);
