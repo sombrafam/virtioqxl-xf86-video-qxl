@@ -127,7 +127,7 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     if (!m)
 	return FALSE;
 
-    outl(qxl->io_base + QXL_IO_SET_MODE, m->id);
+    outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 }
 
 
