@@ -63,6 +63,44 @@ struct qxl_mode {
     unsigned int orientation;
 };
 
+struct qxl_command {
+    unsigned int data1;
+    unsigned int data2;
+    unsigned int type;
+    unsigned int pad;
+};
+
+struct qxl_ring_header {
+    unsigned int num_items;
+    unsigned int prod;
+    unsigned int notify_on_prod;
+    unsigned int cons;
+    unsigned int notify_on_cons;
+};
+
+struct qxl_rect {
+    unsigned int top;
+    unsigned int left;
+    unsigned int bottom;
+    unsigned int right;
+};
+
+#define QXL_LOG_BUF_SIZE 4096
+
+struct qxl_ram_header {
+    unsigned int magic;
+    unsigned int int_pending;
+    unsigned int int_mask;
+    unsigned char log_buf[QXL_LOG_BUF_SIZE];
+    struct qxl_ring_header  cmd_ring_hdr;
+    struct qxl_command	    cmd_ring[32];
+    struct qxl_ring_header  cursor_ring_hdr;
+    struct qxl_command	    cursor_ring[32];
+    struct qxl_ring_header  releaase_ring_hdr;
+    struct qxl_command	    release_ring[8];
+    struct qxl_rect	    update_area;
+};
+
 typedef struct _qxlScreen
 {
     /* qxl calls these ram, vram, and rom */
@@ -70,13 +108,12 @@ typedef struct _qxlScreen
     void *			vram; /* Video RAM */
     void *			pram; /* Parameter RAM */
 
-    /* mode list */
     int				num_modes;
     struct qxl_mode *		modes;
     int				io_base;
-
     int				draw_area_offset;
     int				draw_area_size;
+    struct qxl_ram_header *	ram_header;
 
     EntityInfoPtr		entity;
 

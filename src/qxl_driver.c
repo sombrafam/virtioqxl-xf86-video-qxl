@@ -290,9 +290,11 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
 
-    cram_magic = cram[pram[12] / 4];
-    if (cram_magic != 0x41525851) { /* "QXRA" little-endian */
-	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x\n", cram_magic);
+    qxl->ram_header = (void *)(cram + (pram[12] / 4));
+
+    if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
+	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x\n",
+		   qxl->ram_header->magic);
 	return FALSE;
     }
 
