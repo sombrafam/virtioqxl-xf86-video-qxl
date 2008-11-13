@@ -305,13 +305,16 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 }
 
 static struct qxl_mode *
-qxlFindNativeMode(qxlScreen *qxl, DisplayModePtr p)
+qxlFindNativeMode(ScrnInfoPtr pScrn, DisplayModePtr p)
 {
     int i;
+    qxlScreen *qxl = pScrn->driverPrivate;
 
     for (i = 0; i < qxl->num_modes; i++) {
 	struct qxl_mode *m = qxl->modes + i;
-	if (m->x_res == p->HDisplay && m->y_res == p->VDisplay)
+	if (m->x_res == p->HDisplay &&
+	    m->y_res == p->VDisplay &&
+	    m->bits == pScrn->bitsPerPixel)
 	    return m;
     }
 
@@ -328,7 +331,7 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
 	return MODE_MEM;
 
-    p->Private = (void *)qxlFindNativeMode(qxl, p);
+    p->Private = (void *)qxlFindNativeMode(pScrn, p);
     if (!p->Private)
        return MODE_NOMODE;
 
