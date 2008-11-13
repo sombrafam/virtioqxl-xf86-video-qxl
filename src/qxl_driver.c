@@ -127,6 +127,8 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     if (!m)
 	return FALSE;
 
+    /* if (debug) */
+    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d\n", m->id);
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 }
 
