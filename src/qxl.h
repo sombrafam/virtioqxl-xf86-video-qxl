@@ -73,8 +73,10 @@ typedef struct _qxlScreen
     /* mode list */
     int				num_modes;
     struct qxl_mode *		modes;
-
     int				io_base;
+
+    int				draw_area_offset;
+    int				draw_area_size;
 
     EntityInfoPtr		entity;
 

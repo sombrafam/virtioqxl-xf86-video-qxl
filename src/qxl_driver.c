@@ -150,7 +150,8 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	goto out;
     if (!miSetPixmapDepths())
 	goto out;
-    if (!fbScreenInit(pScreen, qxl->vram, pScrn->virtualX, pScrn->virtualY,
+    if (!fbScreenInit(pScreen, qxl->vram + qxl->draw_area_offset,
+		      pScrn->virtualX, pScrn->virtualY,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
 	goto out;
@@ -280,8 +281,10 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n", pram[8], pram[9]);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n", pram[10],
-	       pram[11]);
+    qxl->draw_area_offset = pram[11];
+    qxl->draw_area_size = pram[10];
+    xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
+	       qxl->draw_area_size, qxl->draw_area_offset);
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
 
@@ -320,10 +323,14 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrn];
     qxlScreen *qxl = pScrn->driverPrivate;
+    int bpp = pScrn->bitsPerPixel;
+
+    if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
+	return MODE_MEM;
 
     p->Private = (void *)qxlFindNativeMode(qxl, p);
     if (!p->Private)
-       return MODE_NOMODE;	
+       return MODE_NOMODE;
 
     return MODE_OK;
 }
