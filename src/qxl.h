@@ -30,6 +30,7 @@
 #include "xf86_OSproc.h"
 #include "exa.h"
 #include "xf86xv.h"
+#include "shadow.h"
 #ifdef XSERVER_PCIACCESS
 #include "pciaccess.h"
 #endif
@@ -96,7 +97,7 @@ struct qxl_ram_header {
     struct qxl_command	    cmd_ring[32];
     struct qxl_ring_header  cursor_ring_hdr;
     struct qxl_command	    cursor_ring[32];
-    struct qxl_ring_header  releaase_ring_hdr;
+    struct qxl_ring_header  release_ring_hdr;
     struct qxl_command	    release_ring[8];
     struct qxl_rect	    update_area;
 };
@@ -115,6 +116,8 @@ typedef struct _qxlScreen
     int				draw_area_size;
     struct qxl_ram_header *	ram_header;
 
+    void *			fb;
+
     EntityInfoPtr		entity;
 
 #ifdef XSERVER_LIBPCIACCESS
@@ -124,5 +127,6 @@ typedef struct _qxlScreen
     PCITAG			pciTag;
 #endif
 
+    CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr		CloseScreen;
 } qxlScreen;

@@ -72,6 +72,9 @@ qxlCloseScreen(int scrnIndex, ScreenPtr pScreen)
 #endif
     pScrn->vtSema = FALSE;
 
+    xfree(qxl->fb);
+
+    pScreen->CreateScreenResources = qxl->CreateScreenResources;
     pScreen->CloseScreen = qxl->CloseScreen;
 
     return pScreen->CloseScreen(scrnIndex, pScreen);
@@ -132,6 +135,50 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 }
 
+/* XXX should use update command not this */
+static void
+qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
+{
+    struct qxl_rect *update_area = qxl->ram_header->update_area;
+
+    update_area->top = box->y1;
+    update_area->left = box->x1;
+    update_area->bottom = box->y2;
+    update_area->right = box->x2;
+
+    outb(qxl->io_base + QXL_IO_UPDATE_AREA, 0);
+}
+
+static void
+qxlShadowUpdate(ScreenPtr pScreen, shadowBufPtr pBuf)
+{
+    RegionPtr damage = shadowDamage(pBuf);
+    int nbox = REGION_NUM_RECTS(damage);
+    BoxPtr pbox = REGION_RECTS(damage);
+
+    while (nbox--)
+	qxlShadowUpdateArea(pBuf->closure, pbox++);
+}
+
+static Bool
+qxlCreateScreenResources(ScreenPtr pScreen)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+    Bool ret;
+
+    pScreen->CreateScreenResources = qxl->CreateScreenResources;
+    ret = pScreen->CreateScreenResources(pScreen);
+    pScreen->CreateScreenResources = qxlCreateScreenResources;
+
+    if (!ret)
+	return;
+
+    shadowAdd(pScreen, pScreen->GetScreenPixmap(pScreen), qxlShadowUpdate,
+	      NULL, 0, qxl);
+
+    return TRUE;
+}
 
 static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
@@ -152,12 +199,14 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	goto out;
     if (!miSetPixmapDepths())
 	goto out;
-    if (!fbScreenInit(pScreen, qxl->vram + qxl->draw_area_offset,
-		      pScrn->virtualX, pScrn->virtualY,
+    qxl->fb = xcalloc(pScrn->virtualX * pScrn->virtualY,
+		      (pScrn->bitsPerPixel + 7)/8);
+    if (!qxl->fb)
+	goto out;
+    if (!fbScreenInit(pScreen, qxl->fb, pScrn->virtualX, pScrn->virtualY,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
 	goto out;
-    fbPictureInit(pScreen, 0, 0);
     {
 	VisualPtr visual = pScreen->visuals + pScreen->numVisuals;
 	while (--visual >= pScreen->visuals) {
@@ -171,6 +220,12 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	    }
 	}
     }
+    fbPictureInit(pScreen, 0, 0);
+
+    if (!shadowSetup(pScreen))
+	return FALSE;
+    qxl->CreateScreenResources = pScreen->CreateScreenResources;
+    pScreen->CreateScreenResources = qxlCreateScreenResources;
 
 #if 0 /* EXA accel */
     qxl->exa = qxlExaInit(pScreen);
@@ -407,7 +462,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 
     if (!xf86LoadSubModule(pScrn, "fb") ||
 	!xf86LoadSubModule(pScrn, "exa") ||
-	!xf86LoadSubModule(pScrn, "ramdac"))
+	!xf86LoadSubModule(pScrn, "ramdac") ||
+	!xf86LoadSubModule(pScrn, "shadow"))
 	goto out;
 
     /* hate */
@@ -424,7 +480,6 @@ out:
 
     return FALSE;
 }
-
 
 #ifdef XSERVER_LIBPCIACCESS
 enum qxl_class
