@@ -174,7 +174,7 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     pScreen->CreateScreenResources = qxlCreateScreenResources;
 
     if (!ret)
-	return;
+	return FALSE;
 
     shadowAdd(pScreen, pScreen->GetScreenPixmap(pScreen), qxlShadowUpdate,
 	      NULL, 0, qxl);
