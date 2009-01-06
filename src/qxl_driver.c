@@ -139,7 +139,7 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
-    struct qxl_rect *update_area = qxl->ram_header->update_area;
+    struct qxl_rect *update_area = &qxl->ram_header->update_area;
 
     update_area->top = box->y1;
     update_area->left = box->x1;
