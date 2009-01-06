@@ -31,6 +31,7 @@
 #include "exa.h"
 #include "xf86xv.h"
 #include "shadow.h"
+#include "micmap.h"
 #ifdef XSERVER_PCIACCESS
 #include "pciaccess.h"
 #endif
