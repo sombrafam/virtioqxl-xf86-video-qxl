@@ -133,6 +133,8 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     /* if (debug) */
     xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d\n", m->id);
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
+
+    return TRUE;
 }
 
 /* XXX should use update command not this */
