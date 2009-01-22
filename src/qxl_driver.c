@@ -434,7 +434,11 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     if (!qxlMapMemory(qxl, scrnIndex))
 	goto out;
 
+#ifdef XSERVER_LIBPCIACCESS
     pScrn->videoRam = qxl->pci->regions[1].size / 1024;
+#else
+    pScrn->videoRam = qxl->pci->size[1] / 1024;
+#endif
 
     if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
@@ -541,13 +545,13 @@ qxlProbe(DriverPtr drv, int flags)
     int *usedChips;
     GDevPtr *devSections;
 
-    if ((numDevSections = xf86MatchDevice(qxl, &devSections)) <= 0)
+    if ((numDevSections = xf86MatchDevice(QXL_NAME, &devSections)) <= 0)
 	return FALSE;
 
     if (!xf86GetPciVideoInfo())
 	return FALSE;
 
-    numUsed = xf86MatchPciInstances(qxl, PCI_VENDOR_QUMRANET,
+    numUsed = xf86MatchPciInstances(QXL_NAME, PCI_VENDOR_QUMRANET,
 				    qxlChips, qxlPciChips,
 				    devSections, numDevSections,
 				    drv, &usedChips);
