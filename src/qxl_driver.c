@@ -101,23 +101,39 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 
     qxl->io_base = qxl->pci->regions[3].base_addr;
 #else
+    {
+	int i;
+
+	for (i = 0; i < 6; ++i)
+	{
+	    xf86DrvMsg(scrnIndex, X_INFO, "pci memory %d:\n", i);	
+	    xf86DrvMsg(scrnIndex, X_INFO, "    memBase %p:\n", qxl->pci->memBase[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    size %p:\n", qxl->pci->size[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    type %d:\n", qxl->pci->type[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    ioBase %p:\n", qxl->pci->ioBase[i]);
+	}
+    }
+    
     qxl->cram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
 			      qxl->pciTag, qxl->pci->memBase[0],
-			      qxl->pci->size[0]);
-
+			      (1 << qxl->pci->size[0]));
+    
     qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER, qxl->pciTag,
-			     qxl->pci->memBase[1],
-			     qxl->pci->size[1]);
-
+			      qxl->pci->memBase[1],
+			      (1 << qxl->pci->size[1]));
+    
     qxl->pram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
 			      qxl->pciTag, qxl->pci->memBase[2],
-			      qxl->pci->size[2]);
-
+			      (1 << qxl->pci->size[2]));
+    
     qxl->io_base = qxl->pci->ioBase[3];
 #endif
     if (!qxl->cram || !qxl->vram || !qxl->pram)
 	return FALSE;
 
+    xf86DrvMsg(scrnIndex, X_INFO, "cram at %p; vram at %p; pram at %p\n",
+	       qxl->cram, qxl->vram, qxl->pram);
+    
     return TRUE;
 }
 
@@ -355,6 +371,9 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 	return FALSE;
     }
 
+    xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
+	       qxl->ram_header->magic);
+
     mode_offset = pram[7] / 4;
     qxl->num_modes = pram[mode_offset];
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
@@ -437,8 +456,10 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 #ifdef XSERVER_LIBPCIACCESS
     pScrn->videoRam = qxl->pci->regions[1].size / 1024;
 #else
-    pScrn->videoRam = qxl->pci->size[1] / 1024;
+    pScrn->videoRam = (1 << qxl->pci->size[1]) / 1024;
 #endif
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Video RAM: %d KB (from %d)\n", pScrn->videoRam, qxl->pci->size[1]);
 
     if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
