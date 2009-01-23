@@ -408,7 +408,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     mode_offset = rom->modes_offset / 4;
     qxl->num_modes = ((uint32_t *)rom)[mode_offset];
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
-    qxl->modes = (void *)(rom + mode_offset + 1);
+    qxl->modes = (void *)((uint32_t *)rom + mode_offset + 1);
     for (i = 0; i < qxl->num_modes; i++)
 	qxlPrintMode(scrnIndex, qxl->modes + i);
 
