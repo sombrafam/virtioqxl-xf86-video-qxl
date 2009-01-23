@@ -156,6 +156,8 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
+#if 0
+    
     struct qxl_rect *update_area = &qxl->ram_header->update_area;
 
     update_area->top = box->y1;
@@ -164,6 +166,11 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     update_area->right = box->x2;
 
     outb(qxl->io_base + QXL_IO_UPDATE_AREA, 0);
+#endif
+    ErrorF ("Painting unexpected\n");
+    exit (1);
+    
+    
 }
 
 static void
@@ -439,6 +446,7 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     qxlScreen *qxl = pScrn->driverPrivate;
     int bpp = pScrn->bitsPerPixel;
 
+    /* FIXME: Shouldn't we divide by 8 here? */
     if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
 	return MODE_MEM;
 
@@ -484,16 +492,12 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     if (!qxlMapMemory(qxl, scrnIndex))
 	goto out;
 
-#ifdef XSERVER_LIBPCIACCESS
-    pScrn->videoRam = qxl->pci->regions[0].size / 1024;
-#else
-    pScrn->videoRam = (1 << qxl->pci->size[0]) / 1024;
-#endif
-
-    xf86DrvMsg(scrnIndex, X_INFO, "Video RAM: %d KB (from %d)\n", pScrn->videoRam, qxl->pci->size[1]);
-
     if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
+
+    pScrn->videoRam = qxl->draw_area_size / 1024;
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Video RAM: %d KB (from %d)\n", pScrn->videoRam, qxl->pci->size[1]);
 
     /* ddc stuff here */
 
