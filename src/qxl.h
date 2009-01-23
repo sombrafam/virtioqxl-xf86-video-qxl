@@ -247,6 +247,22 @@ struct qxl_drawable {
     } u;
 };
 
+struct qxl_rom {
+    unsigned int magic;
+    unsigned int id;
+    unsigned int update_id;
+    unsigned int compression_level;
+    unsigned int log_level;
+    unsigned int mode;
+    unsigned int modes_offset;
+    unsigned int num_io_pages;
+    unsigned int pages_offset;
+    unsigned int draw_area_offset;
+    unsigned int draw_area_size;
+    unsigned int ram_header_offset;
+    unsigned int mm_clock;
+};
+
 #define QXL_LOG_BUF_SIZE 4096
 
 struct qxl_ram_header {
@@ -270,7 +286,7 @@ typedef struct _qxlScreen
     /* These are the names QXL uses */
     void *			ram;	/* Video RAM */
     void *			vram;	/* Command RAM */
-    void *			rom;	/* Parameter RAM */
+    struct qxl_rom *		rom;    /* Parameter RAM */
 
     int				num_modes;
     struct qxl_mode *		modes;

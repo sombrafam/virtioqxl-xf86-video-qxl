@@ -86,13 +86,12 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 #ifdef XSERVER_LIBPCIACCESS
     pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
 			 qxl->pci->regions[0].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE,
+			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV-MAP_FLAG_WRITE_COMBINE,
 			 &qxl->ram);
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
 			 qxl->pci->regions[1].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE |
-			    PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+			 PCI_DEV_MAP_FLAG_WRITABLE,
 			 &qxl->vram);
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
@@ -114,12 +113,12 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 	}
     }
     
-    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
 			     qxl->pciTag, qxl->pci->memBase[0],
 			     (1 << qxl->pci->size[0]));
     
-    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER, qxl->pciTag,
-			      qxl->pci->memBase[1],
+    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			      qxl->pciTag, qxl->pci->memBase[1],
 			      (1 << qxl->pci->size[1]));
     
     qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
@@ -335,49 +334,80 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
-    CARD32 *rom = qxl->rom;
+    struct qxl_rom *rom = qxl->rom;
     CARD32 *vram = qxl->vram;
     CARD32 cram_magic;
 
-    if (rom[0] != 0x4f525851) { /* "QXRO" little-endian */
+    if (rom->magic != 0x4f525851) { /* "QXRO" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", rom[0]);
 	return FALSE;
     }
 
     xf86DrvMsg(scrnIndex, X_INFO, "Device version %d.%d\n",
-	       rom[1], rom[2]);
+	       rom->id, rom->update_id);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "Compression level %d, hash level %d, "
-	       "log level %d\n",
-	       rom[3], rom[4], rom[5]);
+    xf86DrvMsg(scrnIndex, X_INFO, "Compression level %d, log level %d\n",
+	       rom->compression_level,
+	       rom->log_level);
 
     xf86DrvMsg(scrnIndex, X_INFO, "Currently using mode #%d, list at 0x%x\n",
-	       rom[6], rom[7]);
+	       rom->mode, rom->modes_offset);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n", rom[8], rom[9]);
-
-    qxl->draw_area_offset = rom[11];
-    qxl->draw_area_size = rom[10];
+    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n",
+	       rom->num_io_pages, rom->pages_offset);
+    
+    qxl->draw_area_offset = rom->draw_area_offset;
+    qxl->draw_area_size = rom->draw_area_size;
     xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
 	       qxl->draw_area_size, qxl->draw_area_offset);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom[12]);
+    xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
-    qxl->ram_header = (void *)(qxl->vram + (rom[12] / 4));
+    qxl->ram_header = (void *)(qxl->ram + rom->ram_header_offset);
 
+    {
+	int i;
+	uint8_t *buf = qxl->vram;
+
+	for (i = 0; i < 4096; ++i)
+	{
+	    if (buf[i] != 0xff)
+		xf86DrvMsg (scrnIndex, X_INFO, "Found at offset %d\n", i);
+	}
+
+	buf = qxl->ram;
+	for (i = 0; i < 64 * 1024 * 1024; ++i)
+	{
+	    if (buf[i] == 0x51)
+	    {
+		xf86DrvMsg (scrnIndex, X_INFO, "Found at ram offset %x: %x %x %x %x\n", i, buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+		break;
+	    }
+	}
+
+#if 0
+	buf = qxl->rom;
+	for (i = 0; i < 8192; ++i)
+	{
+	    if (buf[i] != 0xff)
+		xf86DrvMsg (scrnIndex, X_INFO, "Found at rom offset %d\n", i);
+	}
+#endif
+    }
+    
     if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
-	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x\n",
-		   qxl->ram_header->magic);
+	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",
+		   qxl->ram_header->magic,
+		   &qxl->ram_header->magic);
 	return FALSE;
     }
 
     xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
 	       qxl->ram_header->magic);
 
-    mode_offset = rom[7] / 4;
-    qxl->num_modes = rom[mode_offset];
+    qxl->num_modes = ((uint32_t *)rom)[rom->modes_offset];
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
-    qxl->modes = (void *)(rom + mode_offset + 1);
+    qxl->modes = (void *)((uint32_t *)rom + rom->modes_offset + 1);
     for (i = 0; i < qxl->num_modes; i++)
 	qxlPrintMode(scrnIndex, qxl->modes + i);
 
