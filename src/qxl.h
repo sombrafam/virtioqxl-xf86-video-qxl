@@ -59,36 +59,36 @@ enum {
 };
 
 struct qxl_mode {
-    unsigned int id;
-    unsigned int x_res;
-    unsigned int y_res;
-    unsigned int bits;
-    unsigned int stride;
-    unsigned int x_mili;
-    unsigned int y_mili;
-    unsigned int orientation;
+    uint32_t id;
+    uint32_t x_res;
+    uint32_t y_res;
+    uint32_t bits;
+    uint32_t stride;
+    uint32_t x_mili;
+    uint32_t y_mili;
+    uint32_t orientation;
 };
 
 struct qxl_command {
-    unsigned int data1;
-    unsigned int data2;
-    unsigned int type;
-    unsigned int pad;
+    uint32_t data1;
+    uint32_t data2;
+    uint32_t type;
+    uint32_t pad;
 };
 
 struct qxl_ring_header {
-    unsigned int num_items;
-    unsigned int prod;
-    unsigned int notify_on_prod;
-    unsigned int cons;
-    unsigned int notify_on_cons;
+    uint32_t num_items;
+    uint32_t prod;
+    uint32_t notify_on_prod;
+    uint32_t cons;
+    uint32_t notify_on_cons;
 };
 
 struct qxl_rect {
-    unsigned int top;
-    unsigned int left;
-    unsigned int bottom;
-    unsigned int right;
+    uint32_t top;
+    uint32_t left;
+    uint32_t bottom;
+    uint32_t right;
 };
 
 struct qxl_release_info {
@@ -97,7 +97,7 @@ struct qxl_release_info {
 };
 
 struct qxl_clip {
-    unsigned int type;
+    uint32_t type;
     unsigned long long address;
 };
 
@@ -112,9 +112,9 @@ struct qxl_pattern {
 };
 
 struct qxl_brush {
-    unsigned int type;
+    uint32_t type;
     union {
-	unsigned int color;
+	uint32_t color;
 	struct qxl_pattern pattern;
     } u;
 };
@@ -151,8 +151,8 @@ struct qxl_copy {
 struct qxl_transparent {
     unsigned long long src_bitmap;
     struct qxl_rect src_area;
-    unsigned int src_color;
-    unsigned int true_color;
+    uint32_t src_color;
+    uint32_t true_color;
 };
 
 struct qxl_alpha_blend {
@@ -229,7 +229,7 @@ struct qxl_drawable {
     struct qxl_rect botmap_area;
     struct qxl_rect bbox;
     struct qxl_clip clip;
-    unsigned int mm_time;
+    uint32_t mm_time;
     union {
 	struct qxl_fill fill;
 	struct qxl_opaque opaque;
@@ -248,27 +248,27 @@ struct qxl_drawable {
 };
 
 struct qxl_rom {
-    unsigned int magic;
-    unsigned int id;
-    unsigned int update_id;
-    unsigned int compression_level;
-    unsigned int log_level;
-    unsigned int mode;
-    unsigned int modes_offset;
-    unsigned int num_io_pages;
-    unsigned int pages_offset;
-    unsigned int draw_area_offset;
-    unsigned int draw_area_size;
-    unsigned int ram_header_offset;
-    unsigned int mm_clock;
+    uint32_t magic;
+    uint32_t id;
+    uint32_t update_id;
+    uint32_t compression_level;
+    uint32_t log_level;
+    uint32_t mode;
+    uint32_t modes_offset;
+    uint32_t num_io_pages;
+    uint32_t pages_offset;
+    uint32_t draw_area_offset;
+    uint32_t draw_area_size;
+    uint32_t ram_header_offset;
+    uint32_t mm_clock;
 };
 
 #define QXL_LOG_BUF_SIZE 4096
 
 struct qxl_ram_header {
-    unsigned int magic;
-    unsigned int int_pending;
-    unsigned int int_mask;
+    uint32_t magic;
+    uint32_t int_pending;
+    uint32_t int_mask;
     unsigned char log_buf[QXL_LOG_BUF_SIZE];
     struct qxl_ring_header  cmd_ring_hdr;
     struct qxl_command	    cmd_ring[32];
