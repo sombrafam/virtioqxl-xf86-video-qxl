@@ -32,6 +32,13 @@
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)
 
+struct block
+{
+    
+};
+
+
+
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
 {

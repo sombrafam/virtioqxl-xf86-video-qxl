@@ -76,14 +76,6 @@ struct qxl_command {
     uint32_t pad;
 };
 
-struct qxl_ring_header {
-    uint32_t num_items;
-    uint32_t prod;
-    uint32_t notify_on_prod;
-    uint32_t cons;
-    uint32_t notify_on_cons;
-};
-
 struct qxl_rect {
     uint32_t top;
     uint32_t left;
@@ -92,13 +84,13 @@ struct qxl_rect {
 };
 
 struct qxl_release_info {
-    unsigned long long id;
-    unsigned long long next;
+    uint64_t id;
+    uint64_t next;
 };
 
 struct qxl_clip {
     uint32_t type;
-    unsigned long long address;
+    uint64_t address;
 };
 
 struct qxl_point {
@@ -107,7 +99,7 @@ struct qxl_point {
 };
 
 struct qxl_pattern {
-    unsigned long long pat;
+    uint64_t pat;
     struct qxl_point pos;
 };
 
@@ -122,7 +114,7 @@ struct qxl_brush {
 struct qxl_mask {
     unsigned char flags;
     struct qxl_point pos;
-    unsigned long long bitmap;
+    uint64_t bitmap;
 };
 
 struct qxl_fill {
@@ -132,7 +124,7 @@ struct qxl_fill {
 };
 
 struct qxl_opaque {
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
     struct qxl_brush brush;
     unsigned short rop_descriptor;
@@ -141,7 +133,7 @@ struct qxl_opaque {
 };
 
 struct qxl_copy {
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
     unsigned short rop_descriptor;
     unsigned char scale_mode;
@@ -149,7 +141,7 @@ struct qxl_copy {
 };
 
 struct qxl_transparent {
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
     uint32_t src_color;
     uint32_t true_color;
@@ -157,7 +149,7 @@ struct qxl_transparent {
 
 struct qxl_alpha_blend {
     unsigned char alpha;
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
 };
 
@@ -166,7 +158,7 @@ struct qxl_copy_bits {
 };
 
 struct qxl_blend { /* same as copy */
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
     unsigned short rop_descriptor;
     unsigned char scale_mode;
@@ -174,7 +166,7 @@ struct qxl_blend { /* same as copy */
 };
 
 struct qxl_rop3 {
-    unsigned long long src_bitmap;
+    uint64_t src_bitmap;
     struct qxl_rect src_area;
     struct qxl_brush brush;
     unsigned char rop3;
@@ -189,11 +181,11 @@ struct qxl_line_attr {
     unsigned char style_nseg;
     int width;
     int miter_limit;
-    unsigned long long style;
+    uint64_t style;
 };
 
 struct qxl_stroke {
-    unsigned long long path;
+    uint64_t path;
     struct qxl_line_attr attr;
     struct qxl_brush brush;
     unsigned short fore_mode;
@@ -201,7 +193,7 @@ struct qxl_stroke {
 };
 
 struct qxl_text {
-    unsigned long long str;
+    uint64_t str;
     struct qxl_rect back_area;
     struct qxl_brush fore_brush;
     struct qxl_brush back_brush;
@@ -263,6 +255,14 @@ struct qxl_rom {
     uint32_t mm_clock;
 };
 
+struct qxl_ring_header {
+    uint32_t num_items;
+    uint32_t prod;
+    uint32_t notify_on_prod;
+    uint32_t cons;
+    uint32_t notify_on_cons;
+};
+
 #define QXL_LOG_BUF_SIZE 4096
 
 struct qxl_ram_header {
@@ -275,7 +275,7 @@ struct qxl_ram_header {
     struct qxl_ring_header  cursor_ring_hdr;
     struct qxl_command	    cursor_ring[32];
     struct qxl_ring_header  release_ring_hdr;
-    struct qxl_command	    release_ring[8];
+    uint64_t		    release_ring[8];
     struct qxl_rect	    update_area;
 };
 
