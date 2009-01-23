@@ -42,21 +42,21 @@ static void
 qxlUnmapMemory(qxlScreen *qxl, int scrnIndex)
 {
 #ifdef XSERVER_LIBPCIACCESS
-    if (qxl->cram)
-	pci_device_unmap_range(qxl->pci, qxl->cram, qxl->pci->regions[0].size);
+    if (qxl->ram)
+	pci_device_unmap_range(qxl->pci, qxl->ram, qxl->pci->regions[0].size);
     if (qxl->vram)
 	pci_device_unmap_range(qxl->pci, qxl->vram, qxl->pci->regions[1].size);
-    if (qxl->pram)
-	pci_device_unmap_range(qxl->pci, qxl->pram, qxl->pci->regions[2].size);
+    if (qxl->rom)
+	pci_device_unmap_range(qxl->pci, qxl->rom, qxl->pci->regions[2].size);
 #else
-    if (qxl->cram)
-	xf86UnMapVidMem(scrnIndex, qxl->cram, qxl->pci->size[0]);
+    if (qxl->ram)
+	xf86UnMapVidMem(scrnIndex, qxl->ram, qxl->pci->size[0]);
     if (qxl->vram)
 	xf86UnMapVidMem(scrnIndex, qxl->vram, qxl->pci->size[1]);
-    if (qxl->pram)
-	xf86UnMapVidMem(scrnIndex, qxl->pram, qxl->pci->size[2]);
+    if (qxl->rom)
+	xf86UnMapVidMem(scrnIndex, qxl->rom, qxl->pci->size[2]);
 #endif
-    qxl->cram = qxl->vram = qxl->pram = NULL;
+    qxl->ram = qxl->vram = qxl->rom = NULL;
 }
 
 static Bool
@@ -87,7 +87,7 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
     pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
 			 qxl->pci->regions[0].size,
 			 PCI_DEV_MAP_FLAG_WRITABLE,
-			 &qxl->cram);
+			 &qxl->ram);
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
 			 qxl->pci->regions[1].size,
@@ -97,7 +97,7 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
 			 qxl->pci->regions[2].size, 0,
-			 &qxl->pram);
+			 &qxl->rom);
 
     qxl->io_base = qxl->pci->regions[3].base_addr;
 #else
@@ -114,25 +114,25 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 	}
     }
     
-    qxl->cram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			      qxl->pciTag, qxl->pci->memBase[0],
-			      (1 << qxl->pci->size[0]));
+    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			     qxl->pciTag, qxl->pci->memBase[0],
+			     (1 << qxl->pci->size[0]));
     
     qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER, qxl->pciTag,
 			      qxl->pci->memBase[1],
 			      (1 << qxl->pci->size[1]));
     
-    qxl->pram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			      qxl->pciTag, qxl->pci->memBase[2],
-			      (1 << qxl->pci->size[2]));
+    qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			     qxl->pciTag, qxl->pci->memBase[2],
+			     (1 << qxl->pci->size[2]));
     
     qxl->io_base = qxl->pci->ioBase[3];
 #endif
-    if (!qxl->cram || !qxl->vram || !qxl->pram)
+    if (!qxl->ram || !qxl->vram || !qxl->rom)
 	return FALSE;
 
-    xf86DrvMsg(scrnIndex, X_INFO, "cram at %p; vram at %p; pram at %p\n",
-	       qxl->cram, qxl->vram, qxl->pram);
+    xf86DrvMsg(scrnIndex, X_INFO, "ram at %p; vram at %p; rom at %p\n",
+	       qxl->ram, qxl->vram, qxl->rom);
     
     return TRUE;
 }
@@ -335,35 +335,35 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
-    CARD32 *pram = qxl->pram;
-    CARD32 *cram = qxl->cram;
+    CARD32 *rom = qxl->rom;
+    CARD32 *vram = qxl->vram;
     CARD32 cram_magic;
 
-    if (pram[0] != 0x4f525851) { /* "QXRO" little-endian */
-	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", pram[0]);
+    if (rom[0] != 0x4f525851) { /* "QXRO" little-endian */
+	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", rom[0]);
 	return FALSE;
     }
 
     xf86DrvMsg(scrnIndex, X_INFO, "Device version %d.%d\n",
-	       pram[1], pram[2]);
+	       rom[1], rom[2]);
 
     xf86DrvMsg(scrnIndex, X_INFO, "Compression level %d, hash level %d, "
 	       "log level %d\n",
-	       pram[3], pram[4], pram[5]);
+	       rom[3], rom[4], rom[5]);
 
     xf86DrvMsg(scrnIndex, X_INFO, "Currently using mode #%d, list at 0x%x\n",
-	       pram[6], pram[7]);
+	       rom[6], rom[7]);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n", pram[8], pram[9]);
+    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n", rom[8], rom[9]);
 
-    qxl->draw_area_offset = pram[11];
-    qxl->draw_area_size = pram[10];
+    qxl->draw_area_offset = rom[11];
+    qxl->draw_area_size = rom[10];
     xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
 	       qxl->draw_area_size, qxl->draw_area_offset);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", pram[12]);
+    xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom[12]);
 
-    qxl->ram_header = (void *)(cram + (pram[12] / 4));
+    qxl->ram_header = (void *)(qxl->vram + (rom[12] / 4));
 
     if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x\n",
@@ -374,10 +374,10 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
 	       qxl->ram_header->magic);
 
-    mode_offset = pram[7] / 4;
-    qxl->num_modes = pram[mode_offset];
+    mode_offset = rom[7] / 4;
+    qxl->num_modes = rom[mode_offset];
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
-    qxl->modes = (void *)(pram + mode_offset + 1);
+    qxl->modes = (void *)(rom + mode_offset + 1);
     for (i = 0; i < qxl->num_modes; i++)
 	qxlPrintMode(scrnIndex, qxl->modes + i);
 
@@ -454,9 +454,9 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 	goto out;
 
 #ifdef XSERVER_LIBPCIACCESS
-    pScrn->videoRam = qxl->pci->regions[1].size / 1024;
+    pScrn->videoRam = qxl->pci->regions[0].size / 1024;
 #else
-    pScrn->videoRam = (1 << qxl->pci->size[1]) / 1024;
+    pScrn->videoRam = (1 << qxl->pci->size[0]) / 1024;
 #endif
 
     xf86DrvMsg(scrnIndex, X_INFO, "Video RAM: %d KB (from %d)\n", pScrn->videoRam, qxl->pci->size[1]);

@@ -267,10 +267,10 @@ struct qxl_ram_header {
 
 typedef struct _qxlScreen
 {
-    /* qxl calls these ram, vram, and rom */
-    void *			cram; /* Command RAM */
-    void *			vram; /* Video RAM */
-    void *			pram; /* Parameter RAM */
+    /* These are the names QXL uses */
+    void *			ram;	/* Video RAM */
+    void *			vram;	/* Command RAM */
+    void *			rom;	/* Parameter RAM */
 
     int				num_modes;
     struct qxl_mode *		modes;
