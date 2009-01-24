@@ -70,8 +70,6 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
     if (n_bytes < sizeof (struct block))
 	n_bytes = sizeof (struct block);
 
-    n += (n + 15) % 16;
-    
     assert (mem->unused);
     
     prev = NULL;

@@ -24,7 +24,7 @@ main ()
 
 	if (alloc || allocations->len == 0)
 	{
-	    int size = rand() % 1024;
+	    int size = 80;
 	    
 	    void *x = qxl_alloc (mem, size);
 

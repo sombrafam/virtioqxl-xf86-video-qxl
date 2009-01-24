@@ -28,6 +28,16 @@ qxl_drv_la_LTLIBRARIES = qxl_drv.la
 qxl_drv_la_LDFLAGS = -module -avoid-version
 qxl_drv_ladir = @moduledir@/drivers
 
-qxl_drv_la_SOURCES = \
-	qxl.h \
-	qxl_driver.c
+qxl_drv_la_SOURCES =				\
+	qxl.h					\
+	qxl_driver.c				\
+	qxl_mem.c
+
+noinst_PROGRAMS = mmtest
+
+mmtest_SOURCES =	\
+	mmtest.c	\
+	qxl_mem.c
+
+mmtest_CFLAGS=`pkg-config --cflags glib-2.0`
+mmtest_LDFLAGS=`pkg-config --libs glib-2.0`
