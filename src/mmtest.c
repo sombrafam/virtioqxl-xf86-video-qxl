@@ -5,6 +5,8 @@
 #include "qxl_mem.h"
 
 #define N_BYTES (4096 * 4096 * 8)
+#define g_print(...)
+#define printf(...)
 
 static void
 dump_allocations (GPtrArray *array, const char *header)
