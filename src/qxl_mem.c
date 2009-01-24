@@ -84,15 +84,20 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		new_block = (void *)b + n_bytes;
 		new_block->n_bytes = b->n_bytes - n_bytes;
 
+		printf ("  alloc New block: %p\n", new_block);
+
 		if (prev)
 		{
+		    printf ("  alloc prev: %p\n", prev);
  		    new_block->u.unused.next = prev->u.unused.next;
 		    prev->u.unused.next = new_block;
 		}
 		else
 		{
-		    assert (mem->unused == NULL || mem->unused == b);
-		    
+		    printf ("  alloc no prev\n");
+		    assert (mem->unused == b);
+
+		    new_block->u.unused.next = mem->unused;
 		    mem->unused = new_block;
 		}
 	    }

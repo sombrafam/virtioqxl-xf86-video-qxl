@@ -24,7 +24,7 @@ main ()
 
 	if (alloc || allocations->len == 0)
 	{
-	    int size = 80;
+	    int size = 4 * (rand () % 1024);
 	    
 	    void *x = qxl_alloc (mem, size);
 
@@ -32,7 +32,7 @@ main ()
 	    
 	    g_ptr_array_add (allocations, x);
 
-	    printf ("alloc: %d bytes - %p\n", size, x);
+	    printf ("alloc: %d bytes - %p (%d allocations total)\n", size, x, allocations->len);
 	}
 	else
 	{
