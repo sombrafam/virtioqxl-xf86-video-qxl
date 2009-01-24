@@ -51,7 +51,14 @@ dump_free_list (struct qxl_mem *mem, const char *header)
 
     for (b = mem->unused; b != NULL; b = b->u.unused.next)
     {
-	printf ("  %p\n", b);
+	if (b->u.unused.next && b >= b->u.unused.next)
+	{
+	    printf ("b: %p   b->next: %p\n",
+		    b, b->u.unused.next);
+	    assert (0);
+	}
+	
+	printf ("  %p (size %d)\n", b, b->n_bytes);
     }
 }
 
@@ -88,8 +95,10 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 
 		if (prev)
 		{
+		    assert (prev < b);
+		    assert (prev->u.unused.next == NULL || prev < prev->u.unused.next);
 		    printf ("  alloc prev: %p\n", prev);
- 		    new_block->u.unused.next = prev->u.unused.next;
+ 		    new_block->u.unused.next = b->u.unused.next;
 		    prev->u.unused.next = new_block;
 		}
 		else
@@ -97,7 +106,7 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		    printf ("  alloc no prev\n");
 		    assert (mem->unused == b);
 
-		    new_block->u.unused.next = mem->unused;
+		    new_block->u.unused.next = mem->unused->u.unused.next;
 		    mem->unused = new_block;
 		}
 	    }
@@ -158,7 +167,7 @@ qxl_free (struct qxl_mem *mem, void *d)
 	    
 	if ((void *)before + before->n_bytes == b)
 	{
-	    printf ("  free: merge with before\n");
+	    printf ("  free: merge with before (adding %d bytes)\n", b->n_bytes);
 	    
 	    /* Merge before and b */
 	    before->n_bytes += b->n_bytes;
@@ -173,6 +182,7 @@ qxl_free (struct qxl_mem *mem, void *d)
     }
     else
     {
+	printf ("  free: no before\n");
 	mem->unused = b;
     }
     
@@ -183,6 +193,7 @@ qxl_free (struct qxl_mem *mem, void *d)
 	{
 	    printf ("  merge with after\n");
 	    b->n_bytes += after->n_bytes;
+	    b->u.unused.next = after->u.unused.next;
 	}
 	else
 	{
