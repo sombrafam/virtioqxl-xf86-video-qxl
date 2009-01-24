@@ -51,14 +51,22 @@ dump_free_list (struct qxl_mem *mem, const char *header)
 
     for (b = mem->unused; b != NULL; b = b->u.unused.next)
     {
+	printf ("  %p (size %d)\n", b, b->n_bytes);
+	
 	if (b->u.unused.next && b >= b->u.unused.next)
 	{
 	    printf ("b: %p   b->next: %p\n",
 		    b, b->u.unused.next);
 	    assert (0);
 	}
-	
-	printf ("  %p (size %d)\n", b, b->n_bytes);
+
+	if (b->u.unused.next && (void *)b + b->n_bytes >= b->u.unused.next)
+	{
+	    printf ("OVERLAPPING BLOCKS b: %p   b->next: %p\n",
+		    b, b->u.unused.next);
+	    assert (0);
+	}
+	    
     }
 }
 
@@ -86,7 +94,7 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 	{
 	    struct block *new_block;
 
-	    if (b->n_bytes > n_bytes)
+	    if (b->n_bytes - n_bytes >= sizeof (struct block))
 	    {
 		new_block = (void *)b + n_bytes;
 		new_block->n_bytes = b->n_bytes - n_bytes;
@@ -98,6 +106,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		    assert (prev < b);
 		    assert (prev->u.unused.next == NULL || prev < prev->u.unused.next);
 		    printf ("  alloc prev: %p\n", prev);
+		    printf ("  new.next: %p\n", b->u.unused.next);
+		    
  		    new_block->u.unused.next = b->u.unused.next;
 		    prev->u.unused.next = new_block;
 		}
@@ -110,6 +120,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		    mem->unused = new_block;
 		}
 	    }
+	    else
+		printf ("Exact match\n");
 
 	    b->n_bytes = n_bytes;
 	    return (void *)b->u.used.data;
@@ -157,6 +169,8 @@ qxl_free (struct qxl_mem *mem, void *d)
     struct block *b = d - sizeof (unsigned long);
     struct block *before, *after;
 
+    printf ("freeing %p (%d bytes)\n", b, b->n_bytes);
+    
     dump_free_list (mem, "before free");
     
     find_neighbours (mem, (void *)b, &before, &after);
@@ -206,4 +220,6 @@ qxl_free (struct qxl_mem *mem, void *d)
 	printf ("  free: no after\n");
 	b->u.unused.next = NULL;
     }
+
+    dump_free_list (mem, "after free");
 }

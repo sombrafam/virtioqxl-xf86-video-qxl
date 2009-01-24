@@ -6,6 +6,20 @@
 
 #define N_BYTES (4096 * 4096 * 8)
 
+static void
+dump_allocations (GPtrArray *array, const char *header)
+{
+    int i;
+
+    g_print ("%s: [ ");
+    for (i = 0; i < array->len; ++i)
+    {
+	g_print ("%p (%d), ", array->pdata[i], *((unsigned long *)array->pdata[i] - 1));
+    }
+    g_print (" ]\n");
+    
+}
+
 int
 main ()
 {
@@ -33,15 +47,21 @@ main ()
 	    g_ptr_array_add (allocations, x);
 
 	    printf ("alloc: %d bytes - %p (%d allocations total)\n", size, x, allocations->len);
+	    dump_allocations (allocations, "after alloc");
+
 	}
 	else
 	{
+	    printf ("len: %d\n", allocations->len);
+	    
 	    int n = rand() % allocations->len;
 	    void *x = g_ptr_array_remove_index_fast (allocations, n);
 
-	    printf ("free: %p\n", x);
+	    printf ("free: %p (number %d)\n", x, n);
 	    
 	    qxl_free (mem, x);
+
+	    dump_allocations (allocations, "after free");
 	}
     }
 
