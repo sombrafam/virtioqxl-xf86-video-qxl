@@ -1,4 +1,6 @@
 #include "qxl_mem.h"
+#include <assert.h>
+#include <stdio.h>
 
 struct block
 {
@@ -28,7 +30,7 @@ qxl_mem_create (void *base, unsigned long n_bytes)
 {
     struct qxl_mem *mem = NULL;
 
-    mem = xcalloc (sizeof (*mem), 1);
+    mem = calloc (sizeof (*mem), 1);
     if (!mem)
 	goto out;
 
@@ -40,10 +42,25 @@ out:
     return mem;
 }
 
+static void
+dump_free_list (struct qxl_mem *mem, const char *header)
+{
+    struct block *b;
+    
+    printf ("%s\n", header);
+
+    for (b = mem->unused; b != NULL; b = b->u.unused.next)
+    {
+	printf ("  %p\n", b);
+    }
+}
+
 void *
 qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 {
     struct block *b, *prev;
+
+    dump_free_list (mem, "before alloc");
     
     /* Simply pretend the user asked to allocate the header as well. Then
      * we can mostly ignore the difference between blocks and allocations
@@ -53,6 +70,10 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
     if (n_bytes < sizeof (struct block))
 	n_bytes = sizeof (struct block);
 
+    n += (n + 15) % 16;
+    
+    assert (mem->unused);
+    
     prev = NULL;
     for (b = mem->unused; b != NULL; prev = b, b = b->u.unused.next)
     {
@@ -72,7 +93,7 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		}
 		else
 		{
-		    assert (mem->unused == NULL);
+		    assert (mem->unused == NULL || mem->unused == b);
 		    
 		    mem->unused = new_block;
 		}
@@ -81,7 +102,13 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 	    b->n_bytes = n_bytes;
 	    return (void *)b->u.used.data;
 	}
+	else
+	{
+	    printf ("Skipping small block %d\n", b->n_bytes);
+	}
     }
+
+    return NULL;
 }
 
 /* Finds the unused block before and the unused block after @data. Both
@@ -118,18 +145,26 @@ qxl_free (struct qxl_mem *mem, void *d)
     struct block *b = d - sizeof (unsigned long);
     struct block *before, *after;
 
+    dump_free_list (mem, "before free");
+    
     find_neighbours (mem, (void *)b, &before, &after);
 
     if (before)
     {
+	printf ("  free: merge before: %p\n", before->u.used.data);
+	    
 	if ((void *)before + before->n_bytes == b)
 	{
+	    printf ("  free: merge with before\n");
+	    
 	    /* Merge before and b */
 	    before->n_bytes += b->n_bytes;
 	    b = before;
 	}
 	else
 	{
+	    printf ("  free: no merge with before\n");
+	    
 	    before->u.unused.next = b;
 	}
     }
@@ -140,17 +175,21 @@ qxl_free (struct qxl_mem *mem, void *d)
     
     if (after)
     {
+	printf ("  free: after: %p\n", after->u.used.data);
 	if ((void *)b + b->n_bytes == after)
 	{
+	    printf ("  merge with after\n");
 	    b->n_bytes += after->n_bytes;
 	}
 	else
 	{
+	    printf ("  no merge with after\n");
 	    b->u.unused.next = after;
  	}
     }
     else
     {
+	printf ("  free: no after\n");
 	b->u.unused.next = NULL;
     }
 }
