@@ -119,11 +119,23 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		    new_block->u.unused.next = mem->unused->u.unused.next;
 		    mem->unused = new_block;
 		}
+
+		b->n_bytes = n_bytes;
 	    }
 	    else
+	    {
 		printf ("Exact match\n");
 
-	    b->n_bytes = n_bytes;
+		if (prev)
+		{
+		    prev->u.unused.next = b->u.unused.next;
+		}
+		else
+		{
+		    mem->unused = b->u.unused.next;
+		}
+	    }
+
 	    return (void *)b->u.used.data;
 	}
 	else
