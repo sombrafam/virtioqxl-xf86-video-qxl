@@ -40,7 +40,7 @@ struct block
 
 static struct qxl_drawable *
 make_drawable (qxlScreen *qxl, uint8_t type,
-	       struct qxl_rect *rect
+	       const struct qxl_rect *rect
 	       /* , pRegion clip */)
 {
     struct qxl_drawable *drawable = qxl_alloc (qxl->mem, sizeof *drawable);
@@ -49,9 +49,13 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     drawable->release_info.id = 0;
     drawable->release_info.next = 0;
 
+    drawable->type = type;
     drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
     drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+
+    if (rect)
+	drawable->bbox = *rect;
 
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
@@ -60,9 +64,47 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 }
 
 static void
-submit_random_fill (qxlScreen *qxl)
+wait_for_command_ring (qxlScreen *qxl)
 {
     
+}
+
+static void
+push_command_ring (qxlScreen *qxl)
+{
+    
+}
+
+void
+push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
+{
+    struct qxl_command *cmd;
+
+    wait_for_command_ring (qxl);
+
+#if 0
+    cmd = RING_PROD_ITEM (qxl->ram_header->cmd_ring);
+    cmd->type = QXL_CMD_DRAW;
+    cmd->data = PHYSICAL_ADDRESS (drawable);
+#endif
+
+    push_command (qxl);
+}
+
+    
+static void
+submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
+{
+    struct qxl_drawable *drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
+
+    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
+    drawable->u.fill.brush.u.color = rand();
+    drawable->u.fill.rop_descriptor = 0x07;
+    drawable->u.fill.mask.flags = 0;
+    drawable->u.fill.mask.pos.x = 0;
+    drawable->u.fill.mask.pos.y = 0;
+    drawable->u.fill.mask.bitmap = 0;
+
 }
 
 static Bool

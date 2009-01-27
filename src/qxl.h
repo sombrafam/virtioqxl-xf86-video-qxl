@@ -69,6 +69,15 @@ struct qxl_mode {
     uint32_t orientation;
 };
 
+typedef enum
+{
+    QXL_CMD_NOP,
+    QXL_CMD_DRAW,
+    QXL_CMD_UPDATE,
+    QXL_CMD_CURSOR,
+    QXL_CMD_MESSAGE
+} qxl_command_type;
+
 struct qxl_command {
     uint32_t data1;
     uint32_t data2;
@@ -102,6 +111,13 @@ struct qxl_pattern {
     uint64_t pat;
     struct qxl_point pos;
 };
+
+typedef enum
+{
+    QXL_BRUSH_TYPE_NONE,
+    QXL_BRUSH_TYPE_SOLID,
+    QXL_BRUSH_TYPE_PATTERN
+} qxl_brush_type;
 
 struct qxl_brush {
     uint32_t type;
@@ -233,12 +249,22 @@ typedef enum
     QXL_CLIP_TYPE_PATH,
 } qxl_clip_type;
 
-typedef enum
-{
-    QXL_BRUSH_TYPE_NONE,
-    QXL_BRUSH_TYPE_SOLID,
-    QXL_BRUSH_TYPE_PATTERN,
-} qxl_brush_type;
+typedef enum {
+    QXL_DRAW_NOP,
+    QXL_DRAW_FILL,
+    QXL_DRAW_OPAQUE,
+    QXL_DRAW_COPY,
+    QXL_COPY_BITS,
+    QXL_DRAW_BLEND,
+    QXL_DRAW_BLACKNESS,
+    QXL_DRAW_WHITENESS,
+    QXL_DRAW_INVERS,
+    QXL_DRAW_ROP3,
+    QXL_DRAW_STROKE,
+    QXL_DRAW_TEXT,
+    QXL_DRAW_TRANSPARENT,
+    QXL_DRAW_ALPHA_BLEND,
+} qxl_draw_type;
 
 struct qxl_drawable {
     struct qxl_release_info release_info;
