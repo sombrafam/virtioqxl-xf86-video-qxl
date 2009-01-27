@@ -28,6 +28,7 @@
  */
 
 #include "qxl.h"
+#include "qxl_mem.h"
 
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)
@@ -37,7 +38,32 @@ struct block
     
 };
 
+static struct qxl_drawable *
+make_drawable (qxlScreen *qxl, uint8_t type,
+	       struct qxl_rect *rect
+	       /* , pRegion clip */)
+{
+    struct qxl_drawable *drawable = qxl_alloc (qxl->mem, sizeof *drawable);
 
+    /* FIXME: we are leaking */
+    drawable->release_info.id = 0;
+    drawable->release_info.next = 0;
+
+    drawable->effect = QXL_EFFECT_BLEND;
+    drawable->bitmap_offset = 0;
+    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+
+    /* FIXME: add clipping */
+    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+
+    return drawable;
+}
+
+static void
+submit_random_fill (qxlScreen *qxl)
+{
+    
+}
 
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
@@ -377,37 +403,9 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
-    qxl->ram_header = (void *)(qxl->ram + rom->ram_header_offset);
+    qxl->ram_header = qxl->ram + rom->ram_header_offset;
 
-    {
-	int i;
-	uint8_t *buf = qxl->vram;
-
-	for (i = 0; i < 4096; ++i)
-	{
-	    if (buf[i] != 0xff)
-		xf86DrvMsg (scrnIndex, X_INFO, "Found at offset %d\n", i);
-	}
-
-	buf = qxl->ram;
-	for (i = 0; i < 64 * 1024 * 1024; ++i)
-	{
-	    if (buf[i] == 0x51)
-	    {
-		xf86DrvMsg (scrnIndex, X_INFO, "Found at ram offset %x: %x %x %x %x\n", i, buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
-		break;
-	    }
-	}
-
-#if 0
-	buf = qxl->rom;
-	for (i = 0; i < 8192; ++i)
-	{
-	    if (buf[i] != 0xff)
-		xf86DrvMsg (scrnIndex, X_INFO, "Found at rom offset %d\n", i);
-	}
-#endif
-    }
+    qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset, rom->num_io_pages * getpagesize());
     
     if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",
@@ -504,8 +502,6 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 
     pScrn->videoRam = qxl->draw_area_size / 1024;
 
-    xf86DrvMsg(scrnIndex, X_INFO, "Video RAM: %d KB (from %d)\n", pScrn->videoRam, qxl->pci->size[1]);
-
     /* ddc stuff here */
 
     clockRanges = xnfcalloc(sizeof(ClockRange), 1);
@@ -535,8 +531,10 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 	!xf86LoadSubModule(pScrn, "shadow"))
 	goto out;
 
+#if 0
     /* hate */
     qxlUnmapMemory(qxl, scrnIndex);
+#endif
 
     xf86DrvMsg(scrnIndex, X_INFO, "PreInit complete\n");
     return TRUE;

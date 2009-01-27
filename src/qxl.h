@@ -213,12 +213,39 @@ struct qxl_whiteness {
     struct qxl_mask mask;
 };
 
+/* Effects */
+typedef enum
+{
+    QXL_EFFECT_BLEND,
+    QXL_EFFECT_OPAQUE,
+    QXL_EFFECT_REVERT_ON_DUP,
+    QXL_EFFECT_BLACKNESS_ON_DUP,
+    QXL_EFFECT_WHITENESS_ON_DUP,
+    QXL_EFFECT_NOP_ON_DUP,
+    QXL_EFFECT_NOP,
+    QXL_EFFECT_OPAQUE_BRUSH
+} qxl_effect_type;
+
+typedef enum
+{
+    QXL_CLIP_TYPE_NONE,
+    QXL_CLIP_TYPE_RECTS,
+    QXL_CLIP_TYPE_PATH,
+} qxl_clip_type;
+
+typedef enum
+{
+    QXL_BRUSH_TYPE_NONE,
+    QXL_BRUSH_TYPE_SOLID,
+    QXL_BRUSH_TYPE_PATTERN,
+} qxl_brush_type;
+
 struct qxl_drawable {
     struct qxl_release_info release_info;
     unsigned char effect;
     unsigned char type;
     unsigned short bitmap_offset;
-    struct qxl_rect botmap_area;
+    struct qxl_rect bitmap_area;
     struct qxl_rect bbox;
     struct qxl_clip clip;
     uint32_t mm_time;
@@ -297,6 +324,8 @@ typedef struct _qxlScreen
 
     void *			fb;
 
+    struct qxl_mem *		mem;	/* Context for qxl_alloc/free */
+    
     EntityInfoPtr		entity;
 
 #ifdef XSERVER_LIBPCIACCESS
