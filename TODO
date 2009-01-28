@@ -5,3 +5,15 @@
 
 - Get rid of qxl_mem.h header; just use qxl.h
 
+
+Question:
+
+- What is the "vram" PCI range used for? 
+
+  As I read the Windows driver, it can be mapped with the ioctl
+  VIDEO_MAP_VIDEO_MEMORY. In driver.c it is mapped as pdev->fb, but
+  it is then never used for anything as far as I can tell.
+
+  Does Windows itself use that ioctl, and if so, for what. The area
+  is only 32K in size so it can't really be used for any realistic
+  bitmaps.

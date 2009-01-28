@@ -77,6 +77,8 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     mem_barrier();                                  \
     (notify) = (r)->prod == (r)->notify_on_prod;
 
+#define RING_PROD_ITEM(r) (&(r)->items[(r)->prod & RING_INDEX_MASK(r)].el)
+
 static void
 wait_for_command_ring (qxlScreen *qxl)
 {
@@ -104,35 +106,29 @@ push_command (qxlScreen *qxl)
 	outb (qxl->io_base + QXL_IO_NOTIFY_CMD, 0);
 }
 
+static uint64_t
+physical_address (qxlScreen *qxl, void *virtual)
+{
+    return (uint64_t) ((qxl->io_pages_physical - qxl->io_pages) + virtual);
+}
+
 void
 push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
 {
+    struct qxl_command *cmd;
+    struct qxl_ring_header *hdr;
+    int idx;
+    
     wait_for_command_ring (qxl);
 
-#if 0
-    cmd = RING_PROD_ITEM (qxl->ram_header->cmd_ring);
+    hdr = &(qxl->ram_header->cmd_ring_hdr);
+    idx = hdr->prod & (hdr->num_items - 1);
+    cmd = &(qxl->ram_header->cmd_ring[idx]);
+    
     cmd->type = QXL_CMD_DRAW;
-    cmd->data = PHYSICAL_ADDRESS (drawable);
-#endif
+    cmd->data = physical_address (qxl, drawable);
 
     push_command (qxl);
-}
-
-    
-static void
-submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
-{
-    struct qxl_drawable *drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
-
-    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
-    drawable->u.fill.brush.u.color = rand();
-    drawable->u.fill.rop_descriptor = 0x07;
-    drawable->u.fill.mask.flags = 0;
-    drawable->u.fill.mask.pos.x = 0;
-    drawable->u.fill.mask.pos.y = 0;
-    drawable->u.fill.mask.bitmap = 0;
-
-    push_drawable (qxl, drawable);
 }
 
 static Bool
@@ -255,10 +251,35 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     return TRUE;
 }
 
+static void
+submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
+{
+    struct qxl_drawable *drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
+
+    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
+    drawable->u.fill.brush.u.color = rand();
+    drawable->u.fill.rop_descriptor = 0x07;
+    drawable->u.fill.mask.flags = 0;
+    drawable->u.fill.mask.pos.x = 0;
+    drawable->u.fill.mask.pos.y = 0;
+    drawable->u.fill.mask.bitmap = 0;
+
+    push_drawable (qxl, drawable);
+}
+
 /* XXX should use update command not this */
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
+    struct qxl_rect qrect;
+
+    qrect.top = box->y1;
+    qrect.left = box->x1;
+    qrect.bottom = box->y2;
+    qrect.right = box->x2;
+    
+    submit_random_fill (qxl, &qrect);
+    
 #if 0
     
     struct qxl_rect *update_area = &qxl->ram_header->update_area;
@@ -463,7 +484,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n",
 	       rom->num_io_pages, rom->pages_offset);
-    
+
     qxl->draw_area_offset = rom->draw_area_offset;
     qxl->draw_area_size = rom->draw_area_size;
     xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
@@ -474,6 +495,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     qxl->ram_header = qxl->ram + rom->ram_header_offset;
 
     qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset, rom->num_io_pages * getpagesize());
+    qxl->io_pages = qxl->ram + rom->pages_offset;
+    qxl->io_pages_physical = (void *)qxl->pci->memBase[0] + rom->pages_offset;
     
     if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",

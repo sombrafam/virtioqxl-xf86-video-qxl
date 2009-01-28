@@ -79,8 +79,7 @@ typedef enum
 } qxl_command_type;
 
 struct qxl_command {
-    uint32_t data1;
-    uint32_t data2;
+    uint64_t data;
     uint32_t type;
     uint32_t pad;
 };
@@ -354,6 +353,9 @@ typedef struct _qxlScreen
     
     EntityInfoPtr		entity;
 
+    void *			io_pages;
+    void *			io_pages_physical;
+    
 #ifdef XSERVER_LIBPCIACCESS
     struct pci_device *		pci;
 #else
