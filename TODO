@@ -1,0 +1,7 @@
+- Only compile mmtest if glib is installed
+	Or maybe just get rid of mmtest.c
+
+- Split out ring code into qxl_ring.c
+
+- Get rid of qxl_mem.h header; just use qxl.h
+

@@ -27,6 +27,7 @@
  * in qemu.
  */
 
+#include <unistd.h>
 #include "qxl.h"
 #include "qxl_mem.h"
 
@@ -63,23 +64,49 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     return drawable;
 }
 
+#define RING_PROD_WAIT(r, wait)			 \
+    if (((wait) = RING_IS_FULL(r))) {		 \
+        (r)->notify_on_cons = (r)->cons + 1;	 \
+        mem_barrier();	                         \
+        (wait) = RING_IS_FULL(r);		 \
+    }
+
+#define RING_IS_FULL(r) (((r)->prod - (r)->cons) == (r)->num_items)
+#define RING_PUSH(r, notify)			    \
+    (r)->prod++;				    \
+    mem_barrier();                                  \
+    (notify) = (r)->prod == (r)->notify_on_prod;
+
 static void
 wait_for_command_ring (qxlScreen *qxl)
 {
-    
+    int wait;
+
+retry:
+    RING_PROD_WAIT (&(qxl->ram_header->cmd_ring_hdr), wait);
+
+    if (wait)
+    {
+	usleep (10);
+	
+	goto retry;
+    }
 }
 
 static void
-push_command_ring (qxlScreen *qxl)
+push_command (qxlScreen *qxl)
 {
+    int notify;
     
+    RING_PUSH (&qxl->ram_header->cmd_ring_hdr, notify);
+
+    if (notify)
+	outb (qxl->io_base + QXL_IO_NOTIFY_CMD, 0);
 }
 
 void
 push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
 {
-    struct qxl_command *cmd;
-
     wait_for_command_ring (qxl);
 
 #if 0
@@ -105,6 +132,7 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable->u.fill.mask.pos.y = 0;
     drawable->u.fill.mask.bitmap = 0;
 
+    push_drawable (qxl, drawable);
 }
 
 static Bool
@@ -181,10 +209,10 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 	for (i = 0; i < 6; ++i)
 	{
 	    xf86DrvMsg(scrnIndex, X_INFO, "pci memory %d:\n", i);	
-	    xf86DrvMsg(scrnIndex, X_INFO, "    memBase %p:\n", qxl->pci->memBase[i]);
-	    xf86DrvMsg(scrnIndex, X_INFO, "    size %p:\n", qxl->pci->size[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    memBase %lx:\n", qxl->pci->memBase[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    size %x:\n", qxl->pci->size[i]);
 	    xf86DrvMsg(scrnIndex, X_INFO, "    type %d:\n", qxl->pci->type[i]);
-	    xf86DrvMsg(scrnIndex, X_INFO, "    ioBase %p:\n", qxl->pci->ioBase[i]);
+	    xf86DrvMsg(scrnIndex, X_INFO, "    ioBase %lx:\n", qxl->pci->ioBase[i]);
 	}
     }
     
@@ -417,11 +445,9 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
     struct qxl_rom *rom = qxl->rom;
-    CARD32 *vram = qxl->vram;
-    CARD32 cram_magic;
 
     if (rom->magic != 0x4f525851) { /* "QXRO" little-endian */
-	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", rom[0]);
+	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", rom->magic);
 	return FALSE;
     }
 
