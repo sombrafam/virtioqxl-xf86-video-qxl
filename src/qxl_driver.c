@@ -34,6 +34,8 @@
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)
 
+#define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
+
 struct block
 {
     
@@ -44,8 +46,19 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 	       const struct qxl_rect *rect
 	       /* , pRegion clip */)
 {
-    struct qxl_drawable *drawable = qxl_alloc (qxl->mem, sizeof *drawable);
+    CHECK_POINT();
+    
+    struct qxl_drawable *drawable;
 
+    ErrorF ("qxl: %p\n", qxl);
+    ErrorF ("mem: %p\n", qxl->mem);
+    
+    drawable = qxl_alloc (qxl->mem, sizeof *drawable);
+
+    CHECK_POINT();
+
+    ErrorF ("Allocated drawable at %p\n", drawable);
+    
     /* FIXME: we are leaking */
     drawable->release_info.id = 0;
     drawable->release_info.next = 0;
@@ -61,6 +74,8 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
 
+    CHECK_POINT();
+    
     return drawable;
 }
 
@@ -254,8 +269,14 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 static void
 submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
 {
-    struct qxl_drawable *drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
+    struct qxl_drawable *drawable;
 
+    CHECK_POINT();
+    
+    make_drawable (qxl, QXL_DRAW_FILL, rect);
+
+    CHECK_POINT();
+    
     drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
     drawable->u.fill.brush.u.color = rand();
     drawable->u.fill.rop_descriptor = 0x07;
@@ -279,6 +300,8 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.right = box->x2;
     
     submit_random_fill (qxl, &qrect);
+
+    static int i;
     
 #if 0
     
@@ -291,8 +314,10 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 
     outb(qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 #endif
-    ErrorF ("Painting unexpected\n");
+    ErrorF ("Submitted command %d\n", i);
+#if 0
     exit (1);
+#endif
     
     
 }
@@ -300,12 +325,18 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 static void
 qxlShadowUpdate(ScreenPtr pScreen, shadowBufPtr pBuf)
 {
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
     RegionPtr damage = shadowDamage(pBuf);
     int nbox = REGION_NUM_RECTS(damage);
     BoxPtr pbox = REGION_RECTS(damage);
 
+    /* We can't use pBuf->closure, because the RHEL 5 server sets it
+     * to 0 unconditionally
+     */
+    
     while (nbox--)
-	qxlShadowUpdateArea(pBuf->closure, pbox++);
+	qxlShadowUpdateArea(qxl, pbox++);
 }
 
 static Bool
@@ -322,8 +353,14 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     if (!ret)
 	return FALSE;
 
-    shadowAdd(pScreen, pScreen->GetScreenPixmap(pScreen), qxlShadowUpdate,
-	      NULL, 0, qxl);
+    ErrorF ("Adding with %p\n", qxl);
+
+    /* Note that while shdaowAdd has a @closure argument, in the RHEL 5
+     * server this is not actually passed along in the shadowBuf, so
+     * we can't use it..
+     */
+    shadowAdd (pScreen, pScreen->GetScreenPixmap(pScreen), qxlShadowUpdate,
+	       NULL, 0, 0);
 
     return TRUE;
 }
@@ -467,6 +504,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int i, mode_offset;
     struct qxl_rom *rom = qxl->rom;
 
+    CHECK_POINT();
+    
     if (rom->magic != 0x4f525851) { /* "QXRO" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad ROM signature %x\n", rom->magic);
 	return FALSE;
@@ -524,6 +563,8 @@ qxlFindNativeMode(ScrnInfoPtr pScrn, DisplayModePtr p)
     int i;
     qxlScreen *qxl = pScrn->driverPrivate;
 
+    CHECK_POINT();
+    
     for (i = 0; i < qxl->num_modes; i++) {
 	struct qxl_mode *m = qxl->modes + i;
 	if (m->x_res == p->HDisplay &&
@@ -561,6 +602,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     ClockRangePtr clockRanges = NULL;
     int *linePitches = NULL;
 
+    CHECK_POINT();
+    
     /* zaphod mode is for suckers and i choose not to implement it */
     if (xf86IsEntityShared(pScrn->entityList[0])) {
 	xf86DrvMsg(scrnIndex, X_ERROR, "No Zaphod mode for you\n");

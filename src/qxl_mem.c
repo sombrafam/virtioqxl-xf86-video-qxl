@@ -1,3 +1,4 @@
+#include "qxl.h"
 #include "qxl_mem.h"
 #include <assert.h>
 #include <stdio.h>
@@ -51,8 +52,6 @@ dump_free_list (struct qxl_mem *mem, const char *header)
 
     for (b = mem->unused; b != NULL; b = b->u.unused.next)
     {
-	printf ("  %p (size %d)\n", b, b->n_bytes);
-	
 	if (b->u.unused.next && b >= b->u.unused.next)
 	{
 	    printf ("b: %p   b->next: %p\n",
@@ -99,11 +98,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 	    if (b->n_bytes - n_bytes >= sizeof (struct block))
 	    {
 		new_block = (void *)b + n_bytes;
-		new_block->n_bytes = b->n_bytes - n_bytes;
 
-#if 0
-		printf ("  alloc New block: %p\n", new_block);
-#endif
+		new_block->n_bytes = b->n_bytes - n_bytes;
 
 		if (prev)
 		{
