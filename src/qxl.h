@@ -44,7 +44,7 @@
 
 #define PCI_CHIP_QXL_0100	0x0100
 
-#pragma pack(push)
+#pragma pack(push,1)
 
 /* I/O port definitions */
 enum {

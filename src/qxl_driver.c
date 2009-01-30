@@ -69,13 +69,21 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     
     drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
-    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+    drawable->bitmap_area.top = 0;
+    drawable->bitmap_area.left = 0;
+    drawable->bitmap_area.bottom = 0;
+    drawable->bitmap_area.right = 0;
+    /* FIXME: add clipping */
+    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+
+    ErrorF ("bitmap area offset: %x\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
+    ErrorF ("bbox offset: %x\n", (void *)&(drawable->bbox) - (void *)drawable);
+    ErrorF ("Clip address offset: %x\n", (void *)&(drawable->clip) -(void *)drawable);
 
     if (rect)
 	drawable->bbox = *rect;
-
-    /* FIXME: add clipping */
-    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+	
+    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
 
     CHECK_POINT();
     
