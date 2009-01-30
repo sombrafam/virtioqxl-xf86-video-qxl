@@ -64,6 +64,9 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     drawable->release_info.next = 0;
 
     drawable->type = type;
+
+    ErrorF ("type is %d at %p\n", drawable->type, &(drawable->type));
+    
     drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
     drawable->mm_time = 100;    /* FIXME: should read this from the rom */
@@ -143,6 +146,18 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     cmd->type = QXL_CMD_DRAW;
     cmd->data = physical_address (qxl, drawable);
 
+    ErrorF ("Phsyical address: %lx\n", cmd->data);
+    ErrorF ("virtual address:  %lx\n", drawable);
+    ErrorF ("phys delta:       %lx - %lx = %lx  (phys - virt)\n",
+	    qxl->io_pages_physical, qxl->io_pages,
+	    qxl->io_pages_physical - qxl->io_pages);
+
+    ErrorF ("Virtual address of cmd: %lx\n", cmd);
+    ErrorF ("Physical address: %lx\n", physical_address (qxl, cmd));
+    ErrorF ("Submitted physical address: %lx\n", cmd->data);
+
+    ErrorF ("Drawable type at %p: %d\n", &(drawable->type), drawable->type);
+    
     push_command (qxl);
 }
 
@@ -273,7 +288,7 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
 
     CHECK_POINT();
     
-    make_drawable (qxl, QXL_DRAW_FILL, rect);
+    drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
 
     CHECK_POINT();
     
@@ -284,6 +299,13 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable->u.fill.mask.pos.x = 0;
     drawable->u.fill.mask.pos.y = 0;
     drawable->u.fill.mask.bitmap = 0;
+
+    ErrorF ("The drawable has type %d\n", drawable->type);
+    ErrorF ("The bbox is: %d %d %d %d\n",
+	    drawable->bbox.top,
+	    drawable->bbox.left,
+	    drawable->bbox.bottom,
+	    drawable->bbox.right);
 
     push_drawable (qxl, drawable);
 }
@@ -532,6 +554,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
     qxl->ram_header = qxl->ram + rom->ram_header_offset;
+
+    ErrorF ("Phsyical address of ram header: %p\n", physical_address (qxl, qxl->ram_header));
 
     qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset, rom->num_io_pages * getpagesize());
     qxl->io_pages = qxl->ram + rom->pages_offset;

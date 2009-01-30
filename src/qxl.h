@@ -91,7 +91,7 @@ struct qxl_rect {
     uint32_t right;
 };
 
-struct qxl_release_info {
+union qxl_release_info {
     uint64_t id;
     uint64_t next;
 };
@@ -266,7 +266,7 @@ typedef enum {
 } qxl_draw_type;
 
 struct qxl_drawable {
-    struct qxl_release_info release_info;
+    union qxl_release_info release_info;
     unsigned char effect;
     unsigned char type;
     unsigned short bitmap_offset;
