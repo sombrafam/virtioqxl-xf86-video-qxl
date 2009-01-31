@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <glib.h>
-#include "qxl_mem.h"
+#include "qxl.h"
 
 #define N_BYTES (4096 * 4096 * 8)
 #define g_print(...)
@@ -26,7 +26,6 @@ int
 main ()
 {
     void *base = malloc (N_BYTES);
-    int i;
     struct qxl_mem *mem = qxl_mem_create (base, N_BYTES);
     GPtrArray *allocations = g_ptr_array_new ();
     

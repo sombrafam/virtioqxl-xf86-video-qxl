@@ -32,6 +32,7 @@ INCLUDES = -Wall -g
 qxl_drv_la_SOURCES =				\
 	qxl.h					\
 	qxl_driver.c				\
+	qxl_ring.c				\
 	qxl_mem.c
 
 noinst_PROGRAMS = mmtest

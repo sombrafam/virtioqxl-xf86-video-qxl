@@ -351,6 +351,17 @@ struct qxl_ram_header {
 
 #pragma pack(pop)
 
+struct qxl_ring;
+
+struct qxl_ring *qxl_ring_create (struct qxl_ring_header *header,
+				  int                     element_size,
+				  int                     n_elements,
+				  int			  prod_notify);
+void             qxl_ring_push   (struct qxl_ring        *ring,
+				  const void             *element);
+void             qxl_ring_pop    (struct qxl_ring        *ring,
+				  void                   *element);
+
 typedef struct _qxlScreen
 {
     /* These are the names QXL uses */
