@@ -29,7 +29,6 @@
 
 #include <unistd.h>
 #include "qxl.h"
-#include "qxl_mem.h"
 
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)

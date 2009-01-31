@@ -3,9 +3,6 @@
 
 - Split out ring code into qxl_ring.c
 
-- Get rid of qxl_mem.h header; just use qxl.h
-
-
 Question:
 
 - What is the "vram" PCI range used for? 
@@ -17,3 +14,11 @@ Question:
   Does Windows itself use that ioctl, and if so, for what. The area
   is only 32K in size so it can't really be used for any realistic
   bitmaps.
+
+-=-=-=-=-
+
+Done:
+
+- Get rid of qxl_mem.h header; just use qxl.h
+
+
