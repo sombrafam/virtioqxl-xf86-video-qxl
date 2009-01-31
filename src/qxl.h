@@ -369,6 +369,8 @@ typedef struct _qxlScreen
     void *			vram;	/* Command RAM */
     struct qxl_rom *		rom;    /* Parameter RAM */
 
+    struct qxl_ring *		command_ring;
+    
     int				num_modes;
     struct qxl_mode *		modes;
     int				io_base;
