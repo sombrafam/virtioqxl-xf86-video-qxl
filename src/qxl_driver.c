@@ -137,37 +137,6 @@ physical_address (qxlScreen *qxl, void *virtual)
     return (uint64_t) ((qxl->io_pages_physical - qxl->io_pages) + virtual);
 }
 
-void
-push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
-{
-    struct qxl_command *cmd;
-    struct qxl_ring_header *hdr;
-    int idx;
-    
-    wait_for_command_ring (qxl);
-
-    hdr = &(qxl->ram_header->cmd_ring_hdr);
-    idx = hdr->prod & (hdr->num_items - 1);
-    cmd = &(qxl->ram_header->cmd_ring[idx]);
-    
-    cmd->type = QXL_CMD_DRAW;
-    cmd->data = physical_address (qxl, drawable);
-
-    ErrorF ("Phsyical address: %lx\n", cmd->data);
-    ErrorF ("virtual address:  %lx\n", drawable);
-    ErrorF ("phys delta:       %lx - %lx = %lx  (phys - virt)\n",
-	    qxl->io_pages_physical, qxl->io_pages,
-	    qxl->io_pages_physical - qxl->io_pages);
-
-    ErrorF ("Virtual address of cmd: %lx\n", cmd);
-    ErrorF ("Physical address: %lx\n", physical_address (qxl, cmd));
-    ErrorF ("Submitted physical address: %lx\n", cmd->data);
-
-    ErrorF ("Drawable type at %p: %d\n", &(drawable->type), drawable->type);
-    
-    push_command (qxl);
-}
-
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
 {
@@ -286,6 +255,46 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
     return TRUE;
+}
+
+static void
+push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
+{
+    struct qxl_command cmd;
+
+    cmd.type = QXL_CMD_DRAW;
+    cmd.data = physical_address (qxl, drawable);
+
+    qxl_ring_push (qxl->command_ring, &cmd);
+    
+#if 0
+    struct qxl_command *cmd;
+    struct qxl_ring_header *hdr;
+    int idx;
+    
+    wait_for_command_ring (qxl);
+
+    hdr = &(qxl->ram_header->cmd_ring_hdr);
+    idx = hdr->prod & (hdr->num_items - 1);
+    cmd = &(qxl->ram_header->cmd_ring[idx]);
+    
+    cmd->type = QXL_CMD_DRAW;
+    cmd->data = physical_address (qxl, drawable);
+
+    ErrorF ("Phsyical address: %lx\n", cmd->data);
+    ErrorF ("virtual address:  %lx\n", drawable);
+    ErrorF ("phys delta:       %lx - %lx = %lx  (phys - virt)\n",
+	    qxl->io_pages_physical, qxl->io_pages,
+	    qxl->io_pages_physical - qxl->io_pages);
+
+    ErrorF ("Virtual address of cmd: %lx\n", cmd);
+    ErrorF ("Physical address: %lx\n", physical_address (qxl, cmd));
+    ErrorF ("Submitted physical address: %lx\n", cmd->data);
+
+    ErrorF ("Drawable type at %p: %d\n", &(drawable->type), drawable->type);
+    
+    push_command (qxl);
+#endif
 }
 
 static void
@@ -567,6 +576,11 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset, rom->num_io_pages * getpagesize());
     qxl->io_pages = qxl->ram + rom->pages_offset;
     qxl->io_pages_physical = (void *)qxl->pci->memBase[0] + rom->pages_offset;
+
+    qxl->command_ring = qxl_ring_create (&(qxl->ram_header->cmd_ring_hdr),
+					 sizeof (struct qxl_command),
+					 32,
+					 qxl->io_base + QXL_IO_NOTIFY_CMD);
     
     if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",
