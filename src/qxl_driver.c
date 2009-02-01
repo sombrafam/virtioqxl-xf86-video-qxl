@@ -157,19 +157,6 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 
     qxl->io_base = qxl->pci->regions[3].base_addr;
 #else
-    {
-	int i;
-
-	for (i = 0; i < 6; ++i)
-	{
-	    xf86DrvMsg(scrnIndex, X_INFO, "pci memory %d:\n", i);	
-	    xf86DrvMsg(scrnIndex, X_INFO, "    memBase %lx:\n", qxl->pci->memBase[i]);
-	    xf86DrvMsg(scrnIndex, X_INFO, "    size %x:\n", qxl->pci->size[i]);
-	    xf86DrvMsg(scrnIndex, X_INFO, "    type %d:\n", qxl->pci->type[i]);
-	    xf86DrvMsg(scrnIndex, X_INFO, "    ioBase %lx:\n", qxl->pci->ioBase[i]);
-	}
-    }
-    
     qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
 			     qxl->pciTag, qxl->pci->memBase[0],
 			     (1 << qxl->pci->size[0]));
