@@ -40,54 +40,6 @@ struct block
     
 };
 
-static struct qxl_drawable *
-make_drawable (qxlScreen *qxl, uint8_t type,
-	       const struct qxl_rect *rect
-	       /* , pRegion clip */)
-{
-    CHECK_POINT();
-    
-    struct qxl_drawable *drawable;
-
-    ErrorF ("qxl: %p\n", qxl);
-    ErrorF ("mem: %p\n", qxl->mem);
-    
-    drawable = qxl_alloc (qxl->mem, sizeof *drawable);
-
-    CHECK_POINT();
-
-    ErrorF ("Allocated drawable at %p\n", drawable);
-    
-    /* FIXME: we are leaking */
-    drawable->release_info.id = 0;
-    drawable->release_info.next = 0;
-
-    drawable->type = type;
-
-    ErrorF ("type is %d at %p\n", drawable->type, &(drawable->type));
-    
-    drawable->effect = QXL_EFFECT_BLEND;
-    drawable->bitmap_offset = 0;
-    drawable->bitmap_area.top = 0;
-    drawable->bitmap_area.left = 0;
-    drawable->bitmap_area.bottom = 0;
-    drawable->bitmap_area.right = 0;
-    /* FIXME: add clipping */
-    drawable->clip.type = QXL_CLIP_TYPE_NONE;
-
-    ErrorF ("bitmap area offset: %x\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
-    ErrorF ("bbox offset: %x\n", (void *)&(drawable->bbox) - (void *)drawable);
-    ErrorF ("Clip address offset: %x\n", (void *)&(drawable->clip) -(void *)drawable);
-
-    if (rect)
-	drawable->bbox = *rect;
-	
-    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
-
-    CHECK_POINT();
-    
-    return drawable;
-}
 
 #define RING_PROD_WAIT(r, wait)			 \
     if (((wait) = RING_IS_FULL(r))) {		 \
@@ -266,35 +218,55 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     cmd.data = physical_address (qxl, drawable);
 
     qxl_ring_push (qxl->command_ring, &cmd);
-    
-#if 0
-    struct qxl_command *cmd;
-    struct qxl_ring_header *hdr;
-    int idx;
-    
-    wait_for_command_ring (qxl);
+}
 
-    hdr = &(qxl->ram_header->cmd_ring_hdr);
-    idx = hdr->prod & (hdr->num_items - 1);
-    cmd = &(qxl->ram_header->cmd_ring[idx]);
+static struct qxl_drawable *
+make_drawable (qxlScreen *qxl, uint8_t type,
+	       const struct qxl_rect *rect
+	       /* , pRegion clip */)
+{
+    CHECK_POINT();
     
-    cmd->type = QXL_CMD_DRAW;
-    cmd->data = physical_address (qxl, drawable);
+    struct qxl_drawable *drawable;
 
-    ErrorF ("Phsyical address: %lx\n", cmd->data);
-    ErrorF ("virtual address:  %lx\n", drawable);
-    ErrorF ("phys delta:       %lx - %lx = %lx  (phys - virt)\n",
-	    qxl->io_pages_physical, qxl->io_pages,
-	    qxl->io_pages_physical - qxl->io_pages);
-
-    ErrorF ("Virtual address of cmd: %lx\n", cmd);
-    ErrorF ("Physical address: %lx\n", physical_address (qxl, cmd));
-    ErrorF ("Submitted physical address: %lx\n", cmd->data);
-
-    ErrorF ("Drawable type at %p: %d\n", &(drawable->type), drawable->type);
+    ErrorF ("qxl: %p\n", qxl);
+    ErrorF ("mem: %p\n", qxl->mem);
     
-    push_command (qxl);
-#endif
+    drawable = qxl_alloc (qxl->mem, sizeof *drawable);
+
+    CHECK_POINT();
+
+    ErrorF ("Allocated drawable at %p\n", drawable);
+    
+    /* FIXME: we are leaking */
+    drawable->release_info.id = 0;
+    drawable->release_info.next = 0;
+
+    drawable->type = type;
+
+    ErrorF ("type is %d at %p\n", drawable->type, &(drawable->type));
+    
+    drawable->effect = QXL_EFFECT_BLEND;
+    drawable->bitmap_offset = 0;
+    drawable->bitmap_area.top = 0;
+    drawable->bitmap_area.left = 0;
+    drawable->bitmap_area.bottom = 0;
+    drawable->bitmap_area.right = 0;
+    /* FIXME: add clipping */
+    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+
+    ErrorF ("bitmap area offset: %x\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
+    ErrorF ("bbox offset: %x\n", (void *)&(drawable->bbox) - (void *)drawable);
+    ErrorF ("Clip address offset: %x\n", (void *)&(drawable->clip) -(void *)drawable);
+
+    if (rect)
+	drawable->bbox = *rect;
+	
+    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+
+    CHECK_POINT();
+    
+    return drawable;
 }
 
 static void
@@ -710,10 +682,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 	!xf86LoadSubModule(pScrn, "shadow"))
 	goto out;
 
-#if 0
     /* hate */
     qxlUnmapMemory(qxl, scrnIndex);
-#endif
 
     xf86DrvMsg(scrnIndex, X_INFO, "PreInit complete\n");
     return TRUE;

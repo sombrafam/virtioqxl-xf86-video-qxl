@@ -3,6 +3,9 @@
 
 - Split out ring code into qxl_ring.c
 
+- Don't keep the maps around that are just used in preinit
+	(Is there any real reason to not just do the CheckDevice in ScreenInit?)
+
 Question:
 
 - What is the "vram" PCI range used for? 
