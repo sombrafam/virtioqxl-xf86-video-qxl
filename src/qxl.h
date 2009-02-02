@@ -366,17 +366,19 @@ typedef struct _qxlScreen
 {
     /* These are the names QXL uses */
     void *			ram;	/* Video RAM */
+    void *			ram_physical;
     void *			vram;	/* Command RAM */
     struct qxl_rom *		rom;    /* Parameter RAM */
-
+    
     struct qxl_ring *		command_ring;
+    struct qxl_ring *		cursor_ring;
+    struct qxl_ring *		release_ring;
     
     int				num_modes;
     struct qxl_mode *		modes;
     int				io_base;
     int				draw_area_offset;
     int				draw_area_size;
-    struct qxl_ram_header *	ram_header;
 
     void *			fb;
 

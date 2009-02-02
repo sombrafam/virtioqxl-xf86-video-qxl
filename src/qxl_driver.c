@@ -35,60 +35,6 @@
 
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
 
-struct block
-{
-    
-};
-
-
-#define RING_PROD_WAIT(r, wait)			 \
-    if (((wait) = RING_IS_FULL(r))) {		 \
-        (r)->notify_on_cons = (r)->cons + 1;	 \
-        mem_barrier();	                         \
-        (wait) = RING_IS_FULL(r);		 \
-    }
-
-#define RING_IS_FULL(r) (((r)->prod - (r)->cons) == (r)->num_items)
-#define RING_PUSH(r, notify)			    \
-    (r)->prod++;				    \
-    mem_barrier();                                  \
-    (notify) = (r)->prod == (r)->notify_on_prod;
-
-#define RING_PROD_ITEM(r) (&(r)->items[(r)->prod & RING_INDEX_MASK(r)].el)
-
-static void
-wait_for_command_ring (qxlScreen *qxl)
-{
-    int wait;
-
-retry:
-    RING_PROD_WAIT (&(qxl->ram_header->cmd_ring_hdr), wait);
-
-    if (wait)
-    {
-	usleep (10);
-	
-	goto retry;
-    }
-}
-
-static void
-push_command (qxlScreen *qxl)
-{
-    int notify;
-    
-    RING_PUSH (&qxl->ram_header->cmd_ring_hdr, notify);
-
-    if (notify)
-	outb (qxl->io_base + QXL_IO_NOTIFY_CMD, 0);
-}
-
-static uint64_t
-physical_address (qxlScreen *qxl, void *virtual)
-{
-    return (uint64_t) ((qxl->io_pages_physical - qxl->io_pages) + virtual);
-}
-
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
 {
@@ -113,7 +59,53 @@ qxlUnmapMemory(qxlScreen *qxl, int scrnIndex)
     if (qxl->rom)
 	xf86UnMapVidMem(scrnIndex, qxl->rom, qxl->pci->size[2]);
 #endif
-    qxl->ram = qxl->vram = qxl->rom = NULL;
+
+    qxl->ram = qxl->ram_physical = qxl->vram = qxl->rom = NULL;
+}
+
+static Bool
+qxlMapMemory(qxlScreen *qxl, int scrnIndex)
+{
+#ifdef XSERVER_LIBPCIACCESS
+    pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
+			 qxl->pci->regions[0].size,
+			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV-MAP_FLAG_WRITE_COMBINE,
+			 &qxl->ram);
+    qxl->ram_physical = qxl->pci->regions[0].base_addr;
+
+    pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
+			 qxl->pci->regions[1].size,
+			 PCI_DEV_MAP_FLAG_WRITABLE,
+			 &qxl->vram);
+
+    pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
+			 qxl->pci->regions[2].size, 0,
+			 &qxl->rom);
+
+    qxl->io_base = qxl->pci->regions[3].base_addr;
+#else
+    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
+			     qxl->pciTag, qxl->pci->memBase[0],
+			     (1 << qxl->pci->size[0]));
+    qxl->ram_physical = (void *)qxl->pci->memBase[0];
+    
+    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			      qxl->pciTag, qxl->pci->memBase[1],
+			      (1 << qxl->pci->size[1]));
+    
+    qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			     qxl->pciTag, qxl->pci->memBase[2],
+			     (1 << qxl->pci->size[2]));
+    
+    qxl->io_base = qxl->pci->ioBase[3];
+#endif
+    if (!qxl->ram || !qxl->vram || !qxl->rom)
+	return FALSE;
+
+    xf86DrvMsg(scrnIndex, X_INFO, "ram at %p; vram at %p; rom at %p\n",
+	       qxl->ram, qxl->vram, qxl->rom);
+
+    return TRUE;
 }
 
 static Bool
@@ -138,49 +130,6 @@ qxlCloseScreen(int scrnIndex, ScreenPtr pScreen)
 }
 
 static Bool
-qxlMapMemory(qxlScreen *qxl, int scrnIndex)
-{
-#ifdef XSERVER_LIBPCIACCESS
-    pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
-			 qxl->pci->regions[0].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV-MAP_FLAG_WRITE_COMBINE,
-			 &qxl->ram);
-
-    pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
-			 qxl->pci->regions[1].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE,
-			 &qxl->vram);
-
-    pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
-			 qxl->pci->regions[2].size, 0,
-			 &qxl->rom);
-
-    qxl->io_base = qxl->pci->regions[3].base_addr;
-#else
-    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
-			     qxl->pciTag, qxl->pci->memBase[0],
-			     (1 << qxl->pci->size[0]));
-    
-    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			      qxl->pciTag, qxl->pci->memBase[1],
-			      (1 << qxl->pci->size[1]));
-    
-    qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			     qxl->pciTag, qxl->pci->memBase[2],
-			     (1 << qxl->pci->size[2]));
-    
-    qxl->io_base = qxl->pci->ioBase[3];
-#endif
-    if (!qxl->ram || !qxl->vram || !qxl->rom)
-	return FALSE;
-
-    xf86DrvMsg(scrnIndex, X_INFO, "ram at %p; vram at %p; rom at %p\n",
-	       qxl->ram, qxl->vram, qxl->rom);
-    
-    return TRUE;
-}
-
-static Bool
 qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 {
     qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
@@ -194,6 +143,12 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
     return TRUE;
+}
+
+static inline uint64_t
+physical_address (qxlScreen *qxl, void *virtual)
+{
+    return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
 }
 
 static void
@@ -242,9 +197,9 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
 
-    ErrorF ("bitmap area offset: %x\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
-    ErrorF ("bbox offset: %x\n", (void *)&(drawable->bbox) - (void *)drawable);
-    ErrorF ("Clip address offset: %x\n", (void *)&(drawable->clip) -(void *)drawable);
+    ErrorF ("bitmap area offset: %lx\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
+    ErrorF ("bbox offset: %lx\n", (void *)&(drawable->bbox) - (void *)drawable);
+    ErrorF ("Clip address offset: %lx\n", (void *)&(drawable->clip) - (void *)drawable);
 
     if (rect)
 	drawable->bbox = *rect;
@@ -297,26 +252,6 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.right = box->x2;
     
     submit_random_fill (qxl, &qrect);
-
-    static int i;
-    
-#if 0
-    
-    struct qxl_rect *update_area = &qxl->ram_header->update_area;
-
-    update_area->top = box->y1;
-    update_area->left = box->x1;
-    update_area->bottom = box->y2;
-    update_area->right = box->x2;
-
-    outb(qxl->io_base + QXL_IO_UPDATE_AREA, 0);
-#endif
-    ErrorF ("Submitted command %d\n", i);
-#if 0
-    exit (1);
-#endif
-    
-    
 }
 
 static void
@@ -367,6 +302,8 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     qxlScreen *qxl = pScrn->driverPrivate;
+    struct qxl_rom *rom = qxl->rom;
+    struct qxl_ram_header *ram_header = qxl->ram + qxl->rom->ram_header_offset;
 
     if (!qxlMapMemory(qxl, scrnIndex))
 	return FALSE;
@@ -409,6 +346,25 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->CreateScreenResources = pScreen->CreateScreenResources;
     pScreen->CreateScreenResources = qxlCreateScreenResources;
 
+    /* Set up resources */
+    qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset,
+			       rom->num_io_pages * getpagesize());
+    qxl->io_pages = qxl->ram + rom->pages_offset;
+    qxl->io_pages_physical = (void *)qxl->ram_physical + rom->pages_offset;
+
+    qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
+					 sizeof (struct qxl_command),
+					 32,
+					 qxl->io_base + QXL_IO_NOTIFY_CMD);
+    qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring_hdr),
+					sizeof (struct qxl_command),
+					32,
+					qxl->io_base + QXL_IO_NOTIFY_CURSOR);
+    qxl->release_ring = qxl_ring_create (&(ram_header->release_ring_hdr),
+					 sizeof (uint64_t),
+					 8,
+					 0);
+					 
 #if 0 /* EXA accel */
     qxl->exa = qxlExaInit(pScreen);
 #endif
@@ -500,7 +456,8 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
     struct qxl_rom *rom = qxl->rom;
-
+    struct qxl_ram_header *ram_header = qxl->ram + rom->ram_header_offset;
+    
     CHECK_POINT();
     
     if (rom->magic != 0x4f525851) { /* "QXRO" little-endian */
@@ -521,36 +478,25 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n",
 	       rom->num_io_pages, rom->pages_offset);
 
-    qxl->draw_area_offset = rom->draw_area_offset;
-    qxl->draw_area_size = rom->draw_area_size;
     xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
 	       qxl->draw_area_size, qxl->draw_area_offset);
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
-    qxl->ram_header = qxl->ram + rom->ram_header_offset;
-
-    ErrorF ("Phsyical address of ram header: %p\n", physical_address (qxl, qxl->ram_header));
-
-    qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset, rom->num_io_pages * getpagesize());
-    qxl->io_pages = qxl->ram + rom->pages_offset;
-    qxl->io_pages_physical = (void *)qxl->pci->memBase[0] + rom->pages_offset;
-
-    qxl->command_ring = qxl_ring_create (&(qxl->ram_header->cmd_ring_hdr),
-					 sizeof (struct qxl_command),
-					 32,
-					 qxl->io_base + QXL_IO_NOTIFY_CMD);
-    
-    if (qxl->ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
+    if (ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",
-		   qxl->ram_header->magic,
-		   &qxl->ram_header->magic);
+		   ram_header->magic,
+		   &ram_header->magic);
 	return FALSE;
     }
 
     xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
-	       qxl->ram_header->magic);
+	       ram_header->magic);
 
+    qxl->draw_area_offset = rom->draw_area_offset;
+    qxl->draw_area_size = rom->draw_area_size;
+    pScrn->videoRam = rom->draw_area_size / 1024;
+    
     mode_offset = rom->modes_offset / 4;
     qxl->num_modes = ((uint32_t *)rom)[mode_offset];
     xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
@@ -587,9 +533,13 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     qxlScreen *qxl = pScrn->driverPrivate;
     int bpp = pScrn->bitsPerPixel;
 
-    /* FIXME: Shouldn't we divide by 8 here? */
+#if 0
+    /* FIXME: I don't think this is necessary now that we report the
+     * correct amount of video ram?
+     */
     if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
 	return MODE_MEM;
+#endif
 
     p->Private = (void *)qxlFindNativeMode(pScrn, p);
     if (!p->Private)
@@ -637,8 +587,6 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 
     if (!qxlCheckDevice(pScrn, qxl))
 	goto out;
-
-    pScrn->videoRam = qxl->draw_area_size / 1024;
 
     /* ddc stuff here */
 
