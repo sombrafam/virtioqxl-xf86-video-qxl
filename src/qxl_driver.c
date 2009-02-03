@@ -384,9 +384,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
-#if 0 /* hardware cursor */
     qxlCursorInit(pScreen);
-#endif
 
     if (!miCreateDefColormap(pScreen))
 	goto out;

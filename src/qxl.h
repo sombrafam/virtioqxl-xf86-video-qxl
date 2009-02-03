@@ -309,6 +309,38 @@ struct qxl_drawable {
     } u;
 };
 
+enum {
+    QXL_CURSOR_SET,
+    QXL_CURSOR_MOVE,
+    QXL_CURSOR_HIDE,
+    QXL_CURSOR_TRAIL,
+};
+
+#define QXL_CURSOR_DEVICE_DATA_SIZE 128
+
+struct qxl_point16 {
+    int16_t x;
+    int16_t y;
+};
+
+struct qxl_cursor_cmd {
+    union qxl_release_info release_info;
+    uint8_t type;
+    union {
+	struct {
+	    struct qxl_point16 position;
+	    unsigned char visible;
+	    uint64_t shape;
+	} set;
+	struct {
+	    uint16_t length;
+	    uint16_t frequency;
+	} trail;
+	struct qxl_point16 position;
+    } u;
+    uint8_t device_data[QXL_CURSOR_DEVICE_DATA_SIZE];
+};
+
 struct qxl_rom {
     uint32_t magic;
     uint32_t id;
@@ -398,4 +430,9 @@ typedef struct _qxlScreen
 
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr		CloseScreen;
+
+    int16_t			cur_x;
+    int16_t			cur_y;
 } qxlScreen;
+
+extern void qxlCursorInit(ScreenPtr pScreen);
