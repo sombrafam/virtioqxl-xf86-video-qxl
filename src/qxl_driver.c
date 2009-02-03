@@ -69,9 +69,9 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 #ifdef XSERVER_LIBPCIACCESS
     pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
 			 qxl->pci->regions[0].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV-MAP_FLAG_WRITE_COMBINE,
+			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
 			 &qxl->ram);
-    qxl->ram_physical = qxl->pci->regions[0].base_addr;
+    qxl->ram_physical = (void *)qxl->pci->regions[0].base_addr;
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
 			 qxl->pci->regions[1].size,
@@ -203,8 +203,8 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 
     if (rect)
 	drawable->bbox = *rect;
-	
-    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+
+    drawable->mm_time = qxl->rom->mm_clock;
 
     CHECK_POINT();
     
@@ -240,7 +240,6 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     push_drawable (qxl, drawable);
 }
 
-/* XXX should use update command not this */
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
@@ -287,7 +286,7 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 
     ErrorF ("Adding with %p\n", qxl);
 
-    /* Note that while shdaowAdd has a @closure argument, in the RHEL 5
+    /* Note that while shadowAdd has a @closure argument, in the RHEL 5
      * server this is not actually passed along in the shadowBuf, so
      * we can't use it..
      */
