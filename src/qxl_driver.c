@@ -287,7 +287,7 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 
     ErrorF ("Adding with %p\n", qxl);
 
-    /* Note that while shdaowAdd has a @closure argument, in the RHEL 5
+    /* Note that while shadowAdd has a @closure argument, in the RHEL 5
      * server this is not actually passed along in the shadowBuf, so
      * we can't use it..
      */
