@@ -203,8 +203,8 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 
     if (rect)
 	drawable->bbox = *rect;
-	
-    drawable->mm_time = 100;    /* FIXME: should read this from the rom */
+
+    drawable->mm_time = qxl->rom->mm_clock;
 
     CHECK_POINT();
     
