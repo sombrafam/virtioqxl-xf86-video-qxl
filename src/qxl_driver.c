@@ -300,18 +300,30 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
+    CHECK_POINT();
+    
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     qxlScreen *qxl = pScrn->driverPrivate;
-    struct qxl_rom *rom = qxl->rom;
-    struct qxl_ram_header *ram_header = qxl->ram + qxl->rom->ram_header_offset;
+    struct qxl_rom *rom;
+    struct qxl_ram_header *ram_header;
 
+    CHECK_POINT();
+    
     if (!qxlMapMemory(qxl, scrnIndex))
 	return FALSE;
 
+    rom = qxl->rom;
+    ram_header = qxl->ram + qxl->rom->ram_header_offset;
+    
     qxlSaveState(qxl);
     qxlBlankScreen(pScreen, SCREEN_SAVER_ON);
+
+    CHECK_POINT();
+
     qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);
 
+    CHECK_POINT();
+    
     miClearVisualTypes();
     if (!miSetVisualTypes(pScrn->depth, miGetDefaultVisualMask(pScrn->depth),
 			  pScrn->rgbBits, pScrn->defaultVisual))
@@ -339,6 +351,8 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	    }
 	}
     }
+
+    
     fbPictureInit(pScreen, 0, 0);
 
     if (!shadowSetup(pScreen))
@@ -606,6 +620,9 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 			       pScrn->display->virtualY,
 			       128 * 1024 * 1024, LOOKUP_BEST_REFRESH))
 	goto out;
+
+    CHECK_POINT();
+    
     xf86PruneDriverModes(pScrn);
     pScrn->currentMode = pScrn->modes;
     xf86PrintModes(pScrn);
@@ -620,6 +637,8 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     /* hate */
     qxlUnmapMemory(qxl, scrnIndex);
 
+    CHECK_POINT();
+    
     xf86DrvMsg(scrnIndex, X_INFO, "PreInit complete\n");
     return TRUE;
 
