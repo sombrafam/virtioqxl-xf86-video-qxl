@@ -1,11 +1,6 @@
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
 
-- Split out ring code into qxl_ring.c
-
-- Don't keep the maps around that are just used in preinit
-	(Is there any real reason to not just do the CheckDevice in ScreenInit?)
-
 Question:
 
 - What is the "vram" PCI range used for? 
@@ -28,4 +23,7 @@ Done:
 
 - Get rid of qxl_mem.h header; just use qxl.h
 
+- Split out ring code into qxl_ring.c
 
+- Don't keep the maps around that are just used in preinit
+	(Is there any real reason to not just do the CheckDevice in ScreenInit?)

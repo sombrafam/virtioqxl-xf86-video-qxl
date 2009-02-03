@@ -224,7 +224,7 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     
     drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
     drawable->u.fill.brush.u.color = rand();
-    drawable->u.fill.rop_descriptor = 0x07;
+    drawable->u.fill.rop_descriptor = 0xcc;
     drawable->u.fill.mask.flags = 0;
     drawable->u.fill.mask.pos.x = 0;
     drawable->u.fill.mask.pos.y = 0;
