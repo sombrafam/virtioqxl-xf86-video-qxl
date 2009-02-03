@@ -71,7 +71,7 @@ qxlMapMemory(qxlScreen *qxl, int scrnIndex)
 			 qxl->pci->regions[0].size,
 			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
 			 &qxl->ram);
-    qxl->ram_physical = qxl->pci->regions[0].base_addr;
+    qxl->ram_physical = (void *)qxl->pci->regions[0].base_addr;
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
 			 qxl->pci->regions[1].size,
