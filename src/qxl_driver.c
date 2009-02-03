@@ -240,7 +240,6 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     push_drawable (qxl, drawable);
 }
 
-/* XXX should use update command not this */
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
