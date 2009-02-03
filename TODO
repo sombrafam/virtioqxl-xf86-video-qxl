@@ -18,6 +18,10 @@ Question:
   is only 32K in size so it can't really be used for any realistic
   bitmaps.
 
+    It's a required ioctl.  I believe it's needed for DGA-like things.
+    I have no idea how the Windows driver manages syncing for that,
+    but I think we can safely ignore it. [ajax]
+
 -=-=-=-=-
 
 Done:
