@@ -254,6 +254,62 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     push_drawable (qxl, drawable);
 }
 
+static int
+rect_pixels (const struct qxl_rect *rect)
+{
+    return (rect->right - rect->left) * (rect->bottom - rect->top);
+}
+
+/* FIXME: we are assuming here that the bpp is 32 */
+
+static void
+copy_pixels (qxlScreen *qxl, uint32_t *dest, const struct qxl_rect *rect)
+{
+    int i;
+    int j;
+
+    for (i = rect->top; i < rect->bottom; ++i)
+    {
+	for (j = rect->left; j < rect->right; ++j)
+	{
+	    /* FIXME: while gradients look great, that's not
+	     * what we need here
+	     */
+	    dest[i * (rect->right - rect->left) + j] = i * j;
+	}
+    }
+}
+
+static void
+translate_rect (struct qxl_rect *rect)
+{
+    rect->right -= rect->left;
+    rect->bottom -= rect->top;
+    rect->left = rect->top = 0;
+}
+
+static void
+submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
+{
+    struct qxl_drawable *drawable;
+    uint32_t *bitmap = qxl_alloc (qxl->mem, rect_pixels (rect) * 4);
+
+    drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
+
+    drawable->u.copy.src_bitmap = physical_address (qxl, bitmap);
+    drawable->u.copy.src_area = *rect;
+    translate_rect (&drawable->u.copy.src_area);
+    copy_pixels (qxl, bitmap, rect);
+    drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
+    drawable->u.copy.scale_mode = 0;
+    drawable->u.copy.mask.flags = 0;
+    drawable->u.copy.mask.pos.x = 0;
+    drawable->u.copy.mask.pos.y = 0;
+    drawable->u.copy.mask.bitmap = 0;
+
+    push_drawable (qxl, drawable);
+}
+
 static void
 qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
 {
@@ -265,6 +321,9 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.right = box->x2;
     
     submit_random_fill (qxl, &qrect);
+#if 0
+    submit_copy (qxl, &qrect);
+#endif
 }
 
 static void

@@ -150,6 +150,47 @@ struct qxl_mask {
     uint64_t bitmap;
 };
 
+struct qxl_image_descriptor
+{
+    uint64_t id;
+    uint8_t type;
+    uint8_t flags;
+    uint32_t width;
+    uint32_t height;
+};
+
+typedef enum
+{
+    QXL_BITMAP_FMT_INVALID,
+    QXL_BITMAP_FMT_1BIT_LE,
+    QXL_BITMAP_FMT_1BIT_BE,
+    QXL_BITMAP_FMT_4BIT_LE,
+    QXL_BITMAP_FMT_4BIT_BE,
+    QXL_BITMAP_FMT_8BIT,
+    QXL_BITMAP_FMT_16BIT,
+    QXL_BITMAP_FMT_24BIT,
+    QXL_BITMAP_FMT_32BIT,
+    QXL_BITMAP_FMT_RGBA,
+} qxl_bitmap_format;
+
+struct qxl_bitmap {
+    uint8_t format;
+    uint8_t flags;
+    uint32_t x;
+    uint32_t y;
+    uint32_t stride;
+    uint64_t palette;
+    uint64_t data[0];
+};
+
+struct qxl_image {
+    struct qxl_image_descriptor descriptor;
+    union
+    {
+	struct qxl_bitmap bitmap;
+    } u;
+};
+
 struct qxl_fill {
     struct qxl_brush brush;
     unsigned short rop_descriptor;
