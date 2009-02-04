@@ -150,6 +150,16 @@ struct qxl_mask {
     uint64_t bitmap;
 };
 
+typedef enum {
+    QXL_IMAGE_TYPE_BITMAP,
+    QXL_IMAGE_TYPE_QUIC,
+    QXL_IMAGE_TYPE_PNG,
+    QXL_IMAGE_TYPE_LZ_PLT = 100,
+    QXL_IMAGE_TYPE_LZ_RGB,
+    QXL_IMAGE_TYPE_GLZ_RGB,
+    QXL_IMAGE_TYPE_FROM_CACHE,
+} qxl_image_type;
+
 struct qxl_image_descriptor
 {
     uint64_t id;
@@ -173,13 +183,19 @@ typedef enum
     QXL_BITMAP_FMT_RGBA,
 } qxl_bitmap_format;
 
+typedef enum {
+    QXL_BITMAP_PAL_CACHE_ME = (1 << 0),
+    QXL_BITMAP_PAL_FROM_CACHE = (1 << 1),
+    QXL_BITMAP_TOP_DOWN = (1 << 2),
+} qxl_bitmap_flags;
+
 struct qxl_bitmap {
     uint8_t format;
-    uint8_t flags;
-    uint32_t x;
-    uint32_t y;
-    uint32_t stride;
-    uint64_t palette;
+    uint8_t flags;		
+    uint32_t x;			/* actually width */
+    uint32_t y;			/* actually height */
+    uint32_t stride;		/* in bytes */
+    uint64_t palette;		/* Can be NULL */
     uint64_t data[0];
 };
 

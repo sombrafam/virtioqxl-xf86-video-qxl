@@ -28,6 +28,7 @@
  */
 
 #include <unistd.h>
+#include <string.h>
 #include "qxl.h"
 
 #define qxlSaveState(x) do {} while (0)
@@ -160,6 +161,34 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     cmd.data = physical_address (qxl, drawable);
 
     qxl_ring_push (qxl->command_ring, &cmd);
+}
+
+static struct qxl_image *
+make_image (qxlScreen *qxl, const uint32_t *data, int x, int y, int width, int height, int stride)
+{
+    struct qxl_image *image;
+    int size;
+
+    /* FIXME: Check integer overflow */
+    size = sizeof *image + height * stride * sizeof (uint32_t);
+
+    image = qxl_alloc (qxl->mem, size);
+
+    image->descriptor.id = 0;
+    image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
+    image->descriptor.flags = 0;
+    image->descriptor.width = width;
+    image->descriptor.height = height;
+
+    image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
+    image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
+    image->u.bitmap.x = width;
+    image->u.bitmap.y = height;
+    image->u.bitmap.stride = stride;
+
+    memcpy (image->u.bitmap.data, data, size - sizeof (struct qxl_image));
+    
+    return image;
 }
 
 static struct qxl_drawable *
@@ -296,7 +325,11 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
-    drawable->u.copy.src_bitmap = physical_address (qxl, bitmap);
+    drawable->u.copy.src_bitmap = physical_address (
+	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
+			 rect->right - rect->left,
+			 rect->bottom - rect->top,
+			 rect->right - rect->left));
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     copy_pixels (qxl, bitmap, rect);
@@ -321,9 +354,7 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.right = box->x2;
     
     submit_random_fill (qxl, &qrect);
-#if 0
     submit_copy (qxl, &qrect);
-#endif
 }
 
 static void
