@@ -169,6 +169,13 @@ struct qxl_image_descriptor
     uint32_t height;
 };
 
+struct qxl_data_chunk {
+    uint32_t data_size;
+    uint64_t prev_chunk;
+    uint64_t next_chunk;
+    uint8_t data[0];
+};
+
 typedef enum
 {
     QXL_BITMAP_FMT_INVALID,
@@ -196,7 +203,7 @@ struct qxl_bitmap {
     uint32_t y;			/* actually height */
     uint32_t stride;		/* in bytes */
     uint64_t palette;		/* Can be NULL */
-    uint64_t data[0];
+    uint64_t data;		/* A qxl_data_chunk that actually contains the data */
 };
 
 struct qxl_image {

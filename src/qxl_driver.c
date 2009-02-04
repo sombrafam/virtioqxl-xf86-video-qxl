@@ -34,7 +34,10 @@
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)
 
+#if 0
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
+#endif
+#define CHECK_POINT()
 
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
@@ -163,16 +166,43 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     qxl_ring_push (qxl->command_ring, &cmd);
 }
 
-static struct qxl_image *
-make_image (qxlScreen *qxl, const uint32_t *data, int x, int y, int width, int height, int stride)
+static struct qxl_data_chunk *
+make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int height, int stride)
 {
     struct qxl_image *image;
+    struct qxl_data_chunk *chunk;
     int size;
+    int i, j;
+    uint8_t *dest_line;
+    uint8_t *src_line;
+    int dest_stride = width * sizeof (uint32_t);
+
+    data += y * stride + x * sizeof (uint32_t);
+    
+    /* Chunk */
 
     /* FIXME: Check integer overflow */
-    size = sizeof *image + height * stride * sizeof (uint32_t);
+    chunk = qxl_alloc (qxl->mem, sizeof *chunk + height * dest_stride);
+    chunk->data_size = height * dest_stride;
+    chunk->prev_chunk = 0;
+    chunk->next_chunk = 0;
 
-    image = qxl_alloc (qxl->mem, size);
+    for (i = 0; i < height; ++i)
+    {
+	dest_line = chunk->data + i * dest_stride;
+	src_line = data + i * stride;
+
+	for (j = 0; j < width; ++j)
+	{
+	    uint32_t *s = (uint32_t *)src_line;
+	    uint32_t *d = (uint32_t *)dest_line;
+
+	    d[j] = s[j];
+	}
+    }
+
+    /* Image */
+    image = qxl_alloc (qxl->mem, sizeof *image);
 
     image->descriptor.id = 0;
     image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
@@ -184,10 +214,9 @@ make_image (qxlScreen *qxl, const uint32_t *data, int x, int y, int width, int h
     image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
     image->u.bitmap.x = width;
     image->u.bitmap.y = height;
-    image->u.bitmap.stride = stride;
+    image->u.bitmap.stride = width * sizeof (uint32_t);
+    image->u.bitmap.data = physical_address (qxl, chunk);
 
-    memcpy (image->u.bitmap.data, data, size - sizeof (struct qxl_image));
-    
     return image;
 }
 
@@ -200,14 +229,18 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     
     struct qxl_drawable *drawable;
 
+#if 0
     ErrorF ("qxl: %p\n", qxl);
     ErrorF ("mem: %p\n", qxl->mem);
+#endif
     
     drawable = qxl_alloc (qxl->mem, sizeof *drawable);
 
     CHECK_POINT();
 
+#if 0
     ErrorF ("Allocated drawable at %p\n", drawable);
+#endif
     
     /* FIXME: we are leaking */
     drawable->release_info.id = 0;
@@ -215,7 +248,9 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 
     drawable->type = type;
 
+#if 0
     ErrorF ("type is %d at %p\n", drawable->type, &(drawable->type));
+#endif
     
     drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
@@ -226,9 +261,11 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
 
+#if 0
     ErrorF ("bitmap area offset: %lx\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
     ErrorF ("bbox offset: %lx\n", (void *)&(drawable->bbox) - (void *)drawable);
     ErrorF ("Clip address offset: %lx\n", (void *)&(drawable->clip) - (void *)drawable);
+#endif
 
     if (rect)
 	drawable->bbox = *rect;
@@ -273,12 +310,14 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable->u.fill.mask.pos.y = 0;
     drawable->u.fill.mask.bitmap = 0;
 
+#if 0
     ErrorF ("The drawable has type %d\n", drawable->type);
     ErrorF ("The bbox is: %d %d %d %d\n",
 	    drawable->bbox.top,
 	    drawable->bbox.left,
 	    drawable->bbox.bottom,
 	    drawable->bbox.right);
+#endif
 
     push_drawable (qxl, drawable);
 }
@@ -329,10 +368,9 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
 			 rect->right - rect->left,
 			 rect->bottom - rect->top,
-			 rect->right - rect->left));
+			 qxl->modes[qxl->rom->mode].x_res * sizeof (uint32_t)));
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
-    copy_pixels (qxl, bitmap, rect);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
     drawable->u.copy.scale_mode = 0;
     drawable->u.copy.mask.flags = 0;
@@ -387,8 +425,6 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 
     if (!ret)
 	return FALSE;
-
-    ErrorF ("Adding with %p\n", qxl);
 
     /* Note that while shadowAdd has a @closure argument, in the RHEL 5
      * server this is not actually passed along in the shadowBuf, so
@@ -488,7 +524,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
+#if 0
     qxlCursorInit(pScreen);
+#endif
 
     if (!miCreateDefColormap(pScreen))
 	goto out;
