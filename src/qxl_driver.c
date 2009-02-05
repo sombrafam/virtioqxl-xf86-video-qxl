@@ -29,6 +29,7 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
 #include "qxl.h"
 
 #define qxlSaveState(x) do {} while (0)
@@ -38,6 +39,83 @@
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
 #endif
 #define CHECK_POINT()
+
+static inline uint64_t
+physical_address (qxlScreen *qxl, void *virtual)
+{
+    return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
+}
+
+static inline uint64_t
+virtual_address (qxlScreen *qxl, void *physical)
+{
+    return (uint64_t) (physical + (qxl->ram - qxl->ram_physical));
+}
+
+static void
+garbage_collect (qxlScreen *qxl)
+{
+    uint64_t id;
+    int i = 0;
+    
+    while (qxl_ring_pop (qxl->release_ring, &id))
+    {
+	struct qxl_drawable *drawable = (struct qxl_drawable *)id;
+	struct qxl_image *image;
+	struct qxl_data_chunk *chunk;
+
+	switch (drawable->type)
+	{
+	case QXL_DRAW_FILL:
+	    fprintf (stderr, "freeing fill %p\n", drawable);
+	    break;
+
+	case QXL_DRAW_COPY:
+	    fprintf (stderr, "freeing copy %p\n", drawable);
+	    
+	    image = virtual_address (qxl, drawable->u.copy.src_bitmap);
+	    chunk = virtual_address (qxl, image->u.bitmap.data);
+
+	    fprintf (stderr, "image: %p. chunk %p\n", image, chunk);
+	    
+	    qxl_free (qxl->mem, image);
+	    qxl_free (qxl->mem, chunk);
+	    break;
+
+	default:
+	    fprintf (stderr, "freeing something else (%p)\n", drawable);
+	    break;
+	}
+
+	qxl_free (qxl->mem, drawable);
+    }
+}
+
+static void *
+qxl_allocnf (qxlScreen *qxl, unsigned long size)
+{
+    void *result;
+    int n_attempts = 0;
+
+    garbage_collect (qxl);
+    
+    while (!(result = qxl_alloc (qxl->mem, size)))
+    {
+	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
+
+	usleep (100);
+	
+	garbage_collect (qxl);
+
+	if (++n_attempts == 1)
+	{
+	    xf86DrvMsg (0, X_ERROR, "No more video memory available\n");
+	    exit (1);
+	}
+    }
+
+    return result;
+}
 
 static Bool
 qxlBlankScreen(ScreenPtr pScreen, int mode)
@@ -149,12 +227,6 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     return TRUE;
 }
 
-static inline uint64_t
-physical_address (qxlScreen *qxl, void *virtual)
-{
-    return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
-}
-
 static void
 push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
 {
@@ -181,7 +253,7 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     /* Chunk */
 
     /* FIXME: Check integer overflow */
-    chunk = qxl_alloc (qxl->mem, sizeof *chunk + height * dest_stride);
+    chunk = qxl_allocnf (qxl, sizeof *chunk + height * dest_stride);
     chunk->data_size = height * dest_stride;
     chunk->prev_chunk = 0;
     chunk->next_chunk = 0;
@@ -201,7 +273,7 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     }
 
     /* Image */
-    image = qxl_alloc (qxl->mem, sizeof *image);
+    image = qxl_allocnf (qxl, sizeof *image);
 
     image->descriptor.id = 0;
     image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
@@ -220,17 +292,6 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     return image;
 }
 
-static void
-garbage_collect (qxlScreen *qxl)
-{
-    uint64_t id;
-    int i = 0;
-
-    while (qxl_ring_pop (qxl->release_ring, &id))
-	ErrorF ("%d: Garbage collect %lx\n", ++i, id);
-    ErrorF ("====\n");
-}
-
 static struct qxl_drawable *
 make_drawable (qxlScreen *qxl, uint8_t type,
 	       const struct qxl_rect *rect
@@ -240,14 +301,12 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     
     struct qxl_drawable *drawable;
 
-    garbage_collect (qxl);
-    
 #if 0
     ErrorF ("qxl: %p\n", qxl);
     ErrorF ("mem: %p\n", qxl->mem);
 #endif
     
-    drawable = qxl_alloc (qxl->mem, sizeof *drawable);
+    drawable = qxl_allocnf (qxl, sizeof *drawable);
 
     CHECK_POINT();
 
@@ -255,9 +314,7 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     ErrorF ("Allocated drawable at %p\n", drawable);
 #endif
     
-    /* FIXME: we are leaking */
-    drawable->release_info.id = 0;
-    drawable->release_info.next = 0;
+    drawable->release_info.id = (uint64_t)drawable;
 
     drawable->type = type;
 
@@ -373,7 +430,7 @@ static void
 submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 {
     struct qxl_drawable *drawable;
-    uint32_t *bitmap = qxl_alloc (qxl->mem, rect_pixels (rect) * 4);
+    uint32_t *bitmap = qxl_allocnf (qxl, rect_pixels (rect) * 4);
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 

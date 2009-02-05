@@ -23,6 +23,10 @@ struct block
 struct qxl_mem
 {
     struct block *unused;
+
+    unsigned long total_allocated;
+    unsigned long total_freed;
+    unsigned long total;
 };
 
 struct qxl_mem *
@@ -34,6 +38,10 @@ qxl_mem_create (void *base, unsigned long n_bytes)
     if (!mem)
 	goto out;
 
+    mem->total_allocated = 0;
+    mem->total_freed = 0;
+    mem->total = n_bytes;
+    
     mem->unused = (struct block *)base;
     mem->unused->n_bytes = n_bytes;
     mem->unused->u.unused.next = NULL;
@@ -46,26 +54,50 @@ static void
 dump_free_list (struct qxl_mem *mem, const char *header)
 {
     struct block *b;
+    int n_blocks;
+    unsigned long max_block = 0;
+    unsigned long min_block = 0xffffffffffffffffUL;
     
-    printf ("%s\n", header);
-
+    fprintf (stderr, "%s\n", header);
+    
+    n_blocks = 0;
     for (b = mem->unused; b != NULL; b = b->u.unused.next)
     {
+	fprintf (stderr, "block: %p (%lu bytes)\n", b, b->n_bytes);
+	
 	if (b->u.unused.next && b >= b->u.unused.next)
 	{
-	    printf ("b: %p   b->next: %p\n",
-		    b, b->u.unused.next);
+	    fprintf (stderr, "b: %p   b->next: %p\n",
+		     b, b->u.unused.next);
 	    assert (0);
 	}
 
 	if (b->u.unused.next && (void *)b + b->n_bytes >= b->u.unused.next)
 	{
-	    printf ("OVERLAPPING BLOCKS b: %p   b->next: %p\n",
-		    b, b->u.unused.next);
+	    fprintf (stderr, "OVERLAPPING BLOCKS b: %p   b->next: %p\n",
+		     b, b->u.unused.next);
 	    assert (0);
 	}
-	    
+
+	if (b->n_bytes > max_block)
+	    max_block = b->n_bytes;
+
+	if (b->n_bytes < min_block)
+	    min_block = b->n_bytes;
+	
+	++n_blocks;
     }
+
+    fprintf (stderr, "=========\n");
+
+    fprintf (stderr, "%d blocks\n", n_blocks);
+    fprintf (stderr, "min block: %lu bytes\n", min_block);
+    fprintf (stderr, "max block: %lu bytes\n", max_block);
+    fprintf (stderr, "total freed: %lu bytres\n", mem->total_freed);
+    fprintf (stderr, "total allocated: %lu bytes\n",
+	     mem->total_allocated - mem->total_freed);
+    fprintf (stderr, "total free: %lu bytes\n",
+	     mem->total - (mem->total_allocated - mem->total_freed));
 }
 
 void *
@@ -141,6 +173,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		}
 	    }
 
+	    mem->total_allocated += n_bytes;
+	    
 	    return (void *)b->u.used.data;
 	}
 	else
@@ -151,6 +185,10 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 	}
     }
 
+    /* If we get here, we are out of memory, so print some stats */
+    fprintf (stderr, "Trying to allocate %lu bytes\n", n_bytes);
+    dump_free_list (mem, "out of memory");
+    
     return NULL;
 }
 
@@ -188,6 +226,8 @@ qxl_free (struct qxl_mem *mem, void *d)
     struct block *b = d - sizeof (unsigned long);
     struct block *before, *after;
 
+    mem->total_freed += b->n_bytes;
+    
 #if 0
     printf ("freeing %p (%d bytes)\n", b, b->n_bytes);
     
