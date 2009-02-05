@@ -166,16 +166,15 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     qxl_ring_push (qxl->command_ring, &cmd);
 }
 
-static struct qxl_data_chunk *
+static struct qxl_image *
 make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int height, int stride)
 {
     struct qxl_image *image;
     struct qxl_data_chunk *chunk;
-    int size;
-    int i, j;
     uint8_t *dest_line;
-    uint8_t *src_line;
+    const uint8_t *src_line;
     int dest_stride = width * sizeof (uint32_t);
+    int i, j;
 
     data += y * stride + x * sizeof (uint32_t);
     
@@ -221,6 +220,17 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     return image;
 }
 
+static void
+garbage_collect (qxlScreen *qxl)
+{
+    uint64_t id;
+    int i = 0;
+
+    while (qxl_ring_pop (qxl->release_ring, &id))
+	ErrorF ("%d: Garbage collect %lx\n", ++i, id);
+    ErrorF ("====\n");
+}
+
 static struct qxl_drawable *
 make_drawable (qxlScreen *qxl, uint8_t type,
 	       const struct qxl_rect *rect
@@ -230,6 +240,8 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     
     struct qxl_drawable *drawable;
 
+    garbage_collect (qxl);
+    
 #if 0
     ErrorF ("qxl: %p\n", qxl);
     ErrorF ("mem: %p\n", qxl->mem);
@@ -519,7 +531,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 					 8,
 					 0);
 					 
-#if 0 /* EXA accel */
+#if 0
     qxl->exa = qxlExaInit(pScreen);
 #endif
 

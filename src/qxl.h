@@ -455,7 +455,7 @@ struct qxl_ring *qxl_ring_create (struct qxl_ring_header *header,
 				  int			  prod_notify);
 void             qxl_ring_push   (struct qxl_ring        *ring,
 				  const void             *element);
-void             qxl_ring_pop    (struct qxl_ring        *ring,
+Bool		 qxl_ring_pop    (struct qxl_ring        *ring,
 				  void                   *element);
 
 typedef struct _qxlScreen

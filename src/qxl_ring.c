@@ -63,16 +63,24 @@ qxl_ring_push (struct qxl_ring *ring,
 	outb (ring->prod_notify, 0);
 }
 
-void
+Bool
 qxl_ring_pop (struct qxl_ring *ring,
 	      void            *element)
 {
-#if 0
     struct qxl_ring_header *header = &(ring->ring->header);
-    uint8_t *elt;
+    uint8_t *ring_elt;
     int idx;
-#endif
 
-    /* FIXME */
+    if (header->cons == header->prod)
+	return FALSE;
+
+    idx = header->cons & (ring->n_elements - 1);
+    ring_elt = ring->ring->elements + idx * ring->element_size;
+
+    memcpy (element, ring_elt, ring->element_size);
+
+    header->cons++;
+
+    return TRUE;
 }
 
