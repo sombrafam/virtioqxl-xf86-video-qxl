@@ -13,7 +13,8 @@
 
 - Hook up randr if it isn't already
 
-- Add accelerated blits
+- Acceleration
+	- Blits and solid fill
 
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
