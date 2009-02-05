@@ -1,3 +1,20 @@
+- Garbage collection
+	- Before every allocation?
+	- When we run out of memory?
+	- Whenever we overflow some fixed pool?
+
+- Better malloc() implementation
+	- Take dmalloc() from the windows driver?
+	- Put blocks in a tree?
+
+- Submit cursor images
+
+- Find out why it picks 8x6 rather than a reasonable mode
+
+- Hook up randr if it isn't already
+
+- Add accelerated blits
+
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
 
