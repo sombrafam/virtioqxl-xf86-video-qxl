@@ -215,6 +215,7 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     image->u.bitmap.x = width;
     image->u.bitmap.y = height;
     image->u.bitmap.stride = width * sizeof (uint32_t);
+    image->u.bitmap.palette = 0;
     image->u.bitmap.data = physical_address (qxl, chunk);
 
     return image;
