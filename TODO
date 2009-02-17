@@ -1,7 +1,5 @@
-- Garbage collection
-	- Before every allocation?
-	- When we run out of memory?
-	- Whenever we overflow some fixed pool?
+- Note: when we set a mode, all allocated memory should be considered
+  released.
 
 - Better malloc() implementation
 	- Take dmalloc() from the windows driver?
@@ -10,14 +8,18 @@
 - Submit cursor images
 
 - Find out why it picks 8x6 rather than a reasonable mode
-
-- Hook up randr if it isn't already
+ - Possibly has to do with the timings it reports. RandR only
+   allows 8x6 and 6x4.
 
 - Acceleration
 	- Blits and solid fill
 
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
+
+-=-=-=-=-
+
+Done:
 
 Question:
 
@@ -35,9 +37,12 @@ Question:
     I have no idea how the Windows driver manages syncing for that,
     but I think we can safely ignore it. [ajax]
 
--=-=-=-=-
+- Hook up randr if it isn't already
 
-Done:
+- Garbage collection
+	- Before every allocation?
+	- When we run out of memory?
+	- Whenever we overflow some fixed pool?
 
 - Get rid of qxl_mem.h header; just use qxl.h
 
