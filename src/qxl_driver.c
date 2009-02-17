@@ -52,7 +52,10 @@ virtual_address (qxlScreen *qxl, void *physical)
     return (uint64_t) (physical + (qxl->ram - qxl->ram_physical));
 }
 
-static void
+int n_pushed_commands;
+int n_released_commands;
+
+static int
 garbage_collect (qxlScreen *qxl)
 {
     uint64_t id;
@@ -61,34 +64,80 @@ garbage_collect (qxlScreen *qxl)
     while (qxl_ring_pop (qxl->release_ring, &id))
     {
 	struct qxl_drawable *drawable = (struct qxl_drawable *)id;
-	struct qxl_image *image;
-	struct qxl_data_chunk *chunk;
 
-	switch (drawable->type)
+	while (drawable)
 	{
-	case QXL_DRAW_FILL:
-	    fprintf (stderr, "freeing fill %p\n", drawable);
-	    break;
-
-	case QXL_DRAW_COPY:
-	    fprintf (stderr, "freeing copy %p\n", drawable);
+	    struct qxl_image *image;
+	    struct qxl_data_chunk *chunk;
+	    struct qxl_drawable *next;
 	    
-	    image = virtual_address (qxl, drawable->u.copy.src_bitmap);
-	    chunk = virtual_address (qxl, image->u.bitmap.data);
+	    switch (drawable->type)
+	    {
+	    case QXL_DRAW_FILL:
+#if 0
+		fprintf (stderr, "freeing fill %p\n", drawable);
+#endif
+		break;
+		
+	    case QXL_DRAW_COPY:
+#if 0
+		fprintf (stderr, "freeing copy %p\n", drawable);
+#endif
+		
+		image = virtual_address (qxl, drawable->u.copy.src_bitmap);
+		chunk = virtual_address (qxl, image->u.bitmap.data);
+		
+#if 0
+		fprintf (stderr, "image: %p. chunk %p\n", image, chunk);
+#endif
+		
+		qxl_free (qxl->mem, image);
+		qxl_free (qxl->mem, chunk);
+		break;
+		
+	    default:
+#if 0
+		fprintf (stderr, "freeing something else (%p)\n", drawable);
+#endif
+		break;
+	    }
 
-	    fprintf (stderr, "image: %p. chunk %p\n", image, chunk);
+#if 0
+	    fprintf (stderr, "physical next: %lx\n", drawable->release_info.next);
+#endif
 	    
-	    qxl_free (qxl->mem, image);
-	    qxl_free (qxl->mem, chunk);
-	    break;
+	    next = drawable->release_info.next;
 
-	default:
-	    fprintf (stderr, "freeing something else (%p)\n", drawable);
-	    break;
+	    qxl_free (qxl->mem, drawable);
+
+	    drawable = next;
+
+	    n_released_commands++;
+	
+#if 0
+	    fprintf (stderr, "virtual next: %p\n", drawable);
+#endif
+	    
+	    ++i;
 	}
-
-	qxl_free (qxl->mem, drawable);
     }
+
+    return i > 0;
+}
+
+static void
+qxl_sleep (int useconds)
+{
+    struct timeval t;
+
+#if 0
+    fprintf (stderr, "sleeping for %d usecodns\n", useconds);
+#endif
+    
+    t.tv_sec = 0;
+    t.tv_usec = useconds;
+
+    select (0, NULL, NULL, NULL, &t);
 }
 
 static void *
@@ -101,15 +150,24 @@ qxl_allocnf (qxlScreen *qxl, unsigned long size)
     
     while (!(result = qxl_alloc (qxl->mem, size)))
     {
+	int time, i;
+	
 	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
 
-	usleep (100);
+	qxl_sleep (30000);
 	
-	garbage_collect (qxl);
-
-	if (++n_attempts == 1)
+	if (garbage_collect (qxl))
 	{
-	    xf86DrvMsg (0, X_ERROR, "No more video memory available\n");
+	    n_attempts = 0;
+	}
+	else if (++n_attempts == 1000)
+	{
+	    qxl_mem_dump_stats (qxl->mem, "Out of mem - stats\n");
+	    
+	    fprintf (stderr, "%d pushed commands, %d released \n",
+		     n_pushed_commands,
+		     n_released_commands);
+	    fprintf (stderr, "Out of memory\n");
 	    exit (1);
 	}
     }
@@ -236,6 +294,8 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     cmd.data = physical_address (qxl, drawable);
 
     qxl_ring_push (qxl->command_ring, &cmd);
+
+    n_pushed_commands++;    
 }
 
 static struct qxl_image *
@@ -430,7 +490,6 @@ static void
 submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 {
     struct qxl_drawable *drawable;
-    uint32_t *bitmap = qxl_allocnf (qxl, rect_pixels (rect) * 4);
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
@@ -461,7 +520,9 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.bottom = box->y2;
     qrect.right = box->x2;
     
+#if 0
     submit_random_fill (qxl, &qrect);
+#endif
     submit_copy (qxl, &qrect);
 }
 

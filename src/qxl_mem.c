@@ -27,6 +27,8 @@ struct qxl_mem
     unsigned long total_allocated;
     unsigned long total_freed;
     unsigned long total;
+    unsigned long n_allocated_blocks;
+    unsigned long n_freed_blocks;
 };
 
 struct qxl_mem *
@@ -41,17 +43,19 @@ qxl_mem_create (void *base, unsigned long n_bytes)
     mem->total_allocated = 0;
     mem->total_freed = 0;
     mem->total = n_bytes;
+    mem->n_allocated_blocks = 0;
+    mem->n_freed_blocks = 0;
     
     mem->unused = (struct block *)base;
     mem->unused->n_bytes = n_bytes;
-    mem->unused->u.unused.next = NULL;
+    mem->unused->u.unused.next = NULL;    
     
 out:
     return mem;
 }
 
-static void
-dump_free_list (struct qxl_mem *mem, const char *header)
+void
+qxl_mem_dump_stats (struct qxl_mem *mem, const char *header)
 {
     struct block *b;
     int n_blocks;
@@ -106,8 +110,10 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
     struct block *b, *prev;
 
 #if 0
-    dump_free_list (mem, "before alloc");
+    qxl_mem_dump_stats (mem, "before alloc");
 #endif
+
+    mem->n_allocated_blocks++;
     
     /* Simply pretend the user asked to allocate the header as well. Then
      * we can mostly ignore the difference between blocks and allocations
@@ -186,8 +192,10 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
     }
 
     /* If we get here, we are out of memory, so print some stats */
-    fprintf (stderr, "Trying to allocate %lu bytes\n", n_bytes);
-    dump_free_list (mem, "out of memory");
+#if 0
+    fprintf (stderr, "Failing to allocate %lu bytes\n", n_bytes);
+    qxl_mem_dump_stats (mem, "out of memory");
+#endif
     
     return NULL;
 }
@@ -227,11 +235,12 @@ qxl_free (struct qxl_mem *mem, void *d)
     struct block *before, *after;
 
     mem->total_freed += b->n_bytes;
+    mem->n_freed_blocks++;
     
 #if 0
     printf ("freeing %p (%d bytes)\n", b, b->n_bytes);
     
-    dump_free_list (mem, "before free");
+    qxl_mem_dump_stats (mem, "before free");
 #endif
     
     find_neighbours (mem, (void *)b, &before, &after);
@@ -299,6 +308,6 @@ qxl_free (struct qxl_mem *mem, void *d)
     }
 
 #if 0
-    dump_free_list (mem, "after free");
+    qxl_mem_dump_stats (mem, "after free");
 #endif
 }
