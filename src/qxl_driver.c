@@ -280,6 +280,9 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 
     /* if (debug) */
     xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n", m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
+
+    qxl_ring_wait_idle (qxl->command_ring);
+    
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
     /* If this happens out of ScreenInit, we won't have a screen yet. In that case
@@ -293,13 +296,15 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 	{
 	    pScreen->ModifyPixmapHeader(pPixmap,
 					m->x_res, m->y_res,
-					-1, -1, -1, NULL);
+					-1, -1,
+					qxl->pScrn->displayWidth * ((qxl->pScrn->bitsPerPixel + 7) / 8),
+					NULL);
 	}
-
-	ErrorF ("after mode set: ScreenPixmap is %p (%d %d)\n", pPixmap, pPixmap->drawable.width, pPixmap->drawable.height);
     }
     
-    qxl_mem_free_all (qxl->mem);
+    if (qxl->mem)
+	qxl_mem_free_all (qxl->mem);
+    
     return TRUE;
 }
 
@@ -489,6 +494,7 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 #if 0
     ErrorF ("stride: %d\n", qxl->modes[qxl->rom->mode].x_res * sizeof (uint32_t));
     ErrorF ("new stride: (virtualX: %d) %d\n", pScrn->virtualX, pScrn->virtualX * (pScrn->bitsPerPixel + 7)/8);
+    ErrorF ("displayWidth: %d\n", pScrn->displayWidth * 4);
 #endif
     
     drawable->u.copy.src_bitmap = physical_address (
@@ -518,10 +524,10 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.bottom = box->y2;
     qrect.right = box->x2;
 
+#if 0
     ErrorF ("updating %d %d %d %d\n", box->x1, box->y1, box->x2, box->y2);
     ErrorF ("virtual: %d %d\n", qxl->pScrn->virtualX, qxl->pScrn->virtualY);
     ErrorF ("active: %d %d\n", qxl->pScrn->currentMode->HDisplay, qxl->pScrn->currentMode->VDisplay);
-#if 0
     submit_random_fill (qxl, &qrect);
 #endif
     submit_copy (qxl, &qrect);
@@ -566,7 +572,9 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 
     pPixmap = pScreen->GetScreenPixmap(pScreen);
 
+#if 0
     ErrorF ("create screen resources: ScreenPixmap is %p (%d %d)\n", pPixmap, pPixmap->drawable.width, pPixmap->drawable.height);
+#endif
     
     shadowAdd (pScreen, pPixmap, qxlShadowUpdate,
 	       NULL, 0, 0);
@@ -594,12 +602,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     qxlSaveState(qxl);
     qxlBlankScreen(pScreen, SCREEN_SAVER_ON);
-
-    CHECK_POINT();
-
-    qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);
-
-    CHECK_POINT();
     
     miClearVisualTypes();
     if (!miSetVisualTypes(pScrn->depth, miGetDefaultVisualMask(pScrn->depth),
@@ -608,14 +610,21 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
 	goto out;
 
+#if 0
     ErrorF ("%d x %d  (x, y: %d %d)\n", pScrn->virtualX, pScrn->virtualY, pScrn->frameX0, pScrn->frameY0);
     ErrorF ("pScrn->displayWidth: %d\n", pScrn->displayWidth);
+#endif
     
     qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth,
 		      (pScrn->bitsPerPixel + 7)/8);
     if (!qxl->fb)
 	goto out;
 
+    pScrn->virtualX = pScrn->currentMode->HDisplay;
+    pScrn->virtualY = pScrn->currentMode->VDisplay;
+    
+    ErrorF ("current: %d %d\n", pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay);
+    
     if (!fbScreenInit(pScreen, qxl->fb, pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
@@ -684,6 +693,13 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = qxlCloseScreen;
 
+
+    CHECK_POINT();
+
+    qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);
+
+    CHECK_POINT();
+    
     return TRUE;
 
 out:
@@ -816,7 +832,9 @@ qxlFindNativeMode(ScrnInfoPtr pScrn, DisplayModePtr p)
 	if (m->x_res == p->HDisplay &&
 	    m->y_res == p->VDisplay &&
 	    m->bits == pScrn->bitsPerPixel)
+	{
 	    return m;
+	}
     }
 
     return NULL;	
@@ -832,7 +850,7 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     /* FIXME: I don't think this is necessary now that we report the
      * correct amount of video ram?
      */
-    if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
+    if (p->HDisplay * p->VDisplay * (bpp/8) > qxl->draw_area_size)
 	return MODE_MEM;
 
     p->Private = (void *)qxlFindNativeMode(pScrn, p);
@@ -842,7 +860,9 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     assert (((struct qxl_mode *)p->Private)->x_res == p->HDisplay);
     assert (((struct qxl_mode *)p->Private)->y_res == p->VDisplay);
 
+#if 0
     ErrorF ("validated mode %p\n", p);
+#endif
     
     return MODE_OK;
 }

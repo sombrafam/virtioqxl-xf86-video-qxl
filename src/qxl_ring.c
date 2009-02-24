@@ -1,4 +1,5 @@
 #include <string.h>
+#include <unistd.h>
 #include "qxl.h"
 
 struct ring
@@ -84,3 +85,12 @@ qxl_ring_pop (struct qxl_ring *ring,
     return TRUE;
 }
 
+void
+qxl_ring_wait_idle (struct qxl_ring *ring)
+{
+    while (ring->ring->header.cons != ring->ring->header.prod)
+    {
+	usleep (1000);
+	mem_barrier();
+    }
+}

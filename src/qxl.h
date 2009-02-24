@@ -459,6 +459,7 @@ void             qxl_ring_push   (struct qxl_ring        *ring,
 				  const void             *element);
 Bool		 qxl_ring_pop    (struct qxl_ring        *ring,
 				  void                   *element);
+void		 qxl_ring_wait_idle (struct qxl_ring *ring);
 
 typedef struct _qxlScreen
 {
