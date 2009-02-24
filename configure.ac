@@ -71,7 +71,7 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # blah, should be XORG_CWARNFLAGS
 if test "x$GCC" = xyes ; then
-        CWARNFLAGS="-Wall -Wpointer-arith -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -fno-strict-aliasing -Wold-style-definition -Wbad-function-cast -Wdeclaration-after-statement"
+        CWARNFLAGS="-Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -fno-strict-aliasing -Wold-style-definition -Wbad-function-cast -Wdeclaration-after-statement"
 fi
 
 CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "' -I$(top_srcdir)/src'

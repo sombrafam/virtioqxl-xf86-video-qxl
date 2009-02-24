@@ -33,8 +33,8 @@
 #include "qxl.h"
 #include "assert.h"
 
-#define qxlSaveState(x) do {} while (0)
-#define qxlRestoreState(x) do {} while (0)
+#define qxlSaveState(x) do { (void)x; } while (0)
+#define qxlRestoreState(x) do { (void)x; } while (0)
 
 #if 0
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
@@ -47,10 +47,10 @@ physical_address (qxlScreen *qxl, void *virtual)
     return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
 }
 
-static inline uint64_t
+static inline void *
 virtual_address (qxlScreen *qxl, void *physical)
 {
-    return (uint64_t) (physical + (qxl->ram - qxl->ram_physical));
+    return (void *) (physical + (qxl->ram - qxl->ram_physical));
 }
 
 int n_pushed_commands;
@@ -85,8 +85,8 @@ garbage_collect (qxlScreen *qxl)
 		fprintf (stderr, "freeing copy %p\n", drawable);
 #endif
 		
-		image = virtual_address (qxl, drawable->u.copy.src_bitmap);
-		chunk = virtual_address (qxl, image->u.bitmap.data);
+		image = virtual_address (qxl, (void *)drawable->u.copy.src_bitmap);
+		chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
 		
 #if 0
 		fprintf (stderr, "image: %p. chunk %p\n", image, chunk);
@@ -107,7 +107,7 @@ garbage_collect (qxlScreen *qxl)
 	    fprintf (stderr, "physical next: %lx\n", drawable->release_info.next);
 #endif
 	    
-	    next = drawable->release_info.next;
+	    next = (void *)drawable->release_info.next;
 
 	    qxl_free (qxl->mem, drawable);
 
@@ -151,8 +151,6 @@ qxl_allocnf (qxlScreen *qxl, unsigned long size)
     
     while (!(result = qxl_alloc (qxl->mem, size)))
     {
-	int time, i;
-	
 	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
 
 	qxl_sleep (30000);
@@ -377,10 +375,10 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 	       const struct qxl_rect *rect
 	       /* , pRegion clip */)
 {
-    CHECK_POINT();
-    
     struct qxl_drawable *drawable;
 
+    CHECK_POINT();
+    
 #if 0
     ErrorF ("qxl: %p\n", qxl);
     ErrorF ("mem: %p\n", qxl->mem);
@@ -470,32 +468,6 @@ submit_random_fill (qxlScreen *qxl, const struct qxl_rect *rect)
 #endif
 
     push_drawable (qxl, drawable);
-}
-
-static int
-rect_pixels (const struct qxl_rect *rect)
-{
-    return (rect->right - rect->left) * (rect->bottom - rect->top);
-}
-
-/* FIXME: we are assuming here that the bpp is 32 */
-
-static void
-copy_pixels (qxlScreen *qxl, uint32_t *dest, const struct qxl_rect *rect)
-{
-    int i;
-    int j;
-
-    for (i = rect->top; i < rect->bottom; ++i)
-    {
-	for (j = rect->left; j < rect->right; ++j)
-	{
-	    /* FIXME: while gradients look great, that's not
-	     * what we need here
-	     */
-	    dest[i * (rect->right - rect->left) + j] = i * j;
-	}
-    }
 }
 
 static void
@@ -605,8 +577,6 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
-    CHECK_POINT();
-    
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     qxlScreen *qxl = pScrn->driverPrivate;
     struct qxl_rom *rom;
@@ -744,8 +714,8 @@ static Bool
 qxlColorSetup(ScrnInfoPtr pScrn)
 {
     int scrnIndex = pScrn->scrnIndex;
-    rgb rzeros = { 0, 0, 0 };
     Gamma gzeros = { 0.0, 0.0, 0.0 };
+    rgb rzeros = { 0, 0, 0 };
 
     if (!xf86SetDepthBpp(pScrn, 0, 0, 0, Support32bppFb))
 	return FALSE;
@@ -760,10 +730,8 @@ qxlColorSetup(ScrnInfoPtr pScrn)
 	return FALSE;
     if (!xf86SetDefaultVisual(pScrn, -1))
 	return FALSE;
-#if 0
     if (!xf86SetGamma(pScrn, gzeros))
 	return FALSE;
-#endif
 
     return TRUE;
 }
@@ -861,13 +829,11 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     qxlScreen *qxl = pScrn->driverPrivate;
     int bpp = pScrn->bitsPerPixel;
 
-#if 0
     /* FIXME: I don't think this is necessary now that we report the
      * correct amount of video ram?
      */
     if (p->HDisplay * p->VDisplay * (bpp/4) > qxl->draw_area_size)
 	return MODE_MEM;
-#endif
 
     p->Private = (void *)qxlFindNativeMode(pScrn, p);
     if (!p->Private)
