@@ -31,6 +31,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "qxl.h"
+#include "assert.h"
 
 #define qxlSaveState(x) do {} while (0)
 #define qxlRestoreState(x) do {} while (0)
@@ -274,14 +275,32 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 {
     qxlScreen *qxl = xf86Screens[scrnIndex]->driverPrivate;
     struct qxl_mode *m = (void *)p->Private;
+    ScreenPtr pScreen = qxl->pScrn->pScreen;
 
     if (!m)
 	return FALSE;
 
     /* if (debug) */
-    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d\n", m->id);
+    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n", m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
+    /* If this happens out of ScreenInit, we won't have a screen yet. In that case
+     * createScreenResources will make things right.
+     */
+    if (pScreen)
+    {
+	PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
+
+	if (pPixmap)
+	{
+	    pScreen->ModifyPixmapHeader(pPixmap,
+					m->x_res, m->y_res,
+					-1, -1, -1, NULL);
+	}
+
+	ErrorF ("after mode set: ScreenPixmap is %p (%d %d)\n", pPixmap, pPixmap->drawable.width, pPixmap->drawable.height);
+    }
+    
     qxl_mem_free_all (qxl->mem);
     return TRUE;
 }
@@ -491,14 +510,20 @@ static void
 submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 {
     struct qxl_drawable *drawable;
+    ScrnInfoPtr pScrn = qxl->pScrn;
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
+#if 0
+    ErrorF ("stride: %d\n", qxl->modes[qxl->rom->mode].x_res * sizeof (uint32_t));
+    ErrorF ("new stride: (virtualX: %d) %d\n", pScrn->virtualX, pScrn->virtualX * (pScrn->bitsPerPixel + 7)/8);
+#endif
+    
     drawable->u.copy.src_bitmap = physical_address (
 	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
 			 rect->right - rect->left,
 			 rect->bottom - rect->top,
-			 qxl->modes[qxl->rom->mode].x_res * sizeof (uint32_t)));
+			 pScrn->displayWidth * 4));
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
@@ -520,7 +545,10 @@ qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
     qrect.left = box->x1;
     qrect.bottom = box->y2;
     qrect.right = box->x2;
-    
+
+    ErrorF ("updating %d %d %d %d\n", box->x1, box->y1, box->x2, box->y2);
+    ErrorF ("virtual: %d %d\n", qxl->pScrn->virtualX, qxl->pScrn->virtualY);
+    ErrorF ("active: %d %d\n", qxl->pScrn->currentMode->HDisplay, qxl->pScrn->currentMode->VDisplay);
 #if 0
     submit_random_fill (qxl, &qrect);
 #endif
@@ -550,6 +578,7 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     qxlScreen *qxl = pScrn->driverPrivate;
     Bool ret;
+    PixmapPtr pPixmap;
 
     pScreen->CreateScreenResources = qxl->CreateScreenResources;
     ret = pScreen->CreateScreenResources(pScreen);
@@ -562,7 +591,12 @@ qxlCreateScreenResources(ScreenPtr pScreen)
      * server this is not actually passed along in the shadowBuf, so
      * we can't use it..
      */
-    shadowAdd (pScreen, pScreen->GetScreenPixmap(pScreen), qxlShadowUpdate,
+
+    pPixmap = pScreen->GetScreenPixmap(pScreen);
+
+    ErrorF ("create screen resources: ScreenPixmap is %p (%d %d)\n", pPixmap, pPixmap->drawable.width, pPixmap->drawable.height);
+    
+    shadowAdd (pScreen, pPixmap, qxlShadowUpdate,
 	       NULL, 0, 0);
 
     return TRUE;
@@ -579,6 +613,8 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     struct qxl_ram_header *ram_header;
 
     CHECK_POINT();
+
+    qxl->pScrn = pScrn;
     
     if (!qxlMapMemory(qxl, scrnIndex))
 	return FALSE;
@@ -601,11 +637,16 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	goto out;
     if (!miSetPixmapDepths())
 	goto out;
-    qxl->fb = xcalloc(pScrn->virtualX * pScrn->virtualY,
+
+    ErrorF ("%d x %d  (x, y: %d %d)\n", pScrn->virtualX, pScrn->virtualY, pScrn->frameX0, pScrn->frameY0);
+    ErrorF ("pScrn->displayWidth: %d\n", pScrn->displayWidth);
+    
+    qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth,
 		      (pScrn->bitsPerPixel + 7)/8);
     if (!qxl->fb)
 	goto out;
-    if (!fbScreenInit(pScreen, qxl->fb, pScrn->virtualX, pScrn->virtualY,
+
+    if (!fbScreenInit(pScreen, qxl->fb, pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
 	goto out;
@@ -832,6 +873,11 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     if (!p->Private)
        return MODE_NOMODE;
 
+    assert (((struct qxl_mode *)p->Private)->x_res == p->HDisplay);
+    assert (((struct qxl_mode *)p->Private)->y_res == p->VDisplay);
+
+    ErrorF ("validated mode %p\n", p);
+    
     return MODE_OK;
 }
 

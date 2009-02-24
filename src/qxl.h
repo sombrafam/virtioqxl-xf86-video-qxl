@@ -499,6 +499,8 @@ typedef struct _qxlScreen
 
     int16_t			cur_x;
     int16_t			cur_y;
+
+    ScrnInfoPtr			pScrn;
 } qxlScreen;
 
 extern void qxlCursorInit(ScreenPtr pScreen);
