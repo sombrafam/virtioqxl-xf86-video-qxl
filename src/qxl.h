@@ -62,6 +62,7 @@ struct qxl_mem *qxl_mem_create (void *base, unsigned long n_bytes);
 void  qxl_mem_dump_stats (struct qxl_mem *mem, const char *header);
 void *qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes);
 void  qxl_free  (struct qxl_mem *mem, void *d);
+void  qxl_mem_free_all (struct qxl_mem *mem);
 
 #pragma pack(push,1)
 

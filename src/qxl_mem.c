@@ -22,14 +22,28 @@ struct block
 
 struct qxl_mem
 {
+    void *		base;
+    unsigned long	n_bytes;
+    
     struct block *unused;
-
     unsigned long total_allocated;
     unsigned long total_freed;
-    unsigned long total;
     unsigned long n_allocated_blocks;
     unsigned long n_freed_blocks;
 };
+
+static void
+initialize (struct qxl_mem *mem)
+{
+    mem->unused = (struct block *)mem->base;
+    mem->unused->n_bytes = mem->n_bytes;
+    mem->unused->u.unused.next = NULL;    
+
+    mem->total_allocated = 0;
+    mem->total_freed = 0;
+    mem->n_allocated_blocks = 0;
+    mem->n_freed_blocks = 0;
+}
 
 struct qxl_mem *
 qxl_mem_create (void *base, unsigned long n_bytes)
@@ -40,18 +54,19 @@ qxl_mem_create (void *base, unsigned long n_bytes)
     if (!mem)
 	goto out;
 
-    mem->total_allocated = 0;
-    mem->total_freed = 0;
-    mem->total = n_bytes;
-    mem->n_allocated_blocks = 0;
-    mem->n_freed_blocks = 0;
-    
-    mem->unused = (struct block *)base;
-    mem->unused->n_bytes = n_bytes;
-    mem->unused->u.unused.next = NULL;    
+    mem->base = base;
+    mem->n_bytes = n_bytes;
+
+    initialize (mem);
     
 out:
     return mem;
+}
+
+void
+qxl_mem_free_all (struct qxl_mem *mem)
+{
+    initialize (mem);
 }
 
 void
@@ -101,17 +116,13 @@ qxl_mem_dump_stats (struct qxl_mem *mem, const char *header)
     fprintf (stderr, "total allocated: %lu bytes\n",
 	     mem->total_allocated - mem->total_freed);
     fprintf (stderr, "total free: %lu bytes\n",
-	     mem->total - (mem->total_allocated - mem->total_freed));
+	     mem->n_bytes - (mem->total_allocated - mem->total_freed));
 }
 
 void *
 qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 {
     struct block *b, *prev;
-
-#if 0
-    qxl_mem_dump_stats (mem, "before alloc");
-#endif
 
     mem->n_allocated_blocks++;
     
@@ -142,19 +153,12 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 		{
 		    assert (prev < b);
 		    assert (prev->u.unused.next == NULL || prev < prev->u.unused.next);
-#if 0
-		    printf ("  alloc prev: %p\n", prev);
-		    printf ("  new.next: %p\n", b->u.unused.next);
-#endif
 		    
  		    new_block->u.unused.next = b->u.unused.next;
 		    prev->u.unused.next = new_block;
 		}
 		else
 		{
-#if 0
-		    printf ("  alloc no prev\n");
-#endif
 		    assert (mem->unused == b);
 
 		    new_block->u.unused.next = mem->unused->u.unused.next;

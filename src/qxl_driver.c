@@ -282,6 +282,7 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d\n", m->id);
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
+    qxl_mem_free_all (qxl->mem);
     return TRUE;
 }
 
@@ -718,8 +719,10 @@ qxlColorSetup(ScrnInfoPtr pScrn)
 	return FALSE;
     if (!xf86SetDefaultVisual(pScrn, -1))
 	return FALSE;
+#if 0
     if (!xf86SetGamma(pScrn, gzeros))
 	return FALSE;
+#endif
 
     return TRUE;
 }
