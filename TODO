@@ -27,6 +27,24 @@
 
 		qxl->enable_copying = TRUE
 
+	  Note damage is added before the drawing hits the framebuffer, so
+	  it will have to be stored, then cleared
+		- in a block handler
+		- before accelerating
+
+	  Ie., 
+
+	  on_op:
+		clear damage
+		disable damage reporting
+		call original (this will generate unreported damage and paint to the shadow)
+		submit command
+		enable damage
+
+	   It may be possible to use the shadow code if we added a
+	   shadowReportNow() that would report any existing
+	   damage. Ie., basically export shadowRedisplay()
+
     1. Get damage added, out of CreateScreenResources
     2. Make sure it works
     3. Submit copies and disable shadow

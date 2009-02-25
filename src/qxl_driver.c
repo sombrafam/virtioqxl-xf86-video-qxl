@@ -515,39 +515,40 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 }
 
 static void
-qxlShadowUpdateArea(qxlScreen *qxl, BoxPtr box)
+qxlClearDamage (qxlScreen *qxl)
 {
-    struct qxl_rect qrect;
+    RegionPtr pRegion = DamageRegion (qxl->pDamage);
+    BoxPtr pBox = REGION_RECTS(pRegion);
+    int nbox = REGION_NUM_RECTS(pRegion);
 
-    qrect.top = box->y1;
-    qrect.left = box->x1;
-    qrect.bottom = box->y2;
-    qrect.right = box->x2;
+    while (nbox--)
+    {
+	struct qxl_rect qrect;
+	
+	qrect.top = pBox->y1;
+	qrect.left = pBox->x1;
+	qrect.bottom = pBox->y2;
+	qrect.right = pBox->x2;
+	
+	submit_copy (qxl, &qrect);
 
-#if 0
-    ErrorF ("updating %d %d %d %d\n", box->x1, box->y1, box->x2, box->y2);
-    ErrorF ("virtual: %d %d\n", qxl->pScrn->virtualX, qxl->pScrn->virtualY);
-    ErrorF ("active: %d %d\n", qxl->pScrn->currentMode->HDisplay, qxl->pScrn->currentMode->VDisplay);
-    submit_random_fill (qxl, &qrect);
-#endif
-    submit_copy (qxl, &qrect);
+	pBox++;
+    }
+
+    DamageEmpty (qxl->pDamage);
 }
 
 static void
-qxlShadowUpdate(ScreenPtr pScreen, shadowBufPtr pBuf)
+qxlBlockHandler(pointer data, OSTimePtr pTimeout, pointer pRead)
 {
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxlScreen *qxl = pScrn->driverPrivate;
-    RegionPtr damage = shadowDamage(pBuf);
-    int nbox = REGION_NUM_RECTS(damage);
-    BoxPtr pbox = REGION_RECTS(damage);
+    qxlScreen *qxl = (qxlScreen *) data;
 
-    /* We can't use pBuf->closure, because the RHEL 5 server sets it
-     * to 0 unconditionally
-     */
-    
-    while (nbox--)
-	qxlShadowUpdateArea(qxl, pbox++);
+    qxlClearDamage (qxl);
+}
+
+static void
+qxlWakeupHandler(pointer data, int i, pointer LastSelectMask)
+{
 }
 
 static Bool
@@ -565,20 +566,12 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     if (!ret)
 	return FALSE;
 
-    /* Note that while shadowAdd has a @closure argument, in the RHEL 5
-     * server this is not actually passed along in the shadowBuf, so
-     * we can't use it..
-     */
-
     pPixmap = pScreen->GetScreenPixmap(pScreen);
 
-#if 0
-    ErrorF ("create screen resources: ScreenPixmap is %p (%d %d)\n", pPixmap, pPixmap->drawable.width, pPixmap->drawable.height);
-#endif
-    
-    shadowAdd (pScreen, pPixmap, qxlShadowUpdate,
-	       NULL, 0, 0);
-
+    if (!RegisterBlockAndWakeupHandlers(qxlBlockHandler, qxlWakeupHandler, qxl))
+	return FALSE;
+ 
+    DamageRegister (&pPixmap->drawable, qxl->pDamage);
     return TRUE;
 }
 
@@ -648,8 +641,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     fbPictureInit(pScreen, 0, 0);
 
-    if (!shadowSetup(pScreen))
-	return FALSE;
     qxl->CreateScreenResources = pScreen->CreateScreenResources;
     pScreen->CreateScreenResources = qxlCreateScreenResources;
 
@@ -695,6 +686,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = qxlCloseScreen;
 
+    qxl->pDamage = DamageCreate(NULL, NULL,
+				DamageReportNone,
+				TRUE, pScreen, pScreen);
 
     CHECK_POINT();
 
@@ -937,9 +931,10 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
 
     if (!xf86LoadSubModule(pScrn, "fb") ||
 	!xf86LoadSubModule(pScrn, "exa") ||
-	!xf86LoadSubModule(pScrn, "ramdac") ||
-	!xf86LoadSubModule(pScrn, "shadow"))
+	!xf86LoadSubModule(pScrn, "ramdac"))
+    {
 	goto out;
+    }
 
     /* hate */
     qxlUnmapMemory(qxl, scrnIndex);
