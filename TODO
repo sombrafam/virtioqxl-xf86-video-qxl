@@ -1,5 +1,39 @@
-- Note: when we set a mode, all allocated memory should be considered
-  released.
+- Acceleration
+	- Blits and solid fill
+
+  - XAA and the shadow buffer will not work together, because the
+    shadow buffer updates in the block handler, so if we got any XAA
+    calls in between, things would get messed up. 
+
+    Current plan:
+	- Add our own damage tracker that produces raw rectangles
+	- Whenever it fires, submit the copy immediately
+
+	- Wrap the necessary ops in such a way that the original
+	  implementation gets called first. The original implementation
+	  will use fb, which will produce damage, which will get
+	  submitted.
+
+	  If we decide to accelerate a particular operation, first set
+          a flag that the immediately following damage event should not
+	  result in spice protocol being sent. Ie., 
+
+	  on_op:
+		qxl->enable_copying = FALSE
+
+		call original;
+
+		send acceleration command
+
+		qxl->enable_copying = TRUE
+
+    1. Get damage added, out of CreateScreenResources
+    2. Make sure it works
+    3. Submit copies and disable shadow
+    4. Delete shadow
+    5. Wrap some of the ops, or use XAA?
+
+- Coding style fixes
 
 - Better malloc() implementation
 	- Take dmalloc() from the windows driver?
@@ -11,9 +45,6 @@
  - Possibly has to do with the timings it reports. RandR only
    allows 8x6 and 6x4.
 
-- Acceleration
-	- Blits and solid fill
-
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
 
@@ -22,6 +53,9 @@
 Done:
 
 Question:
+
+- Note: when we set a mode, all allocated memory should be considered
+  released.
 
 - What is the "vram" PCI range used for? 
 
