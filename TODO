@@ -51,6 +51,27 @@
     4. Delete shadow
     5. Wrap some of the ops, or use XAA?
 
+    The input we get is:
+
+	- First a damage notification: "I am going to draw here"
+	- Then maybe an exa notification
+
+	So the algorithm is. 
+
+	Maintain a "to_copy" region to be copied into the device
+
+	- in damage, if there is anything in to_copy, copy it
+
+	- in block handler, if there is anything in to_copy, copy it
+
+	- in exa, if we manage to accelerate, delete to_copy.
+
+	Unfortunately, for core text, what happens is
+		- damage is produced for the glyph box
+		- solid fill is generated
+		- the glyph is drawn
+	And the algorithm above means the damage is thrown away.
+
 - Coding style fixes
 
 - Better malloc() implementation
