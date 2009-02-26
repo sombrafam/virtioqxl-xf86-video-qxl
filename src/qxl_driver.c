@@ -609,6 +609,55 @@ qxlPolyFillRect (DrawablePtr pDrawable,
     miPolyFillRect (pDrawable, pGC, nrect, prect);
 }
 
+static void
+qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
+{
+    ScreenPtr pScreen = pDrawable->pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+
+    if (pDrawable->type == DRAWABLE_WINDOW)
+    {
+	int nbox = REGION_NUM_RECTS (pRegion);
+	BoxPtr pBox = REGION_RECTS (pRegion);
+
+	while (nbox--)
+	{
+	    struct qxl_rect qrect;
+
+	    qrect.left = pBox->x1;
+	    qrect.right = pBox->x2;
+	    qrect.top = pBox->y1;
+	    qrect.bottom = pBox->y2;
+
+	    submit_random_fill (qxl, &qrect);
+	}
+    }
+
+    fbFillRegionSolid (pDrawable, pRegion, 0, fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
+}
+
+static void
+qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
+{
+    ScreenPtr pScreen = pWin->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+
+    if (!REGION_NUM_RECTS(pRegion))
+	return;
+
+    if (what == PW_BACKGROUND &&
+	pWin->backgroundState == BackgroundPixel)
+    {
+	qxlFillRegionSolid (&pWin->drawable, pRegion, pWin->background.pixel);
+
+	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+    }
+
+    miPaintWindow (pWin, pRegion, what);
+}
+
 #if 0
 static void
 qxlPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what)
@@ -757,6 +806,11 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     qxl->CreateGC = pScreen->CreateGC;
     pScreen->CreateGC = qxlCreateGC;
+
+    qxl->PaintWindowBackground = pScreen->PaintWindowBackground;
+    qxl->PaintWindowBorder = pScreen->PaintWindowBorder;
+    pScreen->PaintWindowBackground = qxlPaintWindow;
+    pScreen->PaintWindowBorder = qxlPaintWindow;
     
     qxl->pDamage = DamageCreate(qxlOnDamage, NULL,
 				DamageReportRawRegion,
