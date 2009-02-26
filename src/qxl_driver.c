@@ -574,35 +574,66 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     return TRUE;
 }
 
+static PixmapPtr 
+getWindowPixmap (DrawablePtr pDrawable, int *xoff, int *yoff)
+{
+    ScreenPtr pScreen = pDrawable->pScreen;
+    PixmapPtr result;
+
+    if (pDrawable->type != DRAWABLE_WINDOW)
+	return NULL;
+
+    result = pScreen->GetWindowPixmap ((WindowPtr)pDrawable);
+
+    *xoff = result->drawable.x;
+    *yoff = result->drawable.y;
+
+    return result;
+}
+
 static void
 qxlPolyFillRect (DrawablePtr pDrawable,
 		 GCPtr	     pGC,
 		 int	     nrect,
 		 xRectangle *prect)
 {
-    ScreenPtr pScreen = pDrawable->pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    ScrnInfoPtr pScrn = xf86Screens[pDrawable->pScreen->myNum];
     qxlScreen *qxl = pScrn->driverPrivate;
+    PixmapPtr pPixmap;
+    int xoff, yoff;
 
-    if (pDrawable->type == DRAWABLE_WINDOW			&&
+    if ((pPixmap = getWindowPixmap (pDrawable, &xoff, &yoff))	&&
 	pGC->alu == GXcopy					&&
 	(unsigned int)pGC->planemask == FB_ALLONES)
     {
-	int i;
+	RegionPtr pReg = RECTS_TO_REGION (pScreen, nrect, prect, CT_UNSORTED);
+	RegionPtr pClip = fbGetCompositeClip (pGC);
+	BoxPtr pBox;
+	int nbox;
 	
-	for (i = 0; i < nrect; ++i)
+	REGION_TRANSLATE(pScreen, pReg, xoff, yoff);
+	REGION_INTERSECT(pScreen, pReg, pClip, pReg);
+
+	pBox = REGION_RECTS (pReg);
+	nbox = REGION_NUM_RECTS (pReg);
+	
+	while (nbox--)
 	{
 	    struct qxl_rect qrect;
 
-	    qrect.left = prect[i].x + pDrawable->x;
-	    qrect.right = prect[i].x + prect[i].width + pDrawable->x;
-	    qrect.top = prect[i].y + pDrawable->y;
-	    qrect.bottom = prect[i].y + prect[i].height + pDrawable->y;
+	    qrect.left = pBox->x1;
+	    qrect.right = pBox->x2;
+	    qrect.top = pBox->y1;
+	    qrect.bottom = pBox->y2;
 
 	    submit_random_fill (qxl, &qrect);
+
+	    pBox++;
 	}
 
-	/* Clear damage */
+	REGION_DESTROY (pScreen, pReg);
+	
+	/* Clear pending damage */
 	REGION_EMPTY (pScreen, &qxl->pendingCopy);
     }
     
@@ -615,8 +646,10 @@ qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
     ScreenPtr pScreen = pDrawable->pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     qxlScreen *qxl = pScrn->driverPrivate;
+    PixmapPtr pPixmap;
+    int xoff, yoff;
 
-    if (pDrawable->type == DRAWABLE_WINDOW)
+    if ((pPixmap = getWindowPixmap (pDrawable, &xoff, &yoff)))
     {
 	int nbox = REGION_NUM_RECTS (pRegion);
 	BoxPtr pBox = REGION_RECTS (pRegion);
@@ -625,10 +658,10 @@ qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 	{
 	    struct qxl_rect qrect;
 
-	    qrect.left = pBox->x1;
-	    qrect.right = pBox->x2;
-	    qrect.top = pBox->y1;
-	    qrect.bottom = pBox->y2;
+	    qrect.left = pBox->x1 + xoff;
+	    qrect.right = pBox->x2 + xoff;
+	    qrect.top = pBox->y1 + yoff;
+	    qrect.bottom = pBox->y2 + yoff;
 
 	    submit_random_fill (qxl, &qrect);
 	}
@@ -658,17 +691,15 @@ qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
     miPaintWindow (pWin, pRegion, what);
 }
 
-#if 0
 static void
-qxlPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what)
+qxlCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 {
-    ScreenPtr pScreen = pWin->pDrawable.pScreen;
+    ScreenPtr pScreen = pWin->drawable.pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     qxlScreen *qxl = pScrn->driverPrivate;
 
-    
+    fbCopyWindow (pWin, ptOldOrg, prgnSrc);
 }
-#endif
 
 static int
 qxlCreateGC (GCPtr pGC)
@@ -809,8 +840,10 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     qxl->PaintWindowBackground = pScreen->PaintWindowBackground;
     qxl->PaintWindowBorder = pScreen->PaintWindowBorder;
+    qxl->CopyWindow = pScreen->CopyWindow;
     pScreen->PaintWindowBackground = qxlPaintWindow;
     pScreen->PaintWindowBorder = qxlPaintWindow;
+    pScreen->CopyWindow = qxlCopyWindow;
     
     qxl->pDamage = DamageCreate(qxlOnDamage, NULL,
 				DamageReportRawRegion,

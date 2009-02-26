@@ -500,6 +500,7 @@ typedef struct _qxlScreen
     CreateGCProcPtr		CreateGC;
     PaintWindowProcPtr		PaintWindowBackground;
     PaintWindowProcPtr		PaintWindowBorder;
+    CopyWindowProcPtr		CopyWindow;
     
     DamagePtr			pDamage;
     RegionRec			pendingCopy;
