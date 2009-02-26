@@ -515,11 +515,10 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 }
 
 static void
-qxlClearDamage (qxlScreen *qxl)
+qxlSendCopies (qxlScreen *qxl)
 {
-    RegionPtr pRegion = DamageRegion (qxl->pDamage);
-    BoxPtr pBox = REGION_RECTS(pRegion);
-    int nbox = REGION_NUM_RECTS(pRegion);
+    BoxPtr pBox = REGION_RECTS(&qxl->pendingCopy);
+    int nbox = REGION_NUM_RECTS(&qxl->pendingCopy);
 
     while (nbox--)
     {
@@ -535,7 +534,7 @@ qxlClearDamage (qxlScreen *qxl)
 	pBox++;
     }
 
-    DamageEmpty (qxl->pDamage);
+    REGION_EMPTY(qxl->pScrn->pScreen, &qxl->pendingCopy);
 }
 
 static void
@@ -543,7 +542,7 @@ qxlBlockHandler(pointer data, OSTimePtr pTimeout, pointer pRead)
 {
     qxlScreen *qxl = (qxlScreen *) data;
 
-    qxlClearDamage (qxl);
+    qxlSendCopies (qxl);
 }
 
 static void
@@ -581,11 +580,46 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 		 int	     nrect,
 		 xRectangle *prect)
 {
-    ErrorF ("Hi\n");
+    ScreenPtr pScreen = pDrawable->pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+
+    if (pDrawable->type == DRAWABLE_WINDOW			&&
+	pGC->alu == GXcopy					&&
+	(unsigned int)pGC->planemask == FB_ALLONES)
+    {
+	int i;
+	
+	for (i = 0; i < nrect; ++i)
+	{
+	    struct qxl_rect qrect;
+
+	    qrect.left = prect[i].x + pDrawable->x;
+	    qrect.right = prect[i].x + prect[i].width + pDrawable->x;
+	    qrect.top = prect[i].y + pDrawable->y;
+	    qrect.bottom = prect[i].y + prect[i].height + pDrawable->y;
+
+	    submit_random_fill (qxl, &qrect);
+	}
+
+	/* Clear damage */
+	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+    }
     
     miPolyFillRect (pDrawable, pGC, nrect, prect);
 }
 
+#if 0
+static void
+qxlPaintWindow (WindowPtr pWin, RegionPtr pRegion, int what)
+{
+    ScreenPtr pScreen = pWin->pDrawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+
+    
+}
+#endif
 
 static int
 qxlCreateGC (GCPtr pGC)
@@ -606,6 +640,16 @@ qxlCreateGC (GCPtr pGC)
     
     pGC->ops = &ops;
     return TRUE;
+}
+
+static void
+qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
+{
+    qxlScreen *qxl = closure;
+
+    qxlSendCopies (qxl);
+
+    REGION_COPY (qxl->pScrn->pScreen, &(qxl->pendingCopy), pRegion);
 }
 
 static Bool
@@ -685,16 +729,13 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
 					 sizeof (struct qxl_command),
-					 32,
-					 qxl->io_base + QXL_IO_NOTIFY_CMD);
+					 32, qxl->io_base + QXL_IO_NOTIFY_CMD);
     qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring_hdr),
 					sizeof (struct qxl_command),
-					32,
-					qxl->io_base + QXL_IO_NOTIFY_CURSOR);
+					32, qxl->io_base + QXL_IO_NOTIFY_CURSOR);
     qxl->release_ring = qxl_ring_create (&(ram_header->release_ring_hdr),
 					 sizeof (uint64_t),
-					 8,
-					 0);
+					 8, 0);
 					 
 #if 0
     qxl->exa = qxlExaInit(pScreen);
@@ -717,9 +758,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->CreateGC = pScreen->CreateGC;
     pScreen->CreateGC = qxlCreateGC;
     
-    qxl->pDamage = DamageCreate(NULL, NULL,
-				DamageReportNone,
-				TRUE, pScreen, pScreen);
+    qxl->pDamage = DamageCreate(qxlOnDamage, NULL,
+				DamageReportRawRegion,
+				TRUE, pScreen, qxl);
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 

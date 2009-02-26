@@ -500,7 +500,8 @@ typedef struct _qxlScreen
     CreateGCProcPtr		CreateGC;
     
     DamagePtr			pDamage;
-
+    RegionRec			pendingCopy;
+    
     int16_t			cur_x;
     int16_t			cur_y;
 
