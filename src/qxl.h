@@ -497,7 +497,8 @@ typedef struct _qxlScreen
 
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr		CloseScreen;
-
+    CreateGCProcPtr		CreateGC;
+    
     DamagePtr			pDamage;
 
     int16_t			cur_x;

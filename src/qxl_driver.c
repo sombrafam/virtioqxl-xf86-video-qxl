@@ -575,6 +575,39 @@ qxlCreateScreenResources(ScreenPtr pScreen)
     return TRUE;
 }
 
+static void
+qxlPolyFillRect (DrawablePtr pDrawable,
+		 GCPtr	     pGC,
+		 int	     nrect,
+		 xRectangle *prect)
+{
+    ErrorF ("Hi\n");
+    
+    miPolyFillRect (pDrawable, pGC, nrect, prect);
+}
+
+
+static int
+qxlCreateGC (GCPtr pGC)
+{
+    static GCOps ops;
+    static int initialized;
+    
+    if (!fbCreateGC (pGC))
+	return FALSE;
+
+    if (!initialized)
+    {
+	ops = *pGC->ops;
+	ops.PolyFillRect = qxlPolyFillRect;
+
+	initialized = TRUE;
+    }
+    
+    pGC->ops = &ops;
+    return TRUE;
+}
+
 static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
@@ -667,14 +700,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->exa = qxlExaInit(pScreen);
 #endif
 
-    miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
-
 #if 0
     qxlCursorInit(pScreen);
 #endif
-
-    if (!miCreateDefColormap(pScreen))
-	goto out;
 
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
 
@@ -686,9 +714,17 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = qxlCloseScreen;
 
+    qxl->CreateGC = pScreen->CreateGC;
+    pScreen->CreateGC = qxlCreateGC;
+    
     qxl->pDamage = DamageCreate(NULL, NULL,
 				DamageReportNone,
 				TRUE, pScreen, pScreen);
+
+    miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
+
+    if (!miCreateDefColormap(pScreen))
+	goto out;
 
     CHECK_POINT();
 
