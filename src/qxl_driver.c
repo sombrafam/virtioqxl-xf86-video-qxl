@@ -791,14 +791,29 @@ qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
 	int nbox = REGION_NUM_RECTS (pRegion);
 	BoxPtr pbox = REGION_RECTS (pRegion);
 	
+	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+	
 	ErrorF ("Unaccelerated PaintWindow\n");
 	ErrorF ("   what: %d (BG: %d)\n", what, PW_BACKGROUND);
 	ErrorF ("   backgroundState: %d  (bgpixel: %d)\n", pWin->backgroundState, BackgroundPixel);
 	while (nbox--)
 	{
-	    ErrorF ("    box: %d %d %d %d (size: %d %d)\n",
-		    pbox->x1, pbox->y1, pbox->x2, pbox->y2,
-		    pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
+	    RegionRec boxreg;
+
+	    REGION_INIT (pScreen, &boxreg, pbox, 1);
+
+	    REGION_UNION (pScreen, &qxl->pendingCopy, &qxl->pendingCopy, &boxreg);
+
+	    pbox++;
+	}
+	
+	nbox = REGION_NUM_RECTS (&qxl->pendingCopy);
+	pbox = REGION_RECTS (&qxl->pendingCopy);
+
+	ErrorF ("damaged region: \n");
+	while (nbox--)
+	{
+	    ErrorF ("  %d %d %d %d\n", pbox->x1, pbox->y1, pbox->x2, pbox->y2);
 
 	    pbox++;
 	}
@@ -857,12 +872,40 @@ qxlCreateGC (GCPtr pGC)
 }
 
 static void
+print_region (const char *header, RegionPtr pRegion)
+{
+    int nbox = REGION_NUM_RECTS (pRegion);
+    BoxPtr pbox = REGION_RECTS (pRegion);
+
+    ErrorF ("%s \n", header);
+    
+    while (nbox--)
+    {
+	ErrorF ("   %d %d %d %d (size: %d %d)\n",
+		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
+
+	pbox++;
+    }
+}
+
+static void
+dummy (RegionPtr pRegion)
+{
+    ;
+}
+
+static void
 qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 {
     qxlScreen *qxl = closure;
     
     qxlSendCopies (qxl);
 
+    print_region ("damaging region", pRegion);
+
+    dummy (pRegion);
+    
     REGION_COPY (qxl->pScrn->pScreen, &(qxl->pendingCopy), pRegion);
 }
 
