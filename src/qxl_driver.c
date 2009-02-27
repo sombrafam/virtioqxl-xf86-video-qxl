@@ -330,6 +330,8 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     const uint8_t *src_line;
     int dest_stride = width * sizeof (uint32_t);
     int i, j;
+    uint8_t r = rand() % 256;
+	    
 
     data += y * stride + x * sizeof (uint32_t);
     
@@ -352,6 +354,14 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
 	    uint32_t *d = (uint32_t *)dest_line;
 
 	    d[j] = s[j];
+#if 0
+	    
+	    d[j] = s[j] & 0xff00ffff;
+
+	    d[j] |= (r << 16);
+
+	    d[j] &= 0xffff0f0f;
+#endif
 	}
     }
 
@@ -492,6 +502,8 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 {
     struct qxl_drawable *drawable;
     ScrnInfoPtr pScrn = qxl->pScrn;
+    uint32_t color;
+    struct qxl_rect qrect;
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
@@ -501,10 +513,12 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
     ErrorF ("displayWidth: %d\n", pScrn->displayWidth * 4);
 #endif
 
+#if 0
     ErrorF ("sending bits from %d %d %d %d (%d %d)\n",
 	    rect->left, rect->top, rect->right, rect->bottom,
 	    rect->right - rect->left, rect->bottom - rect->top);
-    
+#endif
+
     drawable->u.copy.src_bitmap = physical_address (
 	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
 			 rect->right - rect->left,
@@ -520,6 +534,43 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable->u.copy.mask.bitmap = 0;
 
     push_drawable (qxl, drawable);
+
+#if 0
+    color = rand();
+    color &= 0x700000ff;
+
+    qrect = drawable->bbox;
+    
+    submit_fill (qxl, &qrect, color);
+#endif
+}
+
+static void
+print_region (const char *header, RegionPtr pRegion)
+{
+    int nbox = REGION_NUM_RECTS (pRegion);
+    BoxPtr pbox = REGION_RECTS (pRegion);
+
+    ErrorF ("%s \n", header);
+    
+    while (nbox--)
+    {
+	ErrorF ("   %d %d %d %d (size: %d %d)\n",
+		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
+
+	pbox++;
+    }
+}
+
+static void
+undamage (qxlScreen *qxl)
+{
+#if 0
+    print_region ("undamaging", &(qxl->pendingCopy));
+#endif
+
+    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pendingCopy));
 }
 
 static void
@@ -542,6 +593,11 @@ qxlSendCopies (qxlScreen *qxl)
 	pBox++;
     }
 
+#if 0
+    if (REGION_NOTEMPTY (qxl->pScrn->pScreen, &qxl->pendingCopy))
+	print_region ("sent region", &qxl->pendingCopy);
+#endif
+    
     REGION_EMPTY(qxl->pScrn->pScreen, &qxl->pendingCopy);
 }
 
@@ -593,8 +649,8 @@ getWindowPixmap (DrawablePtr pDrawable, int *xoff, int *yoff)
 
     result = pScreen->GetWindowPixmap ((WindowPtr)pDrawable);
 
-    *xoff = result->drawable.x;
-    *yoff = result->drawable.y;
+    *xoff = pDrawable->x;
+    *yoff = pDrawable->y;
 
     return result;
 }
@@ -619,13 +675,21 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 	RegionPtr pClip = fbGetCompositeClip (pGC);
 	BoxPtr pBox;
 	int nbox;
+
+#if 0
+	print_region ("fill ", pReg);
+#endif
 	
 	REGION_TRANSLATE(pScreen, pReg, xoff, yoff);
 	REGION_INTERSECT(pScreen, pReg, pClip, pReg);
 
+#if 0
+	print_region ("after trans fill ", pReg);
+#endif
+	
 	pBox = REGION_RECTS (pReg);
 	nbox = REGION_NUM_RECTS (pReg);
-	
+
 	while (nbox--)
 	{
 	    struct qxl_rect qrect;
@@ -635,7 +699,13 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 	    qrect.top = pBox->y1;
 	    qrect.bottom = pBox->y2;
 
-	    submit_fill (qxl, &qrect, pGC->fgPixel);
+	    uint32_t pixel = pGC->fgPixel;
+
+#if 0
+	    pixel = rand();
+#endif
+	    
+	    submit_fill (qxl, &qrect, pixel);
 
 	    pBox++;
 	}
@@ -643,10 +713,10 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 	REGION_DESTROY (pScreen, pReg);
 	
 	/* Clear pending damage */
-	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+	undamage (qxl);
     }
     
-    miPolyFillRect (pDrawable, pGC, nrect, prect);
+    fbPolyFillRect (pDrawable, pGC, nrect, prect);
 }
 
 
@@ -684,14 +754,14 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 	    struct qxl_drawable *drawable;
 	    struct qxl_rect qrect;
 	    
-	    qrect.top = pbox->y1 + dst_yoff;
-	    qrect.bottom = pbox->y2 + dst_yoff;
-	    qrect.left = pbox->x1 + dst_xoff;
-	    qrect.right = pbox->x2 + dst_xoff;
+	    qrect.top = pbox->y1;
+	    qrect.bottom = pbox->y2;
+	    qrect.left = pbox->x1;
+	    qrect.right = pbox->x2;
 
 	    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
-	    drawable->u.copy_bits.src_pos.x = pbox->x1 + dx + dst_xoff;
-	    drawable->u.copy_bits.src_pos.y = pbox->y1 + dy + dst_yoff;
+	    drawable->u.copy_bits.src_pos.x = pbox->x1 + dx;
+	    drawable->u.copy_bits.src_pos.y = pbox->y1 + dy;
 
 #if 0
 	    ErrorF ("sent copy from %d %d to %d %d (width: %d %d)\n",
@@ -704,6 +774,57 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 #endif
 	    
 	    push_drawable (qxl, drawable);
+
+	    pbox++;
+	}
+    }
+}
+
+static void
+qxlPinkNtoN (DrawablePtr    pSrcDrawable,
+	     DrawablePtr    pDstDrawable,
+	     GCPtr	    pGC,
+	     BoxPtr	    pbox,
+	     int	    nbox,
+	     int	    dx,
+	     int	    dy,
+	     Bool	    reverse,
+	     Bool	    upsidedown,
+	     Pixel	    bitplane,
+	     void	    *closure)
+{
+    ScreenPtr pScreen = pSrcDrawable->pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxlScreen *qxl = pScrn->driverPrivate;
+    int src_xoff, src_yoff;
+    int dst_xoff, dst_yoff;
+    PixmapPtr pSrcPixmap, pDstPixmap;
+
+    if ((pDstPixmap = getWindowPixmap (pDstDrawable, &dst_xoff, &dst_yoff)))
+    {
+	assert (pSrcPixmap == pDstPixmap);
+
+	while (nbox--)
+	{
+	    struct qxl_rect qrect;
+	    uint32_t color;
+
+#if 0
+	    ErrorF ("sent pink at %d %d %d %d\n",
+		    pbox->x1 + dst_xoff,
+		    pbox->y1 + dst_yoff,
+		    pbox->x2 + dst_xoff,
+		    pbox->y2 + dst_yoff);
+#endif
+	    
+	    qrect.top = pbox->y1;
+	    qrect.bottom = pbox->y2;
+	    qrect.left = pbox->x1;
+	    qrect.right = pbox->x2;
+
+	    color = rand() & 0x70ff0000;
+	    
+	    submit_fill (qxl, &qrect, pGC->fgPixel);
 
 	    pbox++;
 	}
@@ -724,7 +845,28 @@ qxlCopyArea(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
 	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
 		  srcx, srcy, width, height, dstx, dsty, qxlCopyNtoN, 0, NULL);
 
-	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+	undamage (qxl);
+    }
+#if 0
+    else if (pSrcDrawable->type == DRAWABLE_PIXMAP &&
+	     pDstDrawable->type == DRAWABLE_WINDOW)
+	     
+    {
+	ErrorF ("Fake CopyArea\n");
+	
+	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
+		  srcx, srcy, width, height, dstx, dsty, qxlPinkNtoN, 0, NULL);
+
+#if 0
+	undamage (qxl);
+#endif
+    }
+#endif
+    else
+    {
+#if 0
+	ErrorF ("Unaccelerated CopyArea\n");
+#endif
     }
     
 #if 0
@@ -749,20 +891,32 @@ qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 	int nbox = REGION_NUM_RECTS (pRegion);
 	BoxPtr pBox = REGION_RECTS (pRegion);
 
+#if 0
+	ErrorF ("*********** submitting n fills %d \n", nbox);
+#endif
 	while (nbox--)
 	{
 	    struct qxl_rect qrect;
 
-	    qrect.left = pBox->x1 + xoff;
-	    qrect.right = pBox->x2 + xoff;
-	    qrect.top = pBox->y1 + yoff;
-	    qrect.bottom = pBox->y2 + yoff;
+	    qrect.left = pBox->x1;
+	    qrect.right = pBox->x2;
+	    qrect.top = pBox->y1;
+	    qrect.bottom = pBox->y2;
 
 	    submit_fill (qxl, &qrect, pixel);
+
+	    pBox++;
 	}
     }
+#if 0
+    else
+    {
+	ErrorF ("*********** no pixmap\n");
+    }
+#endif
 
-    fbFillRegionSolid (pDrawable, pRegion, 0, fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
+    fbFillRegionSolid (pDrawable, pRegion, 0,
+		       fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
 }
 
 static void
@@ -781,45 +935,76 @@ qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
 #if 0
 	ErrorF ("background: %x\n", pWin->background.pixel);
 #endif
-	
-	qxlFillRegionSolid (&pWin->drawable, pRegion, pWin->background.pixel);
 
-	REGION_EMPTY (pScreen, &qxl->pendingCopy);
+#if 0
+	print_region ("background", pRegion);
+	print_region ("damaged area", &(qxl->pendingCopy));
+#endif
+
+#if 0
+	if (!miRegionEqual (pRegion, &(qxl->pendingCopy)))
+	{
+	    ErrorF ("***************** different regions\n");
+	}
+#endif
+
+	uint32_t pixel = pWin->background.pixel;
+
+	qxlFillRegionSolid (&pWin->drawable, pRegion, pixel);
+#if 0
+	rand() & 0xffffff00);	
+#endif
+
+	undamage (qxl);
     }
     else
     {
+#if 0
 	int nbox = REGION_NUM_RECTS (pRegion);
 	BoxPtr pbox = REGION_RECTS (pRegion);
-	
-	REGION_EMPTY (pScreen, &qxl->pendingCopy);
-	
-	ErrorF ("Unaccelerated PaintWindow\n");
-	ErrorF ("   what: %d (BG: %d)\n", what, PW_BACKGROUND);
-	ErrorF ("   backgroundState: %d  (bgpixel: %d)\n", pWin->backgroundState, BackgroundPixel);
-	while (nbox--)
+	PixmapPtr pPixmap;
+	int xoff, yoff;
+
+	if ((pPixmap = getWindowPixmap (&pWin->drawable, &xoff, &yoff)))
 	{
-	    RegionRec boxreg;
+	    undamage (qxl);
+	    
+#if 0
+	    ErrorF ("Unaccelerated PaintWindow\n");
+	    ErrorF ("   what: %d (BG: %d)\n", what, PW_BACKGROUND);
+	    ErrorF ("   backgroundState: %d  (bgpixel: %d)\n", pWin->backgroundState, BackgroundPixel);
+	    ErrorF ("   offset: %d %d\n", xoff, yoff);
+	    ErrorF ("  screen: %d %d\n", pPixmap->screen_x, pPixmap->screen_y);
+#endif
+	    
+	    while (nbox--)
+	    {
+		RegionRec boxreg;
+		
+		REGION_INIT (pScreen, &boxreg, pbox, 1);
+		
+		REGION_UNION (pScreen, &qxl->pendingCopy, &qxl->pendingCopy, &boxreg);
+		
+		pbox++;
+	    }
 
-	    REGION_INIT (pScreen, &boxreg, pbox, 1);
-
-	    REGION_UNION (pScreen, &qxl->pendingCopy, &qxl->pendingCopy, &boxreg);
-
-	    pbox++;
+	    REGION_TRANSLATE(pScreen, &qxl->pendingCopy, xoff, yoff);
+	    
+	    nbox = REGION_NUM_RECTS (&qxl->pendingCopy);
+	    pbox = REGION_RECTS (&qxl->pendingCopy);
+	    
+	    ErrorF ("damaged region: \n");
+	    while (nbox--)
+	    {
+		ErrorF ("  %d %d %d %d\n", pbox->x1, pbox->y1, pbox->x2, pbox->y2);
+		
+		pbox++;
+	    }
 	}
-	
-	nbox = REGION_NUM_RECTS (&qxl->pendingCopy);
-	pbox = REGION_RECTS (&qxl->pendingCopy);
-
-	ErrorF ("damaged region: \n");
-	while (nbox--)
-	{
-	    ErrorF ("  %d %d %d %d\n", pbox->x1, pbox->y1, pbox->x2, pbox->y2);
-
-	    pbox++;
-	}
+#endif
     }
 
-    miPaintWindow (pWin, pRegion, what);
+    fbPaintWindow (pWin, pRegion, what);
 }
 
 static void
@@ -842,7 +1027,7 @@ qxlCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 
     fbCopyRegion (&pWin->drawable, &pWin->drawable,
 		  NULL, &rgnDst, dx, dy, qxlCopyNtoN, 0, NULL);
-    REGION_EMPTY (pScreen, &qxl->pendingCopy);
+    undamage (qxl);
 
     REGION_TRANSLATE (pScreen, prgnSrc, dx, dy);
     
@@ -872,24 +1057,6 @@ qxlCreateGC (GCPtr pGC)
 }
 
 static void
-print_region (const char *header, RegionPtr pRegion)
-{
-    int nbox = REGION_NUM_RECTS (pRegion);
-    BoxPtr pbox = REGION_RECTS (pRegion);
-
-    ErrorF ("%s \n", header);
-    
-    while (nbox--)
-    {
-	ErrorF ("   %d %d %d %d (size: %d %d)\n",
-		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
-		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
-
-	pbox++;
-    }
-}
-
-static void
 dummy (RegionPtr pRegion)
 {
     ;
@@ -902,7 +1069,9 @@ qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
     
     qxlSendCopies (qxl);
 
+#if 0
     print_region ("damaging region", pRegion);
+#endif
 
     dummy (pRegion);
     
