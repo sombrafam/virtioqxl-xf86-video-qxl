@@ -330,8 +330,6 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
     const uint8_t *src_line;
     int dest_stride = width * sizeof (uint32_t);
     int i, j;
-    uint8_t r = rand() % 256;
-	    
 
     data += y * stride + x * sizeof (uint32_t);
     
@@ -502,8 +500,6 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 {
     struct qxl_drawable *drawable;
     ScrnInfoPtr pScrn = qxl->pScrn;
-    uint32_t color;
-    struct qxl_rect qrect;
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
@@ -699,13 +695,7 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 	    qrect.top = pBox->y1;
 	    qrect.bottom = pBox->y2;
 
-	    uint32_t pixel = pGC->fgPixel;
-
-#if 0
-	    pixel = rand();
-#endif
-	    
-	    submit_fill (qxl, &qrect, pixel);
+	    submit_fill (qxl, &qrect, pGC->fgPixel);
 
 	    pBox++;
 	}
@@ -774,57 +764,6 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 #endif
 	    
 	    push_drawable (qxl, drawable);
-
-	    pbox++;
-	}
-    }
-}
-
-static void
-qxlPinkNtoN (DrawablePtr    pSrcDrawable,
-	     DrawablePtr    pDstDrawable,
-	     GCPtr	    pGC,
-	     BoxPtr	    pbox,
-	     int	    nbox,
-	     int	    dx,
-	     int	    dy,
-	     Bool	    reverse,
-	     Bool	    upsidedown,
-	     Pixel	    bitplane,
-	     void	    *closure)
-{
-    ScreenPtr pScreen = pSrcDrawable->pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxlScreen *qxl = pScrn->driverPrivate;
-    int src_xoff, src_yoff;
-    int dst_xoff, dst_yoff;
-    PixmapPtr pSrcPixmap, pDstPixmap;
-
-    if ((pDstPixmap = getWindowPixmap (pDstDrawable, &dst_xoff, &dst_yoff)))
-    {
-	assert (pSrcPixmap == pDstPixmap);
-
-	while (nbox--)
-	{
-	    struct qxl_rect qrect;
-	    uint32_t color;
-
-#if 0
-	    ErrorF ("sent pink at %d %d %d %d\n",
-		    pbox->x1 + dst_xoff,
-		    pbox->y1 + dst_yoff,
-		    pbox->x2 + dst_xoff,
-		    pbox->y2 + dst_yoff);
-#endif
-	    
-	    qrect.top = pbox->y1;
-	    qrect.bottom = pbox->y2;
-	    qrect.left = pbox->x1;
-	    qrect.right = pbox->x2;
-
-	    color = rand() & 0x70ff0000;
-	    
-	    submit_fill (qxl, &qrect, pGC->fgPixel);
 
 	    pbox++;
 	}

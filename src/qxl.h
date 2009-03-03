@@ -375,6 +375,11 @@ struct qxl_drawable {
     } u;
 };
 
+struct qxl_point16 {
+    int16_t x;
+    int16_t y;
+};
+
 enum {
     QXL_CURSOR_SET,
     QXL_CURSOR_MOVE,
@@ -384,10 +389,31 @@ enum {
 
 #define QXL_CURSOR_DEVICE_DATA_SIZE 128
 
-struct qxl_point16 {
-    int16_t x;
-    int16_t y;
+enum {
+    CURSOR_TYPE_ALPHA,
+    CURSOR_TYPE_MONO,
+    CURSOR_TYPE_COLOR4,
+    CURSOR_TYPE_COLOR8,
+    CURSOR_TYPE_COLOR16,
+    CURSOR_TYPE_COLOR24,
+    CURSOR_TYPE_COLOR32,
 };
+
+struct qxl_cursor_header {
+    uint64_t unique;
+    uint16_t type;
+    uint16_t width;
+    uint16_t height;
+    uint16_t hot_spot_x;
+    uint16_t hot_spot_y;
+};
+
+struct qxl_cursorr
+{
+    struct qxl_cursor_header header;
+    uint32_t data_size;
+    struct qxl_data_chunk chunk;
+} QXLCursor;
 
 struct qxl_cursor_cmd {
     union qxl_release_info release_info;
