@@ -53,9 +53,6 @@ virtual_address (qxlScreen *qxl, void *physical)
     return (void *) (physical + (qxl->ram - qxl->ram_physical));
 }
 
-int n_pushed_commands;
-int n_released_commands;
-
 static int
 garbage_collect (qxlScreen *qxl)
 {
@@ -75,49 +72,25 @@ garbage_collect (qxlScreen *qxl)
 	    switch (drawable->type)
 	    {
 	    case QXL_DRAW_FILL:
-#if 0
-		fprintf (stderr, "freeing fill %p\n", drawable);
-#endif
 		break;
 		
 	    case QXL_DRAW_COPY:
-#if 0
-		fprintf (stderr, "freeing copy %p\n", drawable);
-#endif
-		
 		image = virtual_address (qxl, (void *)drawable->u.copy.src_bitmap);
 		chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
-		
-#if 0
-		fprintf (stderr, "image: %p. chunk %p\n", image, chunk);
-#endif
 		
 		qxl_free (qxl->mem, image);
 		qxl_free (qxl->mem, chunk);
 		break;
 		
 	    default:
-#if 0
-		fprintf (stderr, "freeing something else (%p)\n", drawable);
-#endif
 		break;
 	    }
 
-#if 0
-	    fprintf (stderr, "physical next: %lx\n", drawable->release_info.next);
-#endif
-	    
 	    next = (void *)drawable->release_info.next;
 
 	    qxl_free (qxl->mem, drawable);
 
 	    drawable = next;
-
-	    n_released_commands++;
-	
-#if 0
-	    fprintf (stderr, "virtual next: %p\n", drawable);
-#endif
 	    
 	    ++i;
 	}
@@ -131,10 +104,6 @@ qxl_sleep (int useconds)
 {
     struct timeval t;
 
-#if 0
-    fprintf (stderr, "sleeping for %d usecodns\n", useconds);
-#endif
-    
     t.tv_sec = 0;
     t.tv_usec = useconds;
 
@@ -163,9 +132,6 @@ qxl_allocnf (qxlScreen *qxl, unsigned long size)
 	{
 	    qxl_mem_dump_stats (qxl->mem, "Out of mem - stats\n");
 	    
-	    fprintf (stderr, "%d pushed commands, %d released \n",
-		     n_pushed_commands,
-		     n_released_commands);
 	    fprintf (stderr, "Out of memory\n");
 	    exit (1);
 	}
@@ -255,9 +221,6 @@ qxlCloseScreen(int scrnIndex, ScreenPtr pScreen)
 
     if (pScrn->vtSema)
 	qxlUnmapMemory(qxl, scrnIndex);
-#if 0 /* exa */
-    qxlExaFini(pScreen);
-#endif
     pScrn->vtSema = FALSE;
 
     xfree(qxl->fb);
@@ -317,8 +280,6 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
     cmd.data = physical_address (qxl, drawable);
 
     qxl_ring_push (qxl->command_ring, &cmd);
-
-    n_pushed_commands++;    
 }
 
 static struct qxl_image *
@@ -352,14 +313,6 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
 	    uint32_t *d = (uint32_t *)dest_line;
 
 	    d[j] = s[j];
-#if 0
-	    
-	    d[j] = s[j] & 0xff00ffff;
-
-	    d[j] |= (r << 16);
-
-	    d[j] &= 0xffff0f0f;
-#endif
 	}
     }
 
@@ -392,27 +345,14 @@ make_drawable (qxlScreen *qxl, uint8_t type,
 
     CHECK_POINT();
     
-#if 0
-    ErrorF ("qxl: %p\n", qxl);
-    ErrorF ("mem: %p\n", qxl->mem);
-#endif
-    
     drawable = qxl_allocnf (qxl, sizeof *drawable);
 
     CHECK_POINT();
 
-#if 0
-    ErrorF ("Allocated drawable at %p\n", drawable);
-#endif
-    
     drawable->release_info.id = (uint64_t)drawable;
 
     drawable->type = type;
 
-#if 0
-    ErrorF ("type is %d at %p\n", drawable->type, &(drawable->type));
-#endif
-    
     drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
     drawable->bitmap_area.top = 0;
@@ -421,12 +361,6 @@ make_drawable (qxlScreen *qxl, uint8_t type,
     drawable->bitmap_area.right = 0;
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
-
-#if 0
-    ErrorF ("bitmap area offset: %lx\n", (void *)&(drawable->bitmap_area) - (void *)drawable);
-    ErrorF ("bbox offset: %lx\n", (void *)&(drawable->bbox) - (void *)drawable);
-    ErrorF ("Clip address offset: %lx\n", (void *)&(drawable->clip) - (void *)drawable);
-#endif
 
     if (rect)
 	drawable->bbox = *rect;
@@ -463,10 +397,6 @@ submit_fill (qxlScreen *qxl, const struct qxl_rect *rect, uint32_t color)
 
     CHECK_POINT();
 
-#if 0
-    ErrorF ("fill with color %x\n", color);
-#endif
-    
     drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
     drawable->u.fill.brush.u.color = color;
     drawable->u.fill.rop_descriptor = ROPD_OP_PUT;
@@ -474,15 +404,6 @@ submit_fill (qxlScreen *qxl, const struct qxl_rect *rect, uint32_t color)
     drawable->u.fill.mask.pos.x = 0;
     drawable->u.fill.mask.pos.y = 0;
     drawable->u.fill.mask.bitmap = 0;
-
-#if 0
-    ErrorF ("The drawable has type %d\n", drawable->type);
-    ErrorF ("The bbox is: %d %d %d %d\n",
-	    drawable->bbox.top,
-	    drawable->bbox.left,
-	    drawable->bbox.bottom,
-	    drawable->bbox.right);
-#endif
 
     push_drawable (qxl, drawable);
 }
@@ -503,18 +424,6 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
-#if 0
-    ErrorF ("stride: %d\n", qxl->modes[qxl->rom->mode].x_res * sizeof (uint32_t));
-    ErrorF ("new stride: (virtualX: %d) %d\n", pScrn->virtualX, pScrn->virtualX * (pScrn->bitsPerPixel + 7)/8);
-    ErrorF ("displayWidth: %d\n", pScrn->displayWidth * 4);
-#endif
-
-#if 0
-    ErrorF ("sending bits from %d %d %d %d (%d %d)\n",
-	    rect->left, rect->top, rect->right, rect->bottom,
-	    rect->right - rect->left, rect->bottom - rect->top);
-#endif
-
     drawable->u.copy.src_bitmap = physical_address (
 	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
 			 rect->right - rect->left,
@@ -530,15 +439,6 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable->u.copy.mask.bitmap = 0;
 
     push_drawable (qxl, drawable);
-
-#if 0
-    color = rand();
-    color &= 0x700000ff;
-
-    qrect = drawable->bbox;
-    
-    submit_fill (qxl, &qrect, color);
-#endif
 }
 
 static void
@@ -562,10 +462,6 @@ print_region (const char *header, RegionPtr pRegion)
 static void
 undamage (qxlScreen *qxl)
 {
-#if 0
-    print_region ("undamaging", &(qxl->pendingCopy));
-#endif
-
     REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pendingCopy));
 }
 
@@ -589,11 +485,6 @@ qxlSendCopies (qxlScreen *qxl)
 	pBox++;
     }
 
-#if 0
-    if (REGION_NOTEMPTY (qxl->pScrn->pScreen, &qxl->pendingCopy))
-	print_region ("sent region", &qxl->pendingCopy);
-#endif
-    
     REGION_EMPTY(qxl->pScrn->pScreen, &qxl->pendingCopy);
 }
 
@@ -672,17 +563,9 @@ qxlPolyFillRect (DrawablePtr pDrawable,
 	BoxPtr pBox;
 	int nbox;
 
-#if 0
-	print_region ("fill ", pReg);
-#endif
-	
 	REGION_TRANSLATE(pScreen, pReg, xoff, yoff);
 	REGION_INTERSECT(pScreen, pReg, pClip, pReg);
 
-#if 0
-	print_region ("after trans fill ", pReg);
-#endif
-	
 	pBox = REGION_RECTS (pReg);
 	nbox = REGION_NUM_RECTS (pReg);
 
@@ -730,11 +613,7 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
     int dst_xoff, dst_yoff;
     PixmapPtr pSrcPixmap, pDstPixmap;
 
-#if 0
-    ErrorF ("copy n to n\n");
-#endif
-    
-    if ((pSrcPixmap = getWindowPixmap (pSrcDrawable, &src_xoff, &src_yoff))	&&
+    if ((pSrcPixmap = getWindowPixmap (pSrcDrawable, &src_xoff, &src_yoff)) &&
 	(pDstPixmap = getWindowPixmap (pDstDrawable, &dst_xoff, &dst_yoff)))
     {
 	assert (pSrcPixmap == pDstPixmap);
@@ -753,16 +632,6 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 	    drawable->u.copy_bits.src_pos.x = pbox->x1 + dx;
 	    drawable->u.copy_bits.src_pos.y = pbox->y1 + dy;
 
-#if 0
-	    ErrorF ("sent copy from %d %d to %d %d (width: %d %d)\n",
-		    drawable->u.copy_bits.src_pos.x,
-		    drawable->u.copy_bits.src_pos.y,
-		    drawable->bbox.left,
-		    drawable->bbox.top,
-		    drawable->bbox.right - drawable->bbox.left,
-		    drawable->bbox.bottom - drawable->bbox.top);
-#endif
-	    
 	    push_drawable (qxl, drawable);
 
 	    pbox++;
@@ -786,31 +655,6 @@ qxlCopyArea(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
 
 	undamage (qxl);
     }
-#if 0
-    else if (pSrcDrawable->type == DRAWABLE_PIXMAP &&
-	     pDstDrawable->type == DRAWABLE_WINDOW)
-	     
-    {
-	ErrorF ("Fake CopyArea\n");
-	
-	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
-		  srcx, srcy, width, height, dstx, dsty, qxlPinkNtoN, 0, NULL);
-
-#if 0
-	undamage (qxl);
-#endif
-    }
-#endif
-    else
-    {
-#if 0
-	ErrorF ("Unaccelerated CopyArea\n");
-#endif
-    }
-    
-#if 0
-    ErrorF ("CopyArea\n");
-#endif
     
     return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
 		       srcx, srcy, width, height, dstx, dsty);
@@ -830,9 +674,6 @@ qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 	int nbox = REGION_NUM_RECTS (pRegion);
 	BoxPtr pBox = REGION_RECTS (pRegion);
 
-#if 0
-	ErrorF ("*********** submitting n fills %d \n", nbox);
-#endif
 	while (nbox--)
 	{
 	    struct qxl_rect qrect;
@@ -847,12 +688,6 @@ qxlFillRegionSolid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 	    pBox++;
 	}
     }
-#if 0
-    else
-    {
-	ErrorF ("*********** no pixmap\n");
-    }
-#endif
 
     fbFillRegionSolid (pDrawable, pRegion, 0,
 		       fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
@@ -871,76 +706,11 @@ qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
     if (what == PW_BACKGROUND &&
 	pWin->backgroundState == BackgroundPixel)
     {
-#if 0
-	ErrorF ("background: %x\n", pWin->background.pixel);
-#endif
-
-#if 0
-	print_region ("background", pRegion);
-	print_region ("damaged area", &(qxl->pendingCopy));
-#endif
-
-#if 0
-	if (!miRegionEqual (pRegion, &(qxl->pendingCopy)))
-	{
-	    ErrorF ("***************** different regions\n");
-	}
-#endif
-
 	uint32_t pixel = pWin->background.pixel;
 
 	qxlFillRegionSolid (&pWin->drawable, pRegion, pixel);
-#if 0
-	rand() & 0xffffff00);	
-#endif
-
+	
 	undamage (qxl);
-    }
-    else
-    {
-#if 0
-	int nbox = REGION_NUM_RECTS (pRegion);
-	BoxPtr pbox = REGION_RECTS (pRegion);
-	PixmapPtr pPixmap;
-	int xoff, yoff;
-
-	if ((pPixmap = getWindowPixmap (&pWin->drawable, &xoff, &yoff)))
-	{
-	    undamage (qxl);
-	    
-#if 0
-	    ErrorF ("Unaccelerated PaintWindow\n");
-	    ErrorF ("   what: %d (BG: %d)\n", what, PW_BACKGROUND);
-	    ErrorF ("   backgroundState: %d  (bgpixel: %d)\n", pWin->backgroundState, BackgroundPixel);
-	    ErrorF ("   offset: %d %d\n", xoff, yoff);
-	    ErrorF ("  screen: %d %d\n", pPixmap->screen_x, pPixmap->screen_y);
-#endif
-	    
-	    while (nbox--)
-	    {
-		RegionRec boxreg;
-		
-		REGION_INIT (pScreen, &boxreg, pbox, 1);
-		
-		REGION_UNION (pScreen, &qxl->pendingCopy, &qxl->pendingCopy, &boxreg);
-		
-		pbox++;
-	    }
-
-	    REGION_TRANSLATE(pScreen, &qxl->pendingCopy, xoff, yoff);
-	    
-	    nbox = REGION_NUM_RECTS (&qxl->pendingCopy);
-	    pbox = REGION_RECTS (&qxl->pendingCopy);
-	    
-	    ErrorF ("damaged region: \n");
-	    while (nbox--)
-	    {
-		ErrorF ("  %d %d %d %d\n", pbox->x1, pbox->y1, pbox->x2, pbox->y2);
-		
-		pbox++;
-	    }
-	}
-#endif
     }
 
     fbPaintWindow (pWin, pRegion, what);
@@ -996,24 +766,12 @@ qxlCreateGC (GCPtr pGC)
 }
 
 static void
-dummy (RegionPtr pRegion)
-{
-    ;
-}
-
-static void
 qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 {
     qxlScreen *qxl = closure;
     
     qxlSendCopies (qxl);
 
-#if 0
-    print_region ("damaging region", pRegion);
-#endif
-
-    dummy (pRegion);
-    
     REGION_COPY (qxl->pScrn->pScreen, &(qxl->pendingCopy), pRegion);
 }
 
@@ -1045,11 +803,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
 	goto out;
 
-#if 0
-    ErrorF ("%d x %d  (x, y: %d %d)\n", pScrn->virtualX, pScrn->virtualY, pScrn->frameX0, pScrn->frameY0);
-    ErrorF ("pScrn->displayWidth: %d\n", pScrn->displayWidth);
-#endif
-    
     qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth,
 		      (pScrn->bitsPerPixel + 7)/8);
     if (!qxl->fb)
@@ -1057,10 +810,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     pScrn->virtualX = pScrn->currentMode->HDisplay;
     pScrn->virtualY = pScrn->currentMode->VDisplay;
-    
-#if 0
-    ErrorF ("current: %d %d\n", pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay);
-#endif
     
     if (!fbScreenInit(pScreen, qxl->fb, pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
@@ -1102,14 +851,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 					 sizeof (uint64_t),
 					 8, 0);
 					 
-#if 0
-    qxl->exa = qxlExaInit(pScreen);
-#endif
-
-#if 0
-    qxlCursorInit(pScreen);
-#endif
-
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
 
 #if 0 /* XV accel */
@@ -1304,10 +1045,6 @@ qxlValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
 
     assert (((struct qxl_mode *)p->Private)->x_res == p->HDisplay);
     assert (((struct qxl_mode *)p->Private)->y_res == p->VDisplay);
-
-#if 0
-    ErrorF ("validated mode %p\n", p);
-#endif
     
     return MODE_OK;
 }
