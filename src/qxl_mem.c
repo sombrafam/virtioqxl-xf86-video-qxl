@@ -130,6 +130,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
      * we can mostly ignore the difference between blocks and allocations
      */
     n_bytes += sizeof (unsigned long);
+
+    n_bytes = (n_bytes + 7) & ~((1 << 3) - 1);
     
     if (n_bytes < sizeof (struct block))
 	n_bytes = sizeof (struct block);

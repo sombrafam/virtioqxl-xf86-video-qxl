@@ -61,38 +61,43 @@ garbage_collect (qxlScreen *qxl)
     
     while (qxl_ring_pop (qxl->release_ring, &id))
     {
-	struct qxl_drawable *drawable = (struct qxl_drawable *)id;
-
-	while (drawable)
+	while (id)
 	{
-	    struct qxl_image *image;
-	    struct qxl_data_chunk *chunk;
-	    struct qxl_drawable *next;
+	    /* We assume that there the two low bits of a pointer are
+	     * available. If the low one is set, then the command in
+	     * question is a cursor command
+	     */
+#define POINTER_MASK ((1 << 2) - 1)
 	    
-	    switch (drawable->type)
+	    union qxl_release_info *info = (void *)(id & ~POINTER_MASK);
+	    struct qxl_cursor_cmd *cmd = (struct qxl_cursor_cmd *)info;
+	    struct qxl_drawable *drawable = (struct qxl_drawable *)info;
+	    int is_cursor = FALSE;
+
+	    if ((id & POINTER_MASK) == 1)
+		is_cursor = TRUE;
+
+	    if (is_cursor && cmd->type == QXL_CURSOR_SET)
 	    {
-	    case QXL_DRAW_FILL:
-		break;
-		
-	    case QXL_DRAW_COPY:
-		image = virtual_address (qxl, (void *)drawable->u.copy.src_bitmap);
-		chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
+		struct qxl_cursor *cursor = (void *)virtual_address (
+		    qxl, (void *)cmd->u.set.shape);
+
+		qxl_free (qxl->mem, cursor);
+	    }
+	    else if (!is_cursor && drawable->type == QXL_DRAW_COPY)
+	    {
+		struct qxl_image *image = virtual_address (
+		    qxl, (void *)drawable->u.copy.src_bitmap);
+		struct qxl_data_chunk *chunk = virtual_address (
+		    qxl, (void *)image->u.bitmap.data);
 		
 		qxl_free (qxl->mem, image);
 		qxl_free (qxl->mem, chunk);
-		break;
-		
-	    default:
-		break;
 	    }
-
-	    next = (void *)drawable->release_info.next;
-
-	    qxl_free (qxl->mem, drawable);
-
-	    drawable = next;
 	    
-	    ++i;
+	    id = info->next;
+	    
+	    qxl_free (qxl->mem, info);
 	}
     }
 
@@ -110,7 +115,7 @@ qxl_sleep (int useconds)
     select (0, NULL, NULL, NULL, &t);
 }
 
-static void *
+void *
 qxl_allocnf (qxlScreen *qxl, unsigned long size)
 {
     void *result;
@@ -248,8 +253,8 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
-    /* If this happens out of ScreenInit, we won't have a screen yet. In that case
-     * createScreenResources will make things right.
+    /* If this happens out of ScreenInit, we won't have a screen yet. In that
+     * case createScreenResources will make things right.
      */
     if (pScreen)
     {
@@ -257,11 +262,12 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 
 	if (pPixmap)
 	{
-	    pScreen->ModifyPixmapHeader(pPixmap,
-					m->x_res, m->y_res,
-					-1, -1,
-					qxl->pScrn->displayWidth * ((qxl->pScrn->bitsPerPixel + 7) / 8),
-					NULL);
+	    pScreen->ModifyPixmapHeader(
+		pPixmap,
+		m->x_res, m->y_res,
+		-1, -1,
+		qxl->pScrn->displayWidth * ((qxl->pScrn->bitsPerPixel + 7) / 8),
+		NULL);
 	}
     }
     
@@ -283,7 +289,10 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
 }
 
 static struct qxl_image *
-make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int height, int stride)
+make_image (qxlScreen *qxl, const uint8_t *data,
+	    int x, int y,
+	    int width, int height,
+	    int stride)
 {
     struct qxl_image *image;
     struct qxl_data_chunk *chunk;
@@ -298,6 +307,7 @@ make_image (qxlScreen *qxl, const uint8_t *data, int x, int y, int width, int he
 
     /* FIXME: Check integer overflow */
     chunk = qxl_allocnf (qxl, sizeof *chunk + height * dest_stride);
+
     chunk->data_size = height * dest_stride;
     chunk->prev_chunk = 0;
     chunk->next_chunk = 0;
@@ -880,6 +890,8 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miCreateDefColormap(pScreen))
 	goto out;
 
+    qxlCursorInit (pScreen);
+    
     CHECK_POINT();
 
     qxlSwitchMode(scrnIndex, pScrn->currentMode, 0);

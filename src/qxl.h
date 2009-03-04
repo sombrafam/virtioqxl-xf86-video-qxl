@@ -56,6 +56,7 @@
 #include <stdlib.h>
 
 struct qxl_mem;
+typedef struct _qxlScreen qxlScreen;
 
 struct qxl_mem *qxl_mem_create (void *base, unsigned long n_bytes);
 
@@ -63,6 +64,7 @@ void  qxl_mem_dump_stats (struct qxl_mem *mem, const char *header);
 void *qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes);
 void  qxl_free  (struct qxl_mem *mem, void *d);
 void  qxl_mem_free_all (struct qxl_mem *mem);
+void *qxl_allocnf (qxlScreen *qxl, unsigned long size);
 
 #pragma pack(push,1)
 
@@ -408,12 +410,12 @@ struct qxl_cursor_header {
     uint16_t hot_spot_y;
 };
 
-struct qxl_cursorr
+struct qxl_cursor
 {
     struct qxl_cursor_header header;
     uint32_t data_size;
     struct qxl_data_chunk chunk;
-} QXLCursor;
+};
 
 struct qxl_cursor_cmd {
     union qxl_release_info release_info;
@@ -487,7 +489,7 @@ Bool		 qxl_ring_pop    (struct qxl_ring        *ring,
 				  void                   *element);
 void		 qxl_ring_wait_idle (struct qxl_ring *ring);
 
-typedef struct _qxlScreen
+struct _qxlScreen
 {
     /* These are the names QXL uses */
     void *			ram;	/* Video RAM */
@@ -536,8 +538,10 @@ typedef struct _qxlScreen
     
     int16_t			cur_x;
     int16_t			cur_y;
-
+    int16_t			hot_x;
+    int16_t			hot_y;
+    
     ScrnInfoPtr			pScrn;
-} qxlScreen;
+};
 
 extern void qxlCursorInit(ScreenPtr pScreen);
