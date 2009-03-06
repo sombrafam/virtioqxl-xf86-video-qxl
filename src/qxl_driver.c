@@ -647,27 +647,30 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
     if ((pSrcPixmap = getWindowPixmap (pSrcDrawable, &src_xoff, &src_yoff)) &&
 	(pDstPixmap = getWindowPixmap (pDstDrawable, &dst_xoff, &dst_yoff)))
     {
+	int n = nbox;
+	BoxPtr b = pbox;
+	
 	assert (pSrcPixmap == pDstPixmap);
 
-	while (nbox--)
+	while (n--)
 	{
 	    struct qxl_drawable *drawable;
 	    struct qxl_rect qrect;
 	    
-	    qrect.top = pbox->y1;
-	    qrect.bottom = pbox->y2;
-	    qrect.left = pbox->x1;
-	    qrect.right = pbox->x2;
+	    qrect.top = b->y1;
+	    qrect.bottom = b->y2;
+	    qrect.left = b->x1;
+	    qrect.right = b->x2;
 
 #if 0
 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n",
-		    pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		    b->x1, b->y1, b->x2, b->y2,
 		    dx, dy, dst_xoff, dst_yoff);
 #endif
 	    
 	    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
-	    drawable->u.copy_bits.src_pos.x = pbox->x1 + dx;
-	    drawable->u.copy_bits.src_pos.y = pbox->y1 + dy;
+	    drawable->u.copy_bits.src_pos.x = b->x1 + dx;
+	    drawable->u.copy_bits.src_pos.y = b->y1 + dy;
 
 	    push_drawable (qxl, drawable);
 
@@ -680,11 +683,11 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 	    submit_fill (qxl, &qrect, rand());
 #endif
 
-	    pbox++;
+	    b++;
 	}
     }
-    else
-	ErrorF ("huh\n");
+
+    fbCopyNtoN (pSrcDrawable, pDstDrawable, pGC, pbox, nbox, dx, dy, reverse, upsidedown, bitplane, closure);
 }
 
 static RegionPtr
@@ -700,25 +703,15 @@ qxlCopyArea(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
     {
 	undamage (qxl);
 
-	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
-		  srcx, srcy, width, height, dstx, dsty,
-		  qxlCopyNtoN, 0, &width);
+	return fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
+			 srcx, srcy, width, height, dstx, dsty,
+			 qxlCopyNtoN, 0, NULL);
     }
     else
     {
-#if 0
-	ErrorF ("unaccelerated CopyArea\n");
-#endif
+	return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
+			   srcx, srcy, width, height, dstx, dsty);
     }
-
-#if 0
-    ErrorF ("calling fbcopy\n");
-    
-    ErrorF ("Done calling fbcopy\n");
-#endif
-
-    return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
-		       srcx, srcy, width, height, dstx, dsty);
 }
 
 static void
@@ -795,13 +788,16 @@ qxlCopyWindow (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 
     REGION_INTERSECT(pScreen, &rgnDst, &pWin->borderClip, prgnSrc);
 
+    undamage (qxl);
+    
     fbCopyRegion (&pWin->drawable, &pWin->drawable,
 		  NULL, &rgnDst, dx, dy, qxlCopyNtoN, 0, NULL);
-    undamage (qxl);
+#if 0
 
     REGION_TRANSLATE (pScreen, prgnSrc, dx, dy);
     
     fbCopyWindow (pWin, ptOldOrg, prgnSrc);
+#endif
 }
 
 static int
