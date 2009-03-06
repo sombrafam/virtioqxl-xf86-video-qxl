@@ -941,9 +941,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miCreateDefColormap(pScreen))
 	goto out;
 
-#if 0
     qxlCursorInit (pScreen);
-#endif
     
     CHECK_POINT();
 
