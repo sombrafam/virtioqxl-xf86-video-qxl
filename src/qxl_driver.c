@@ -30,6 +30,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+#include <time.h>
 #include "qxl.h"
 #include "assert.h"
 
@@ -105,14 +107,17 @@ garbage_collect (qxlScreen *qxl)
 }
 
 static void
-qxl_sleep (int useconds)
+qxl_usleep (int useconds)
 {
-    struct timeval t;
+    struct timespec t;
 
-    t.tv_sec = 0;
-    t.tv_usec = useconds;
+    t.tv_sec = useconds / 1000000;
+    t.tv_nsec = (useconds - (t.tv_sec * 1000000)) * 1000;
 
-    select (0, NULL, NULL, NULL, &t);
+    errno = 0;
+    while (nanosleep (&t, &t) == -1 && errno == EINTR)
+	;
+    
 }
 
 void *
@@ -127,7 +132,7 @@ qxl_allocnf (qxlScreen *qxl, unsigned long size)
     {
 	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
 
-	qxl_sleep (30000);
+	qxl_usleep (10000);
 	
 	if (garbage_collect (qxl))
 	{
@@ -481,6 +486,10 @@ qxlSendCopies (qxlScreen *qxl)
     BoxPtr pBox = REGION_RECTS(&qxl->pendingCopy);
     int nbox = REGION_NUM_RECTS(&qxl->pendingCopy);
 
+#if 0
+    print_region ("send bits", &qxl->pendingCopy);
+#endif
+    
     while (nbox--)
     {
 	struct qxl_rect qrect;
@@ -496,6 +505,19 @@ qxlSendCopies (qxlScreen *qxl)
     }
 
     REGION_EMPTY(qxl->pScrn->pScreen, &qxl->pendingCopy);
+}
+
+static void
+paint_shadow (qxlScreen *qxl)
+{
+    struct qxl_rect qrect;
+
+    qrect.top = 0;
+    qrect.bottom = 1200;
+    qrect.left = 0;
+    qrect.right = 1600;
+
+    submit_copy (qxl, &qrect);
 }
 
 static void
@@ -602,7 +624,6 @@ qxlPolyFillRect (DrawablePtr pDrawable,
     fbPolyFillRect (pDrawable, pGC, nrect, prect);
 }
 
-
 static void
 qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 	     DrawablePtr    pDstDrawable,
@@ -638,15 +659,32 @@ qxlCopyNtoN (DrawablePtr    pSrcDrawable,
 	    qrect.left = pbox->x1;
 	    qrect.right = pbox->x2;
 
+#if 0
+	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n",
+		    pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		    dx, dy, dst_xoff, dst_yoff);
+#endif
+	    
 	    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
 	    drawable->u.copy_bits.src_pos.x = pbox->x1 + dx;
 	    drawable->u.copy_bits.src_pos.y = pbox->y1 + dy;
 
 	    push_drawable (qxl, drawable);
 
+#if 0
+	    if (closure)
+		qxl_usleep (1000000);
+#endif
+	    
+#if 0
+	    submit_fill (qxl, &qrect, rand());
+#endif
+
 	    pbox++;
 	}
     }
+    else
+	ErrorF ("huh\n");
 }
 
 static RegionPtr
@@ -656,16 +694,29 @@ qxlCopyArea(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
     ScreenPtr pScreen = pSrcDrawable->pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     qxlScreen *qxl = pScrn->driverPrivate;
-    
+
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
-	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
-		  srcx, srcy, width, height, dstx, dsty, qxlCopyNtoN, 0, NULL);
-
 	undamage (qxl);
+
+	fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
+		  srcx, srcy, width, height, dstx, dsty,
+		  qxlCopyNtoN, 0, &width);
     }
+    else
+    {
+#if 0
+	ErrorF ("unaccelerated CopyArea\n");
+#endif
+    }
+
+#if 0
+    ErrorF ("calling fbcopy\n");
     
+    ErrorF ("Done calling fbcopy\n");
+#endif
+
     return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
 		       srcx, srcy, width, height, dstx, dsty);
 }
@@ -779,6 +830,10 @@ static void
 qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 {
     qxlScreen *qxl = closure;
+
+#if 0
+    ErrorF ("damage\n");
+#endif
     
     qxlSendCopies (qxl);
 
@@ -890,7 +945,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miCreateDefColormap(pScreen))
 	goto out;
 
+#if 0
     qxlCursorInit (pScreen);
+#endif
     
     CHECK_POINT();
 
