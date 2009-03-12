@@ -37,7 +37,8 @@
 	  on_op:
 		clear damage
 		disable damage reporting
-		call original (this will generate unreported damage and paint to the shadow)
+		call original (this will generate unreported damage and
+			paint to the shadow)
 		submit command
 		enable damage
 
@@ -75,7 +76,7 @@
 - Coding style fixes
 
 - Better malloc() implementation
-	- Take dmalloc() from the windows driver?
+	- Take malloc() from the windows driver?
 	- Put blocks in a tree?
 
 - Submit cursor images
@@ -86,6 +87,49 @@
 
 - Only compile mmtest if glib is installed
 	Or maybe just get rid of mmtest.c
+
+- Notes on offscreen pixmaps
+
+  Yaniv says that PCI resources is a concern and that it would be better
+  if we can use guest memory instead of video memory. I guess we can
+  do that, given a kernel driver that can allocate pinned memory.
+
+	- If/when we add hardware acceleration to pixman, pixman will need to
+	  generate QXL protocol. Same goes for cairo-drm. This could
+          be tricky because DRM assumes that everything is a pixmap,
+          but qxl explicitly has a framebuffer.
+
+- Video
+
+  We should certainly support Xv. The scaled blits should be sent
+  as commands, rather than as software. Does spice support YUV images?
+  If not, then it probably should.
+
+- Multi-monitor:
+
+  - Windows may not support more than dual-head, but we do support more than
+    dual-head in spice. This is why they do the multi-pci device.
+
+  - Linux multi-monitor configuration supports hotplug of monitors,
+    and you can't make up PCI devices from inside the driver.
+
+  - On windows the guest agent is responsible for setting the monitors
+    and resolutions.
+
+  - On linux we should support EDID information, and enabling and
+    disabling PCI devices on the fly is pretty difficult to deal with
+    in X. Ie., we would need working support for both GPU hotplug and
+    for shatter.
+
+  - Reading back EDID over the spice protocol would be necessary
+    because when you hit detect displays, that's what needs to happen.
+
+Better acceleration:
+
+- Given offscreen pixmaps, we should get rid of the shadow framebuffer.
+  If we have to fall back to software, we can use the drawing area to 
+  get the area in question, then copy them to qxl_malloced memory,
+  then draw there, then finally send the bits.
 
 -=-=-=-=-
 
