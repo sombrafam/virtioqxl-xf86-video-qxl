@@ -79,8 +79,6 @@
 	- Take malloc() from the windows driver?
 	- Put blocks in a tree?
 
-- Submit cursor images
-
 - Find out why it picks 8x6 rather than a reasonable mode
  - Possibly has to do with the timings it reports. RandR only
    allows 8x6 and 6x4.
@@ -95,9 +93,21 @@
   do that, given a kernel driver that can allocate pinned memory.
 
 	- If/when we add hardware acceleration to pixman, pixman will need to
-	  generate QXL protocol. Same goes for cairo-drm. This could
-          be tricky because DRM assumes that everything is a pixmap,
-          but qxl explicitly has a framebuffer.
+	  generate QXL protocol. This could be tricky because DRM assumes that
+	  everything is a pixmap, but qxl explicitly has a framebuffer. Same 
+	  goes for cairo-drm. 
+
+- Hashing
+
+  QXL has a feature where it can send hash codes for pixmaps. Unfortunately
+  most of the pixmaps we use are very shortlived. But there may be a benefit
+  for the root pixmap (and in general for the (few) windows that have
+  a pixmap background).
+
+- Tiles
+
+  It may be beneficial to send pixmaps in smaller tiles, though Yaniv
+  says we will need atomic drawing to prevent tearing.
 
 - Video
 
@@ -110,6 +120,10 @@
   - Windows may not support more than dual-head, but we do support more than
     dual-head in spice. This is why they do the multi-pci device.
 
+    Ie,. the claim is that Yaniv did not find any API that would
+    support more than two outputs per PCI device. (This seems dubious
+    given that four-head cards do exist).
+
   - Linux multi-monitor configuration supports hotplug of monitors,
     and you can't make up PCI devices from inside the driver.
 
@@ -119,7 +133,7 @@
   - On linux we should support EDID information, and enabling and
     disabling PCI devices on the fly is pretty difficult to deal with
     in X. Ie., we would need working support for both GPU hotplug and
-    for shatter.
+    for shatter. This is just not happening in RHEL 5 or 6.
 
   - Reading back EDID over the spice protocol would be necessary
     because when you hit detect displays, that's what needs to happen.
@@ -136,6 +150,8 @@ Better acceleration:
 Done:
 
 Question:
+
+- Submit cursor images
 
 - Note: when we set a mode, all allocated memory should be considered
   released.
