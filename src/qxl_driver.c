@@ -46,13 +46,13 @@
 static inline uint64_t
 physical_address (qxlScreen *qxl, void *virtual)
 {
-    return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
+    return (uint64_t) ((unsigned long)virtual + (((unsigned long)qxl->ram_physical - (unsigned long)qxl->ram)));
 }
 
 static inline void *
 virtual_address (qxlScreen *qxl, void *physical)
 {
-    return (void *) (physical + (qxl->ram - qxl->ram_physical));
+    return (void *) ((unsigned long)physical + ((unsigned long)qxl->ram - (unsigned long)qxl->ram_physical));
 }
 
 static int
@@ -852,7 +852,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	return FALSE;
 
     rom = qxl->rom;
-    ram_header = qxl->ram + qxl->rom->ram_header_offset;
+    ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
     qxlSaveState(qxl);
     qxlBlankScreen(pScreen, SCREEN_SAVER_ON);
@@ -897,10 +897,10 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     pScreen->CreateScreenResources = qxlCreateScreenResources;
 
     /* Set up resources */
-    qxl->mem = qxl_mem_create (qxl->ram + rom->pages_offset,
+    qxl->mem = qxl_mem_create ((void *)((unsigned long)qxl->ram + (unsigned long)rom->pages_offset),
 			       rom->num_io_pages * getpagesize());
-    qxl->io_pages = qxl->ram + rom->pages_offset;
-    qxl->io_pages_physical = (void *)qxl->ram_physical + rom->pages_offset;
+    qxl->io_pages = (void *)((unsigned long)qxl->ram + (unsigned long)rom->pages_offset);
+    qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical + (unsigned long)rom->pages_offset);
 
     qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
 					 sizeof (struct qxl_command),
@@ -1017,7 +1017,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
     int scrnIndex = pScrn->scrnIndex;
     int i, mode_offset;
     struct qxl_rom *rom = qxl->rom;
-    struct qxl_ram_header *ram_header = qxl->ram + rom->ram_header_offset;
+    struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram + rom->ram_header_offset);
     
     CHECK_POINT();
     
