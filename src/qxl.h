@@ -477,18 +477,6 @@ struct qxl_ram_header {
 
 #pragma pack(pop)
 
-struct qxl_ring;
-
-struct qxl_ring *qxl_ring_create (struct qxl_ring_header *header,
-				  int                     element_size,
-				  int                     n_elements,
-				  int			  prod_notify);
-void             qxl_ring_push   (struct qxl_ring        *ring,
-				  const void             *element);
-Bool		 qxl_ring_pop    (struct qxl_ring        *ring,
-				  void                   *element);
-void		 qxl_ring_wait_idle (struct qxl_ring *ring);
-
 struct _qxlScreen
 {
     /* These are the names QXL uses */
@@ -544,4 +532,34 @@ struct _qxlScreen
     ScrnInfoPtr			pScrn;
 };
 
+static inline uint64_t
+physical_address (qxlScreen *qxl, void *virtual)
+{
+    return (uint64_t) ((unsigned long)virtual + (((unsigned long)qxl->ram_physical - (unsigned long)qxl->ram)));
+}
+
+static inline void *
+virtual_address (qxlScreen *qxl, void *physical)
+{
+    return (void *) ((unsigned long)physical + ((unsigned long)qxl->ram - (unsigned long)qxl->ram_physical));
+}
+
+struct qxl_ring;
+
 extern void qxlCursorInit(ScreenPtr pScreen);
+
+struct qxl_ring *qxl_ring_create (struct qxl_ring_header *header,
+				  int                     element_size,
+				  int                     n_elements,
+				  int			  prod_notify);
+void             qxl_ring_push   (struct qxl_ring        *ring,
+				  const void             *element);
+Bool		 qxl_ring_pop    (struct qxl_ring        *ring,
+				  void                   *element);
+void		 qxl_ring_wait_idle (struct qxl_ring *ring);
+
+struct qxl_image *make_image (qxlScreen *qxl, const uint8_t *data,
+			      int x, int y,
+			      int width, int height,
+			      int stride);
+

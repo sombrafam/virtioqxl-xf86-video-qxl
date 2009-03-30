@@ -24,12 +24,6 @@
 #include "qxl.h"
 #include <cursorstr.h>
 
-static inline uint64_t
-physical_address (qxlScreen *qxl, void *virtual)
-{
-    return (uint64_t) (virtual + (qxl->ram_physical - qxl->ram));
-}
-
 static void
 push_cursor (qxlScreen *qxl, struct qxl_cursor_cmd *cursor)
 {

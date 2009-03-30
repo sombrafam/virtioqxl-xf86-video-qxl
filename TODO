@@ -104,6 +104,23 @@
   for the root pixmap (and in general for the (few) windows that have
   a pixmap background).
 
+  - When copying from pixmap to framebuffer, right now we just copy
+    the bits from the fb allocated pixmap.
+
+  - With hashing, we need to copy it to video memory, hash it, then set the
+    "unique" field to that hash value (plus the QXL_CACHE
+    flag). Presumably we'll get a normal remove on it when it is no
+    longer in use.
+
+  - If we know an image is available in video memory already, we should just
+    submit it. There is no race condition here because the image is
+    ultimately removed from vmem by the driver.
+
+    (Note hash value could probably just be XID plus a serial number).
+
+  - So for the proof of concept we'll be hashing complete pixmaps every time
+    we submit them.
+
 - Tiles
 
   It may be beneficial to send pixmaps in smaller tiles, though Yaniv
@@ -182,4 +199,7 @@ Question:
 - Split out ring code into qxl_ring.c
 
 - Don't keep the maps around that are just used in preinit
-	(Is there any real reason to not just do the CheckDevice in ScreenInit?)
+	(Is there any real reason to not just do the CheckDevice in
+	 ScreenInit?)
+
+
