@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <time.h>
+#include <stdlib.h>
 #include "qxl.h"
 #include "assert.h"
 
@@ -80,8 +81,8 @@ garbage_collect (qxlScreen *qxl)
 		    qxl, (void *)drawable->u.copy.src_bitmap);
 		struct qxl_data_chunk *chunk = virtual_address (
 		    qxl, (void *)image->u.bitmap.data);
-		
-		qxl_free (qxl->mem, image);
+
+		qxl_image_destroy (qxl, image);
 		qxl_free (qxl->mem, chunk);
 	    }
 	    
@@ -370,10 +371,10 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
     drawable->u.copy.src_bitmap = physical_address (
-	qxl, make_image (qxl, qxl->fb, rect->left, rect->top,
-			 rect->right - rect->left,
-			 rect->bottom - rect->top,
-			 pScrn->displayWidth * 4));
+	qxl, qxl_image_create (qxl, qxl->fb, rect->left, rect->top,
+			       rect->right - rect->left,
+			       rect->bottom - rect->top,
+			       pScrn->displayWidth * 4));
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;

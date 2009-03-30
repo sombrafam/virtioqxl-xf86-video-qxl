@@ -1,10 +1,10 @@
 #include "qxl.h"
 
 struct qxl_image *
-make_image (qxlScreen *qxl, const uint8_t *data,
-	    int x, int y,
-	    int width, int height,
-	    int stride)
+qxl_image_create (qxlScreen *qxl, const uint8_t *data,
+		  int x, int y,
+		  int width, int height,
+		  int stride)
 {
     struct qxl_image *image;
     struct qxl_data_chunk *chunk;
@@ -56,4 +56,11 @@ make_image (qxlScreen *qxl, const uint8_t *data,
     image->u.bitmap.data = physical_address (qxl, chunk);
 
     return image;
+}
+
+void
+qxl_image_destroy (qxlScreen *qxl,
+		   struct qxl_image *image)
+{
+    qxl_free (qxl->mem, image);
 }
