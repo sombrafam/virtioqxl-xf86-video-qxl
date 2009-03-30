@@ -79,11 +79,8 @@ garbage_collect (qxlScreen *qxl)
 	    {
 		struct qxl_image *image = virtual_address (
 		    qxl, (void *)drawable->u.copy.src_bitmap);
-		struct qxl_data_chunk *chunk = virtual_address (
-		    qxl, (void *)image->u.bitmap.data);
 
 		qxl_image_destroy (qxl, image);
-		qxl_free (qxl->mem, chunk);
 	    }
 	    
 	    id = info->next;

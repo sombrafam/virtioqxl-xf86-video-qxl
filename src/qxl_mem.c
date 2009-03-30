@@ -1,6 +1,8 @@
-#include "qxl.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#include "qxl.h"
 
 struct block
 {

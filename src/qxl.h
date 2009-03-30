@@ -142,6 +142,10 @@ typedef enum {
     QXL_IMAGE_TYPE_FROM_CACHE,
 } qxl_image_type;
 
+typedef enum {
+    QXL_IMAGE_CACHE = (1 << 0)
+} qxl_image_flags;
+
 struct qxl_image_descriptor
 {
     uint64_t id;
