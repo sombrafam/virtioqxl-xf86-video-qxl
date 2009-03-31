@@ -1,12 +1,23 @@
+#include <string.h>
+#include <assert.h>
 #include "qxl.h"
 
 #define N_CACHED_IMAGES		4096
 
-static struct qxl_image *image_hash [N_CACHED_IMAGES];
+typedef struct
+{
+    struct qxl_image *image;
+    int width;
+    int height;
+    int ref_count;
+    unsigned int hash;
+} image_info_t;
 
 
+static image_info_t image_hash [N_CACHED_IMAGES];
 
-static int
+
+static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
 	       uint8_t *dest, int dest_stride,
 	       int width, int height)
@@ -42,8 +53,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
     struct qxl_image *image;
     struct qxl_data_chunk *chunk;
     int dest_stride = width * sizeof (uint32_t);
-    int h;
-
+    unsigned int h;
+    image_info_t *info;
+    
     data += y * stride + x * sizeof (uint32_t);
     
     /* Chunk */
@@ -59,25 +71,81 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		       chunk->data, dest_stride,
 		       width, height);
 
-    h = 0; /* Since it doesn't actually work yet */
+    info = &(image_hash[h % N_CACHED_IMAGES]);
     
-    /* Image */
-    image = qxl_allocnf (qxl, sizeof *image);
+    if (h == info->hash				&&
+	width == info->width			&&
+	height == info->height			&&
+	info->ref_count)
+    {
+#if 0
+	ErrorF ("reusing\n");
+#endif
+	
+	qxl_free (qxl->mem, chunk);
 
-    image->descriptor.id = h;
-    image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
+	info->ref_count++;
+	image = info->image;
 
-    image->descriptor.flags = h? QXL_IMAGE_CACHE : 0;
-    image->descriptor.width = width;
-    image->descriptor.height = height;
+	assert (image != NULL);
+    }
+    else
+    {
+	/* Image */
+	image = qxl_allocnf (qxl, sizeof *image);
 
-    image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
-    image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
-    image->u.bitmap.x = width;
-    image->u.bitmap.y = height;
-    image->u.bitmap.stride = width * sizeof (uint32_t);
-    image->u.bitmap.palette = 0;
-    image->u.bitmap.data = physical_address (qxl, chunk);
+#if 0
+	ErrorF ("allocated %p\n", image);
+#endif
+	
+	image->descriptor.id = 0;
+	image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
+	
+	image->descriptor.flags = 0;
+	image->descriptor.width = width;
+	image->descriptor.height = height;
+	
+	image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
+	image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
+	image->u.bitmap.x = width;
+	image->u.bitmap.y = height;
+	image->u.bitmap.stride = width * sizeof (uint32_t);
+	image->u.bitmap.palette = 0;
+	image->u.bitmap.data = physical_address (qxl, chunk);
+
+#if 0
+	ErrorF ("Inserting image %d\n", h);
+#endif
+
+	if (info->image)
+	{
+#if 0
+	    ErrorF ("Collision at %u (%u %% %d == %u)\n", h % N_CACHED_IMAGES, h, N_CACHED_IMAGES, h % N_CACHED_IMAGES);
+	    ErrorF ("hash: %u %u  width: %x %x height %x %x image %p %p\n",
+		    h, info->hash,
+		    width, info->width,
+		    height, info->height,
+		    image, info->image);
+#endif
+	}
+	else if (h % N_CACHED_IMAGES != 0)
+	{
+	    info->image = image;
+	    info->width = width;
+	    info->height = height;
+	    info->hash = h;
+	    info->ref_count = 1;
+
+	    image->descriptor.id = h;
+	    image->descriptor.flags = QXL_IMAGE_CACHE;
+	}
+    }
+
+    if (image->descriptor.type != QXL_IMAGE_TYPE_BITMAP) {
+	ErrorF ("using existing image %p (%d x %d) id: %lu type: %d\n",
+		image, width, height, image->descriptor.id, image->descriptor.type);
+    }
+	
 
     return image;
 }
@@ -86,11 +154,31 @@ void
 qxl_image_destroy (qxlScreen *qxl,
 		   struct qxl_image *image)
 {
+    image_info_t *info;
+    
     struct qxl_data_chunk *chunk = virtual_address (
 	qxl, (void *)image->u.bitmap.data);
 
-    ErrorF ("Freeing image with id %ld\n", image->descriptor.id);
-    
-    qxl_free (qxl->mem, chunk);
-    qxl_free (qxl->mem, image);
+    info = &image_hash[image->descriptor.id % N_CACHED_IMAGES];
+
+    if (info->image == image && --info->ref_count == 0)
+    {
+	info->image = NULL;
+	info->width = 0xdeadbeef;
+	info->height = 0xdeadbeef;
+	
+	qxl_free (qxl->mem, chunk);
+	qxl_free (qxl->mem, image);
+    }
+    else if (info->image != image)
+    {
+	qxl_free (qxl->mem, chunk);
+	qxl_free (qxl->mem, image);
+    }	
+}
+
+void
+qxl_image_drop_cache (qxlScreen *qxl)
+{
+    memset (image_hash, 0, sizeof image_hash);
 }

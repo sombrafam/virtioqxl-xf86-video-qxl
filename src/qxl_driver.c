@@ -263,7 +263,11 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     }
     
     if (qxl->mem)
+    {
 	qxl_mem_free_all (qxl->mem);
+	qxl_drop_image_cache (qxl);
+    }
+
     
     return TRUE;
 }

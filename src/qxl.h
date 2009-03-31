@@ -533,44 +533,53 @@ struct qxl_ring;
 /*
  * HW cursor
  */
-void              qxlCursorInit      (ScreenPtr               pScreen);
+void              qxlCursorInit        (ScreenPtr               pScreen);
+
 
 
 /*
  * Rings
  */
-struct qxl_ring * qxl_ring_create    (struct qxl_ring_header *header,
-				      int                     element_size,
-				      int                     n_elements,
-				      int                     prod_notify);
-void              qxl_ring_push      (struct qxl_ring        *ring,
-				      const void             *element);
-Bool              qxl_ring_pop       (struct qxl_ring        *ring,
-				      void                   *element);
-void              qxl_ring_wait_idle (struct qxl_ring        *ring);
+struct qxl_ring * qxl_ring_create      (struct qxl_ring_header *header,
+					int                     element_size,
+					int                     n_elements,
+					int                     prod_notify);
+void              qxl_ring_push        (struct qxl_ring        *ring,
+					const void             *element);
+Bool              qxl_ring_pop         (struct qxl_ring        *ring,
+					void                   *element);
+void              qxl_ring_wait_idle   (struct qxl_ring        *ring);
+
 
 
 /*
  * Images
  */
-struct qxl_image *qxl_image_create   (qxlScreen              *qxl,
-				      const uint8_t          *data,
-				      int                     x,
-				      int                     y,
-				      int                     width,
-				      int                     height,
-				      int                     stride);
-void              qxl_image_destroy  (qxlScreen              *qxl,
-				      struct qxl_image       *image);
+struct qxl_image *qxl_image_create     (qxlScreen              *qxl,
+					const uint8_t          *data,
+					int                     x,
+					int                     y,
+					int                     width,
+					int                     height,
+					int                     stride);
+void              qxl_image_destroy    (qxlScreen              *qxl,
+					struct qxl_image       *image);
+void              qxl_image_drop_cache (qxlScreen              *qxl);
+
 
 /*
  * Malloc
  */
-struct qxl_mem *qxl_mem_create (void *base, unsigned long n_bytes);
+struct qxl_mem *  qxl_mem_create       (void                   *base,
+					unsigned long           n_bytes);
+void              qxl_mem_dump_stats   (struct qxl_mem         *mem,
+					const char             *header);
+void *            qxl_alloc            (struct qxl_mem         *mem,
+					unsigned long           n_bytes);
+void              qxl_free             (struct qxl_mem         *mem,
+					void                   *d);
+void              qxl_mem_free_all     (struct qxl_mem         *mem);
+void *            qxl_allocnf          (qxlScreen              *qxl,
+					unsigned long           size);
 
-void  qxl_mem_dump_stats (struct qxl_mem *mem, const char *header);
-void *qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes);
-void  qxl_free  (struct qxl_mem *mem, void *d);
-void  qxl_mem_free_all (struct qxl_mem *mem);
-void *qxl_allocnf (qxlScreen *qxl, unsigned long size);
 
