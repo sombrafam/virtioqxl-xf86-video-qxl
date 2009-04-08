@@ -564,7 +564,7 @@ struct qxl_image *qxl_image_create     (qxlScreen              *qxl,
 					int                     stride);
 void              qxl_image_destroy    (qxlScreen              *qxl,
 					struct qxl_image       *image);
-void              qxl_image_drop_cache (qxlScreen              *qxl);
+void		  qxl_drop_image_cache (qxlScreen	       *qxl);
 
 
 /*

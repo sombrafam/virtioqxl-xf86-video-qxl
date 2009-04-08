@@ -1,23 +1,69 @@
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
 #include "qxl.h"
-
-#define N_CACHED_IMAGES		4096
 
 typedef struct image_info_t image_info_t;
 
-typedef struct image_info_t
+struct image_info_t
 {
     struct qxl_image *image;
-    int width;
-    int height;
     int ref_count;
-    image_info_t *next;
-    unsigned int hash;
 };
 
-static image_info_t image_hash [N_CACHED_IMAGES];
+#define INITIAL_SIZE	4096
 
+#define TOMBSTONE	((struct qxl_image *)(unsigned long)(-1))
+
+static int	     n_images		= 0;
+static int	     n_allocated	= 0;	
+static image_info_t *image_table	= NULL;
+
+static Bool
+grow_or_shrink_table (int n_images_new)
+{
+    int new_size;
+
+    if (!image_table)
+    {
+	new_size = INITIAL_SIZE;
+    }
+    else if (3 * n_images_new > n_allocated)
+    {
+	new_size = n_allocated * 2;
+    }
+    else if (9 * n_images_new < n_allocated)
+    {
+	new_size = n_allocated >> 2;
+    }
+    else
+    {
+	new_size = n_allocated;
+    }
+
+    if (new_size != n_allocated)
+    {
+	image_info_t *new_table = calloc (new_size, sizeof (image_info_t));
+	int i;
+
+	if (!new_table)
+	    return FALSE;
+
+	for (i = 0; i < n_allocated; ++i)
+	{
+	    int new_pos = i % new_size;
+
+	    new_table[new_pos] = image_table[i];
+	}
+
+	free (image_table);
+
+	image_table = new_table;
+	n_allocated = new_size;
+    }
+
+    return TRUE;
+}
 
 static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
@@ -47,77 +93,89 @@ hash_and_copy (const uint8_t *src, int src_stride,
     return hash;
 }
 
+static image_info_t *
+lookup_image_info (unsigned int hash,
+		   int width,
+		   int height)
+{
+    struct image_info_t *info = &image_table[hash % n_allocated];
+    
+    while (info->image != NULL)
+    {
+	struct qxl_image *image = info->image;
+
+	if (image != TOMBSTONE				&&
+	    image->descriptor.id == hash		&&
+	    image->descriptor.width == width		&&
+	    image->descriptor.height == height)
+	{
+	    return info;
+	}
+
+	if (++info == image_table + n_allocated)
+	    info = image_table;
+    }
+
+    return NULL;
+}
+
+static image_info_t *
+find_available_image_info (unsigned int hash)
+{
+    struct image_info_t *info = &image_table[hash % n_allocated];
+    
+    while (info->image != NULL)
+    {
+	if (!info->image || info->image == TOMBSTONE)
+	    return info;
+	
+	if (++info == image_table + n_allocated)
+	    info = image_table;
+    }
+
+    return NULL;
+}
+
 struct qxl_image *
 qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride)
 {
-    struct qxl_image *image;
-    struct qxl_data_chunk *chunk;
-    int dest_stride = width * sizeof (uint32_t);
-    unsigned int h;
+    unsigned int hash = hash_and_copy (data, stride, NULL, -1, width, height);
     image_info_t *info;
-    
+
     data += y * stride + x * sizeof (uint32_t);
-    
-    /* Chunk */
 
-    /* FIXME: Check integer overflow */
-    chunk = qxl_allocnf (qxl, sizeof *chunk + height * dest_stride);
-
-    chunk->data_size = height * dest_stride;
-    chunk->prev_chunk = 0;
-    chunk->next_chunk = 0;
-
-    h = hash_and_copy (data, stride,
-		       chunk->data, dest_stride,
-		       width, height);
-
-    ErrorF ("Creating image with hash code %u\n", h);
-    
-    info = &(image_hash[h % N_CACHED_IMAGES]);
-    
-    if (h == info->hash				&&
-	width == info->width			&&
-	height == info->height			&&
-	info->ref_count)
+    info = lookup_image_info (hash, width, height);
+    if (info)
     {
-	ErrorF ("reusing\n");
-	
-	qxl_free (qxl->mem, chunk);
-
 	info->ref_count++;
-	image = info->image;
 
-	assert (image != NULL);
+	return info->image;
     }
     else
     {
-	if (h == info->hash)
-	{
-	    ErrorF ("Not reusing because the hash code is wrong\n");
-	}
-	else if (!info->ref_count)
-	{
-	    ErrorF ("not reusing because the ref count is wrong\n");
-	}
-	else if (info->width != width)
-	{
-	    ErrorF ("not reusing because the width is wrong (%d != %d)",
-		    width, info->width);
-	}
-	else if (info->height != height)
-	{
-	    ErrorF ("not reusing because the width is wrong\n");
-	}
+	struct qxl_image *image;
+	struct qxl_data_chunk *chunk;
+	int dest_stride = width * sizeof (uint32_t);
 	
+	/* Chunk */
+	
+	/* FIXME: Check integer overflow */
+	chunk = qxl_allocnf (qxl, sizeof *chunk + height * dest_stride);
+	
+	chunk->data_size = height * dest_stride;
+	chunk->prev_chunk = 0;
+	chunk->next_chunk = 0;
+	
+	hash_and_copy (data, stride,
+		       chunk->data, dest_stride,
+		       width, height);
+
+		
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
 
-#if 0
-	ErrorF ("allocated %p\n", image);
-#endif
-	
 	image->descriptor.id = 0;
 	image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
 	
@@ -133,80 +191,59 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	image->u.bitmap.palette = 0;
 	image->u.bitmap.data = physical_address (qxl, chunk);
 
-#if 0
-	ErrorF ("Inserting image %d\n", h);
-#endif
-
-	if (info->image)
+	/* Add to hash table */
+	if (grow_or_shrink_table (n_images + 1))
 	{
-	    ErrorF ("image: %p ref count %d\n", info->image, info->ref_count);
-	    
-	    ErrorF ("Collision at %u (%u %% %d == %u)\n", h % N_CACHED_IMAGES, h, N_CACHED_IMAGES, h % N_CACHED_IMAGES);
-	    ErrorF ("hash: %u %u  width: %x %x height %x %x image %p %p\n",
-		    h, info->hash,
-		    width, info->width,
-		    height, info->height,
-		    image, info->image);
-	}
-	else if (h % N_CACHED_IMAGES != 0)
-	{
-	    info->image = image;
-	    info->width = width;
-	    info->height = height;
-	    info->hash = h;
-	    info->ref_count = 1;
+	    image_info_t *info = find_available_image_info (hash);
 
-	    image->descriptor.id = h;
-	    image->descriptor.flags = QXL_IMAGE_CACHE;
+	    if (info)
+	    {
+		info->image = image;
+		info->ref_count = 1;
+		
+		image->descriptor.id = hash;
+		image->descriptor.flags = QXL_IMAGE_CACHE;
+	    }
+	}
 
-	    ErrorF ("cached with ref count %d\n", info->ref_count);
-	}
-	else
-	{
-	    ErrorF (" %d %% %d == 0\n", h, N_CACHED_IMAGES, h % N_CACHED_IMAGES);
-	}
+	return image;
     }
-
-    if (image->descriptor.type != QXL_IMAGE_TYPE_BITMAP) {
-	ErrorF ("using existing image %p (%d x %d) id: %lu type: %d\n",
-		image, width, height, image->descriptor.id, image->descriptor.type);
-    }
-	
-
-    return image;
 }
 
 void
 qxl_image_destroy (qxlScreen *qxl,
 		   struct qxl_image *image)
 {
+    struct qxl_data_chunk *chunk;
     image_info_t *info;
 
     ErrorF ("Destroying %p\n", image);
     
-    struct qxl_data_chunk *chunk = virtual_address (
-	qxl, (void *)image->u.bitmap.data);
-
-    info = &image_hash[image->descriptor.id % N_CACHED_IMAGES];
-
-    if (info->image == image && --info->ref_count == 0)
+    chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
+    
+    info = lookup_image_info (image->descriptor.id,
+			      image->descriptor.width,
+			      image->descriptor.height);
+    
+    if (info->image == image)
     {
-	info->image = NULL;
-	info->width = 0xdeadbeef;
-	info->height = 0xdeadbeef;
-	
-	qxl_free (qxl->mem, chunk);
-	qxl_free (qxl->mem, image);
+	if (--info->ref_count != 0)
+	    return;
+
+	info->image = TOMBSTONE;
+
+	grow_or_shrink_table (n_images - 1);
+	n_images--;
     }
-    else if (info->image != image)
-    {
-	qxl_free (qxl->mem, chunk);
-	qxl_free (qxl->mem, image);
-    }	
+
+    qxl_free (qxl->mem, chunk);
+    qxl_free (qxl->mem, image);
 }
 
 void
 qxl_drop_image_cache (qxlScreen *qxl)
 {
-    memset (image_hash, 0, sizeof image_hash);
+    memset (image_table, 0, n_allocated * sizeof (image_info_t));
+
+    n_images = 0;
 }
