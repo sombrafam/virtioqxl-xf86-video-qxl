@@ -4,15 +4,17 @@
 
 #define N_CACHED_IMAGES		4096
 
-typedef struct
+typedef struct image_info_t image_info_t;
+
+typedef struct image_info_t
 {
     struct qxl_image *image;
     int width;
     int height;
     int ref_count;
+    image_info_t *next;
     unsigned int hash;
-} image_info_t;
-
+};
 
 static image_info_t image_hash [N_CACHED_IMAGES];
 
@@ -23,7 +25,7 @@ hash_and_copy (const uint8_t *src, int src_stride,
 	       int width, int height)
 {
     int i, j;
-    int hash = 0;
+    unsigned int hash = 0;
 
     for (i = 0; i < height; ++i)
     {
@@ -38,7 +40,7 @@ hash_and_copy (const uint8_t *src, int src_stride,
 	    if (dest)
 		d[j] = s[j];
 
-	    hash ^= (s[j] + (hash << 5));
+	    hash = (hash << 5) - hash + s[i] + 0xab;
 	}
     }
 
@@ -71,6 +73,8 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		       chunk->data, dest_stride,
 		       width, height);
 
+    ErrorF ("Creating image with hash code %u\n", h);
+    
     info = &(image_hash[h % N_CACHED_IMAGES]);
     
     if (h == info->hash				&&
@@ -78,9 +82,7 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	height == info->height			&&
 	info->ref_count)
     {
-#if 0
 	ErrorF ("reusing\n");
-#endif
 	
 	qxl_free (qxl->mem, chunk);
 
@@ -91,6 +93,24 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
     }
     else
     {
+	if (h == info->hash)
+	{
+	    ErrorF ("Not reusing because the hash code is wrong\n");
+	}
+	else if (!info->ref_count)
+	{
+	    ErrorF ("not reusing because the ref count is wrong\n");
+	}
+	else if (info->width != width)
+	{
+	    ErrorF ("not reusing because the width is wrong (%d != %d)",
+		    width, info->width);
+	}
+	else if (info->height != height)
+	{
+	    ErrorF ("not reusing because the width is wrong\n");
+	}
+	
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
 
@@ -119,14 +139,14 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 
 	if (info->image)
 	{
-#if 0
+	    ErrorF ("image: %p ref count %d\n", info->image, info->ref_count);
+	    
 	    ErrorF ("Collision at %u (%u %% %d == %u)\n", h % N_CACHED_IMAGES, h, N_CACHED_IMAGES, h % N_CACHED_IMAGES);
 	    ErrorF ("hash: %u %u  width: %x %x height %x %x image %p %p\n",
 		    h, info->hash,
 		    width, info->width,
 		    height, info->height,
 		    image, info->image);
-#endif
 	}
 	else if (h % N_CACHED_IMAGES != 0)
 	{
@@ -138,6 +158,12 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 
 	    image->descriptor.id = h;
 	    image->descriptor.flags = QXL_IMAGE_CACHE;
+
+	    ErrorF ("cached with ref count %d\n", info->ref_count);
+	}
+	else
+	{
+	    ErrorF (" %d %% %d == 0\n", h, N_CACHED_IMAGES, h % N_CACHED_IMAGES);
 	}
     }
 
@@ -155,6 +181,8 @@ qxl_image_destroy (qxlScreen *qxl,
 		   struct qxl_image *image)
 {
     image_info_t *info;
+
+    ErrorF ("Destroying %p\n", image);
     
     struct qxl_data_chunk *chunk = virtual_address (
 	qxl, (void *)image->u.bitmap.data);
@@ -178,7 +206,7 @@ qxl_image_destroy (qxlScreen *qxl,
 }
 
 void
-qxl_image_drop_cache (qxlScreen *qxl)
+qxl_drop_image_cache (qxlScreen *qxl)
 {
     memset (image_hash, 0, sizeof image_hash);
 }
