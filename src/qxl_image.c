@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "qxl.h"
+#include "lookup3.h"
 
 typedef struct image_info_t image_info_t;
 
@@ -9,61 +10,11 @@ struct image_info_t
 {
     struct qxl_image *image;
     int ref_count;
+    image_info_t *next;
 };
 
-#define INITIAL_SIZE	4096
-
-#define TOMBSTONE	((struct qxl_image *)(unsigned long)(-1))
-
-static int	     n_images		= 0;
-static int	     n_allocated	= 0;	
-static image_info_t *image_table	= NULL;
-
-static Bool
-grow_or_shrink_table (int n_images_new)
-{
-    int new_size;
-
-    if (!image_table)
-    {
-	new_size = INITIAL_SIZE;
-    }
-    else if (3 * n_images_new > n_allocated)
-    {
-	new_size = n_allocated * 2;
-    }
-    else if (9 * n_images_new < n_allocated)
-    {
-	new_size = n_allocated >> 2;
-    }
-    else
-    {
-	new_size = n_allocated;
-    }
-
-    if (new_size != n_allocated)
-    {
-	image_info_t *new_table = calloc (new_size, sizeof (image_info_t));
-	int i;
-
-	if (!new_table)
-	    return FALSE;
-
-	for (i = 0; i < n_allocated; ++i)
-	{
-	    int new_pos = i % new_size;
-
-	    new_table[new_pos] = image_table[i];
-	}
-
-	free (image_table);
-
-	image_table = new_table;
-	n_allocated = new_size;
-    }
-
-    return TRUE;
-}
+#define HASH_SIZE 4096
+static image_info_t *image_table[HASH_SIZE];
 
 static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
@@ -85,9 +36,9 @@ hash_and_copy (const uint8_t *src, int src_stride,
 
 	    if (dest)
 		d[j] = s[j];
-
-	    hash = (hash << 5) - hash + s[i] + 0xab;
 	}
+
+	hash = hashlittle (src_line, width * sizeof (uint32_t), hash);
     }
 
     return hash;
@@ -98,42 +49,53 @@ lookup_image_info (unsigned int hash,
 		   int width,
 		   int height)
 {
-    struct image_info_t *info = &image_table[hash % n_allocated];
-    
-    while (info->image != NULL)
+    struct image_info_t *info = image_table[hash % HASH_SIZE];
+
+    while (info)
     {
 	struct qxl_image *image = info->image;
 
-	if (image != TOMBSTONE				&&
-	    image->descriptor.id == hash		&&
+	if (image->descriptor.id == hash		&&
 	    image->descriptor.width == width		&&
 	    image->descriptor.height == height)
 	{
 	    return info;
 	}
 
-	if (++info == image_table + n_allocated)
-	    info = image_table;
+	info = info->next;
     }
 
+    ErrorF ("lookup of %u failed\n", hash);
+    
     return NULL;
 }
 
 static image_info_t *
-find_available_image_info (unsigned int hash)
+insert_image_info (unsigned int hash)
 {
-    struct image_info_t *info = &image_table[hash % n_allocated];
-    
-    while (info->image != NULL)
-    {
-	if (!info->image || info->image == TOMBSTONE)
-	    return info;
-	
-	if (++info == image_table + n_allocated)
-	    info = image_table;
-    }
+    struct image_info_t *info = malloc (sizeof (image_info_t));
 
-    return NULL;
+    if (!info)
+	return NULL;
+
+    info->next = image_table[hash % HASH_SIZE];
+    image_table[hash % HASH_SIZE] = info;
+    
+    return info;
+}
+
+static void
+remove_image_info (image_info_t *info)
+{
+    struct image_info_t **location = &image_table[info->image->descriptor.id % HASH_SIZE];
+
+    while (*location && (*location) != info)
+	location = &((*location)->next);
+
+    if (*location)
+	*location = info->next;
+
+    free (info);
 }
 
 struct qxl_image *
@@ -141,16 +103,44 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride)
 {
-    unsigned int hash = hash_and_copy (data, stride, NULL, -1, width, height);
+    unsigned int hash;
     image_info_t *info;
 
     data += y * stride + x * sizeof (uint32_t);
 
+    hash = hash_and_copy (data, stride, NULL, -1, width, height);
+
     info = lookup_image_info (hash, width, height);
     if (info)
     {
+	int i, j;
+	
+	ErrorF ("reusing image %p with hash %u (%d x %d)\n", info->image, hash, width, height);
+	
 	info->ref_count++;
 
+	for (i = 0; i < height; ++i)
+	{
+	    struct qxl_data_chunk *chunk;
+	    const uint8_t *src_line = data + i * stride;
+
+	    chunk = virtual_address (qxl, (void *)info->image->u.bitmap.data);
+	    
+	    uint8_t *dest_line = (uint32_t *)chunk->data + width * i;
+
+	    for (j = 0; j < width; ++j)
+	    {
+		uint32_t *s = (uint32_t *)src_line;
+		uint32_t *d = (uint32_t *)dest_line;
+		
+		if (d[j] != s[j])
+		{
+		    ErrorF ("bad collision at (%d, %d)! %d != %d\n", j, i, s[j], d[j]);
+		    goto out;
+		}
+	    }
+	}
+    out:
 	return info->image;
     }
     else
@@ -158,6 +148,7 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	struct qxl_image *image;
 	struct qxl_data_chunk *chunk;
 	int dest_stride = width * sizeof (uint32_t);
+	image_info_t *info;
 	
 	/* Chunk */
 	
@@ -172,7 +163,6 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		       chunk->data, dest_stride,
 		       width, height);
 
-		
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
 
@@ -191,19 +181,18 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	image->u.bitmap.palette = 0;
 	image->u.bitmap.data = physical_address (qxl, chunk);
 
+	ErrorF ("%p has size %d %d\n", image, width, height);
+	
 	/* Add to hash table */
-	if (grow_or_shrink_table (n_images + 1))
+	if ((info = insert_image_info (hash)))
 	{
-	    image_info_t *info = find_available_image_info (hash);
+	    info->image = image;
+	    info->ref_count = 1;
 
-	    if (info)
-	    {
-		info->image = image;
-		info->ref_count = 1;
-		
-		image->descriptor.id = hash;
-		image->descriptor.flags = QXL_IMAGE_CACHE;
-	    }
+	    image->descriptor.id = hash;
+	    image->descriptor.flags = QXL_IMAGE_CACHE;
+
+	    ErrorF ("added with hash %u\n", hash);
 	}
 
 	return image;
@@ -217,23 +206,20 @@ qxl_image_destroy (qxlScreen *qxl,
     struct qxl_data_chunk *chunk;
     image_info_t *info;
 
-    ErrorF ("Destroying %p\n", image);
-    
     chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
     
     info = lookup_image_info (image->descriptor.id,
 			      image->descriptor.width,
 			      image->descriptor.height);
-    
-    if (info->image == image)
+
+    if (info && info->image == image)
     {
-	if (--info->ref_count != 0)
+	--info->ref_count;
+
+	if (info->ref_count != 0)
 	    return;
 
-	info->image = TOMBSTONE;
-
-	grow_or_shrink_table (n_images - 1);
-	n_images--;
+	remove_image_info (info);
     }
 
     qxl_free (qxl->mem, chunk);
@@ -243,7 +229,5 @@ qxl_image_destroy (qxlScreen *qxl,
 void
 qxl_drop_image_cache (qxlScreen *qxl)
 {
-    memset (image_table, 0, n_allocated * sizeof (image_info_t));
-
-    n_images = 0;
+    memset (image_table, 0, HASH_SIZE * sizeof (image_info_t *));
 }

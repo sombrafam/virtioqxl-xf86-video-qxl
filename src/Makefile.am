@@ -35,6 +35,7 @@ qxl_drv_la_SOURCES =				\
 	qxl_image.c				\
 	qxl_ring.c				\
 	qxl_mem.c				\
+	lookup3.c				\
 	qxl_cursor.c
 
 noinst_PROGRAMS = mmtest

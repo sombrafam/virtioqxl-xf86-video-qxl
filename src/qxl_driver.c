@@ -369,6 +369,13 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
     struct qxl_drawable *drawable;
     ScrnInfoPtr pScrn = qxl->pScrn;
 
+    if (rect->left == rect->right ||
+	rect->top == rect->bottom)
+    {
+	/* Empty rectangle */
+	return ;
+    }
+    
     drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
 
     drawable->u.copy.src_bitmap = physical_address (
