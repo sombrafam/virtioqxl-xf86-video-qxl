@@ -359,6 +359,12 @@ struct qxl_drawable {
     } u;
 };
 
+struct qxl_update_cmd {
+    union qxl_release_info release_info;
+    struct qxl_rect area;
+    uint32_t update_id;
+};
+
 struct qxl_point16 {
     int16_t x;
     int16_t y;

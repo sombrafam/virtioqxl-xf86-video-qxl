@@ -65,7 +65,9 @@ lookup_image_info (unsigned int hash,
 	info = info->next;
     }
 
+#if 0
     ErrorF ("lookup of %u failed\n", hash);
+#endif
     
     return NULL;
 }
@@ -149,6 +151,8 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	struct qxl_data_chunk *chunk;
 	int dest_stride = width * sizeof (uint32_t);
 	image_info_t *info;
+
+	ErrorF ("Must create new image of size %d %d\n", width, height);
 	
 	/* Chunk */
 	
@@ -181,7 +185,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	image->u.bitmap.palette = 0;
 	image->u.bitmap.data = physical_address (qxl, chunk);
 
+#if 0
 	ErrorF ("%p has size %d %d\n", image, width, height);
+#endif
 	
 	/* Add to hash table */
 	if ((info = insert_image_info (hash)))
@@ -219,6 +225,8 @@ qxl_image_destroy (qxlScreen *qxl,
 	if (info->ref_count != 0)
 	    return;
 
+	ErrorF ("removed %p from hash table\n", info->image);
+	
 	remove_image_info (info);
     }
 

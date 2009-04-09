@@ -106,16 +106,50 @@ qxl_usleep (int useconds)
     
 }
 
+#if 0
+static void
+push_update_area (qxlScreen *qxl, const struct qxl_rect *area)
+{
+    struct qxl_update_cmd *update = qxl_allocnf (qxl, sizeof *update);
+    struct qxl_command cmd;
+
+    update->release_info.id = (uint64_t)update;
+    update->area = *area;
+    update->update_id = 0;
+
+    cmd.type = QXL_CMD_UDPATE;
+    cmd.data = physical_address (qxl, update);
+
+    qxl_ring_push (qxl->command_ring, &cmd);
+}
+#endif
+
 void *
 qxl_allocnf (qxlScreen *qxl, unsigned long size)
 {
     void *result;
     int n_attempts = 0;
+    static int nth_oom = 1;
 
     garbage_collect (qxl);
     
     while (!(result = qxl_alloc (qxl->mem, size)))
     {
+	struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
+						     qxl->rom->ram_header_offset);
+	
+	/* Rather than go out of memory, we simply tell the
+	 * device to dump everything
+	 */
+	ram_header->update_area.top = 0;
+	ram_header->update_area.bottom = 1050;
+	ram_header->update_area.left = 0;
+	ram_header->update_area.right = 1680;
+	
+	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
+	
+	ErrorF ("eliminated memory (%d)\n", nth_oom++);
+
 	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
 
 	qxl_usleep (10000);
