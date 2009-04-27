@@ -37,12 +37,3 @@ qxl_drv_la_SOURCES =				\
 	qxl_mem.c				\
 	lookup3.c				\
 	qxl_cursor.c
-
-noinst_PROGRAMS = mmtest
-
-mmtest_SOURCES =	\
-	mmtest.c	\
-	qxl_mem.c
-
-mmtest_CFLAGS=`pkg-config --cflags glib-2.0`
-mmtest_LDFLAGS=`pkg-config --libs glib-2.0`
