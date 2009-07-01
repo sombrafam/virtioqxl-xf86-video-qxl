@@ -142,9 +142,9 @@ qxl_allocnf (qxlScreen *qxl, unsigned long size)
 	 * device to dump everything
 	 */
 	ram_header->update_area.top = 0;
-	ram_header->update_area.bottom = 1050;
+	ram_header->update_area.bottom = 1280;
 	ram_header->update_area.left = 0;
-	ram_header->update_area.right = 1680;
+	ram_header->update_area.right = 800;
 	
 	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 	
@@ -845,7 +845,9 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     pScrn->virtualX = pScrn->currentMode->HDisplay;
     pScrn->virtualY = pScrn->currentMode->VDisplay;
     
-    if (!fbScreenInit(pScreen, qxl->fb, pScrn->currentMode->HDisplay, pScrn->currentMode->VDisplay,
+    if (!fbScreenInit(pScreen, qxl->fb,
+		      pScrn->currentMode->HDisplay,
+		      pScrn->currentMode->VDisplay,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
 	goto out;

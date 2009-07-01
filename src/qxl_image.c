@@ -117,7 +117,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
     {
 	int i, j;
 	
+#if 0
 	ErrorF ("reusing image %p with hash %u (%d x %d)\n", info->image, hash, width, height);
+#endif
 	
 	info->ref_count++;
 
@@ -137,7 +139,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 		
 		if (d[j] != s[j])
 		{
+#if 0
 		    ErrorF ("bad collision at (%d, %d)! %d != %d\n", j, i, s[j], d[j]);
+#endif
 		    goto out;
 		}
 	    }
@@ -152,7 +156,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	int dest_stride = width * sizeof (uint32_t);
 	image_info_t *info;
 
+#if 0
 	ErrorF ("Must create new image of size %d %d\n", width, height);
+#endif
 	
 	/* Chunk */
 	
@@ -198,7 +204,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	    image->descriptor.id = hash;
 	    image->descriptor.flags = QXL_IMAGE_CACHE;
 
+#if 0
 	    ErrorF ("added with hash %u\n", hash);
+#endif
 	}
 
 	return image;
@@ -225,7 +233,9 @@ qxl_image_destroy (qxlScreen *qxl,
 	if (info->ref_count != 0)
 	    return;
 
+#if 0
 	ErrorF ("removed %p from hash table\n", info->image);
+#endif
 	
 	remove_image_info (info);
     }
