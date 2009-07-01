@@ -1183,7 +1183,7 @@ enum qxl_class
 
 static const struct pci_id_match qxl_device_match[] = {
     {
-	PCI_VENDOR_QUMRANET, PCI_CHIP_QXL_0100, PCI_MATCH_ANY, PCI_MATCH_ANY,
+	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_0100, PCI_MATCH_ANY, PCI_MATCH_ANY,
 	0x00030000, 0x00ffffff, CHIP_QXL_1
     },
 
@@ -1239,7 +1239,7 @@ qxlProbe(DriverPtr drv, int flags)
     if (!xf86GetPciVideoInfo())
 	return FALSE;
 
-    numUsed = xf86MatchPciInstances(QXL_NAME, PCI_VENDOR_QUMRANET,
+    numUsed = xf86MatchPciInstances(QXL_NAME, PCI_VENDOR_RED_HAT,
 				    qxlChips, qxlPciChips,
 				    devSections, numDevSections,
 				    drv, &usedChips);

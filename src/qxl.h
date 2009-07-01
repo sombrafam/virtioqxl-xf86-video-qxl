@@ -40,7 +40,7 @@
 
 #define QXL_NAME		"qxl"
 #define QXL_DRIVER_NAME		"qxl"
-#define PCI_VENDOR_QUMRANET	0x1af4
+#define PCI_VENDOR_RED_HAT	0x1b36
 
 #define PCI_CHIP_QXL_0100	0x0100
 
