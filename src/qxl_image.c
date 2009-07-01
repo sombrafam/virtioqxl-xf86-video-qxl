@@ -127,10 +127,11 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	{
 	    struct qxl_data_chunk *chunk;
 	    const uint8_t *src_line = data + i * stride;
-
+	    uint32_t *dest_line;
+		
 	    chunk = virtual_address (qxl, (void *)info->image->u.bitmap.data);
 	    
-	    uint8_t *dest_line = (uint32_t *)chunk->data + width * i;
+	    dest_line = (uint32_t *)chunk->data + width * i;
 
 	    for (j = 0; j < width; ++j)
 	    {
