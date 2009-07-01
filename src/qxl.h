@@ -22,6 +22,8 @@
 
 #include "config.h"
 
+#include <stdint.h>
+
 #include "compiler.h"
 #include "xf86.h"
 #include "xf86Resources.h"
