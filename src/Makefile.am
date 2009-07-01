@@ -36,4 +36,5 @@ qxl_drv_la_SOURCES =				\
 	qxl_ring.c				\
 	qxl_mem.c				\
 	lookup3.c				\
+	lookup3.h				\
 	qxl_cursor.c
