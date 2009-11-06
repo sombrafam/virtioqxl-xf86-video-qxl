@@ -274,8 +274,6 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
     /* if (debug) */
     xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n", m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
-    qxl_ring_wait_idle (qxl->command_ring);
-
     outb(qxl->io_base + QXL_IO_RESET, 0);
     
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
