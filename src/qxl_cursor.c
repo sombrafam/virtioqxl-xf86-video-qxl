@@ -29,10 +29,14 @@ push_cursor (qxlScreen *qxl, struct qxl_cursor_cmd *cursor)
 {
     struct qxl_command cmd;
 
-    cmd.type = QXL_CMD_CURSOR;
-    cmd.data = physical_address (qxl, cursor);
-
-    qxl_ring_push (qxl->cursor_ring, &cmd);
+    /* See comment on push_command() in qxl_driver.c */
+    if (qxl->rom->mode != ~0)
+    {
+        cmd.type = QXL_CMD_CURSOR;
+        cmd.data = physical_address (qxl, cursor);
+      
+        qxl_ring_push (qxl->cursor_ring, &cmd);
+    }
 }
 
 static struct qxl_cursor_cmd *

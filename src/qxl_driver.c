@@ -311,10 +311,25 @@ push_drawable (qxlScreen *qxl, struct qxl_drawable *drawable)
 {
     struct qxl_command cmd;
 
-    cmd.type = QXL_CMD_DRAW;
-    cmd.data = physical_address (qxl, drawable);
-
-    qxl_ring_push (qxl->command_ring, &cmd);
+    /* When someone runs "init 3", the device will be 
+     * switched into VGA mode and there is nothing we
+     * can do about it. We get no notification.
+     * 
+     * However, if commands are submitted when the device
+     * is in VGA mode, they will be queued up, and then
+     * the next time a mode set set, an assertion in the
+     * device will take down the entire virtual machine.
+     * 
+     * The author of the QXL device is opposed to this
+     * for reasons I don't understand.
+     */
+    if (qxl->rom->mode != ~0)
+    {
+	cmd.type = QXL_CMD_DRAW;
+	cmd.data = physical_address (qxl, drawable);
+	    
+	qxl_ring_push (qxl->command_ring, &cmd);
+    }
 }
 
 static struct qxl_drawable *
