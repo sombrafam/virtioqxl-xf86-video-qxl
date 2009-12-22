@@ -11,7 +11,7 @@ struct ring
 
 struct qxl_ring
 {
-    struct ring *	ring;
+    volatile struct ring *ring;
     int			element_size;
     int			n_elements;
     int			prod_notify;
@@ -29,7 +29,7 @@ qxl_ring_create (struct qxl_ring_header *header,
     if (!ring)
 	return NULL;
 
-    ring->ring = (struct ring *)header;
+    ring->ring = (volatile struct ring *)header;
     ring->element_size = element_size;
     ring->n_elements = n_elements;
     ring->prod_notify = prod_notify;
@@ -41,8 +41,8 @@ void
 qxl_ring_push (struct qxl_ring *ring,
 	       const void      *new_elt)
 {
-    struct qxl_ring_header *header = &(ring->ring->header);
-    uint8_t *elt;
+    volatile struct qxl_ring_header *header = &(ring->ring->header);
+    volatile uint8_t *elt;
     int idx;
 
     while (header->prod - header->cons == header->num_items)
@@ -55,7 +55,7 @@ qxl_ring_push (struct qxl_ring *ring,
     idx = header->prod & (ring->n_elements - 1);
     elt = ring->ring->elements + idx * ring->element_size;
 
-    memcpy (elt, new_elt, ring->element_size);
+    memcpy((void *)elt, new_elt, ring->element_size);
 
     header->prod++;
 
@@ -69,8 +69,8 @@ Bool
 qxl_ring_pop (struct qxl_ring *ring,
 	      void            *element)
 {
-    struct qxl_ring_header *header = &(ring->ring->header);
-    uint8_t *ring_elt;
+    volatile struct qxl_ring_header *header = &(ring->ring->header);
+    volatile uint8_t *ring_elt;
     int idx;
 
     if (header->cons == header->prod)
@@ -79,7 +79,7 @@ qxl_ring_pop (struct qxl_ring *ring,
     idx = header->cons & (ring->n_elements - 1);
     ring_elt = ring->ring->elements + idx * ring->element_size;
 
-    memcpy (element, ring_elt, ring->element_size);
+    memcpy (element, (void *)ring_elt, ring->element_size);
 
     header->cons++;
 
