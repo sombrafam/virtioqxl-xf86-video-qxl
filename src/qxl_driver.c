@@ -188,11 +188,11 @@ qxlUnmapMemory(qxlScreen *qxl, int scrnIndex)
 	pci_device_unmap_range(qxl->pci, qxl->rom, qxl->pci->regions[2].size);
 #else
     if (qxl->ram)
-	xf86UnMapVidMem(scrnIndex, qxl->ram, qxl->pci->size[0]);
+	xf86UnMapVidMem(scrnIndex, qxl->ram, (1 << qxl->pci->size[0]));
     if (qxl->vram)
-	xf86UnMapVidMem(scrnIndex, qxl->vram, qxl->pci->size[1]);
+	xf86UnMapVidMem(scrnIndex, qxl->vram, (1 << qxl->pci->size[1]));
     if (qxl->rom)
-	xf86UnMapVidMem(scrnIndex, qxl->rom, qxl->pci->size[2]);
+	xf86UnMapVidMem(scrnIndex, qxl->rom, (1 << qxl->pci->size[2]));
 #endif
 
     qxl->ram = qxl->ram_physical = qxl->vram = qxl->rom = NULL;
@@ -1030,7 +1030,7 @@ qxlCheckDevice(ScrnInfoPtr pScrn, qxlScreen *qxl)
 	       rom->num_io_pages, rom->pages_offset);
 
     xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
-	       qxl->draw_area_size, qxl->draw_area_offset);
+	       rom->draw_area_size, rom->draw_area_offset);
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
