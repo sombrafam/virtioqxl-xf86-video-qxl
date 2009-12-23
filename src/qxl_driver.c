@@ -508,11 +508,23 @@ paint_shadow (qxlScreen *qxl)
     submit_copy (qxl, &qrect);
 }
 
+static void qxlSanityCheck(qxlScreen *qxl)
+{
+    /* read the mode back from the rom */
+    if (!qxl->rom || !qxl->pScrn)
+	return;
+
+    if (qxl->rom->mode == ~0) {
+	ErrorF("QXL device jumped back to VGA mode - resetting mode\n");
+	qxlSwitchMode(qxl->pScrn->scrnIndex, qxl->pScrn->currentMode, 0);
+    }
+}
 static void
 qxlBlockHandler(pointer data, OSTimePtr pTimeout, pointer pRead)
 {
     qxlScreen *qxl = (qxlScreen *) data;
 
+    qxlSanityCheck(qxl);
     qxlSendCopies (qxl);
 }
 
