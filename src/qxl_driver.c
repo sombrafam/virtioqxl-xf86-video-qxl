@@ -1165,6 +1165,22 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     clockRanges->ClockMulFactor = clockRanges->ClockDivFactor = 1;
     pScrn->progClock = TRUE;
 
+    /* override QXL monitor stuff */
+    if (pScrn->monitor->nHsync <= 0) {
+	pScrn->monitor->hsync[0].lo = 31.5;
+	pScrn->monitor->hsync[0].hi = 80.0;
+	pScrn->monitor->nHsync = 1;
+    }
+    if (pScrn->monitor->nVrefresh <= 0) {
+	pScrn->monitor->vrefresh[0].lo = 50;
+	pScrn->monitor->vrefresh[0].hi = 70;
+	pScrn->monitor->nVrefresh = 1;
+    }
+
+    if (pScrn->display->virtualX == 0 && pScrn->display->virtualY == 0) {
+    	pScrn->display->virtualX = 1024;
+    	pScrn->display->virtualY = 768;
+    }
     if (0 >= xf86ValidateModes(pScrn, pScrn->monitor->Modes,
 			       pScrn->display->modes, clockRanges, linePitches,
 			       128, 2048, 128 * 4, 128, 2048,
