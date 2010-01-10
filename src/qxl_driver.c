@@ -533,6 +533,21 @@ qxlWakeupHandler(pointer data, int i, pointer LastSelectMask)
 {
 }
 
+static void
+qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
+{
+    qxlScreen *qxl = closure;
+
+#if 0
+    ErrorF ("damage\n");
+#endif
+    
+    qxlSendCopies (qxl);
+
+    REGION_COPY (qxl->pScrn->pScreen, &(qxl->pendingCopy), pRegion);
+}
+
+
 static Bool
 qxlCreateScreenResources(ScreenPtr pScreen)
 {
@@ -547,6 +562,11 @@ qxlCreateScreenResources(ScreenPtr pScreen)
 
     if (!ret)
 	return FALSE;
+
+    qxl->pDamage = DamageCreate(qxlOnDamage, NULL,
+				DamageReportRawRegion,
+				TRUE, pScreen, qxl);
+
 
     pPixmap = pScreen->GetScreenPixmap(pScreen);
 
@@ -822,20 +842,6 @@ qxlCreateGC (GCPtr pGC)
     return TRUE;
 }
 
-static void
-qxlOnDamage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
-{
-    qxlScreen *qxl = closure;
-
-#if 0
-    ErrorF ("damage\n");
-#endif
-    
-    qxlSendCopies (qxl);
-
-    REGION_COPY (qxl->pScrn->pScreen, &(qxl->pendingCopy), pRegion);
-}
-
 static Bool
 qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
@@ -933,10 +939,6 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     pScreen->PaintWindowBackground = qxlPaintWindow;
     pScreen->PaintWindowBorder = qxlPaintWindow;
     pScreen->CopyWindow = qxlCopyWindow;
-    
-    qxl->pDamage = DamageCreate(qxlOnDamage, NULL,
-				DamageReportRawRegion,
-				TRUE, pScreen, qxl);
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
