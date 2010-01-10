@@ -32,13 +32,13 @@
 #include "xf86PciInfo.h"
 #include "xf86Cursor.h"
 #include "xf86_OSproc.h"
-#include "exa.h"
 #include "xf86xv.h"
 #include "shadow.h"
 #include "micmap.h"
 #ifdef XSERVER_PCIACCESS
 #include "pciaccess.h"
 #endif
+#include "fb.h"
 
 #define hidden _X_HIDDEN
 

@@ -1197,7 +1197,6 @@ qxlPreInit(ScrnInfoPtr pScrn, int flags)
     xf86SetDpi(pScrn, 0, 0);
 
     if (!xf86LoadSubModule(pScrn, "fb") ||
-	!xf86LoadSubModule(pScrn, "exa") ||
 	!xf86LoadSubModule(pScrn, "ramdac"))
     {
 	goto out;
