@@ -787,7 +787,7 @@ qxlPaintWindow(WindowPtr pWin, RegionPtr pRegion, int what)
 	undamage (qxl);
     }
 
-    fbPaintWindow (pWin, pRegion, what);
+    qxl->PaintWindowBorder (pWin, pRegion, what);
 }
 
 static void
