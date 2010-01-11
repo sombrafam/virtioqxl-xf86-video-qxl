@@ -515,6 +515,7 @@ struct _qxl_screen_t
     
     DamagePtr			damage;
     RegionRec			pending_copy;
+    RegionRec			to_be_sent;
     
     int16_t			cur_x;
     int16_t			cur_y;
@@ -563,14 +564,14 @@ void              qxl_ring_wait_idle   (struct qxl_ring        *ring);
 /*
  * Images
  */
-struct qxl_image *qxl_image_create     (qxl_screen_t              *qxl,
+struct qxl_image *qxl_image_create     (qxl_screen_t           *qxl,
 					const uint8_t          *data,
 					int                     x,
 					int                     y,
 					int                     width,
 					int                     height,
 					int                     stride);
-void              qxl_image_destroy    (qxl_screen_t              *qxl,
+void              qxl_image_destroy    (qxl_screen_t           *qxl,
 					struct qxl_image       *image);
 void		  qxl_drop_image_cache (qxl_screen_t	       *qxl);
 
@@ -587,7 +588,7 @@ void *            qxl_alloc            (struct qxl_mem         *mem,
 void              qxl_free             (struct qxl_mem         *mem,
 					void                   *d);
 void              qxl_mem_free_all     (struct qxl_mem         *mem);
-void *            qxl_allocnf          (qxl_screen_t              *qxl,
+void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
 
 

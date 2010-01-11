@@ -466,6 +466,15 @@ print_region (const char *header, RegionPtr pRegion)
 }
 
 static void
+accept_damage (qxl_screen_t *qxl)
+{
+    REGION_UNION (qxl->pScrn->pScreen, &(qxl->to_be_sent), &(qxl->to_be_sent), 
+		  &(qxl->pending_copy));
+
+    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
+}
+
+static void
 undamage (qxl_screen_t *qxl)
 {
     REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
@@ -474,11 +483,14 @@ undamage (qxl_screen_t *qxl)
 static void
 qxl_send_copies (qxl_screen_t *qxl)
 {
-    BoxPtr pBox = REGION_RECTS(&qxl->pending_copy);
-    int nbox = REGION_NUM_RECTS(&qxl->pending_copy);
+    BoxPtr pBox;
+    int nbox;
+
+    nbox = REGION_NUM_RECTS (&qxl->to_be_sent);
+    pBox = REGION_RECTS (&qxl->to_be_sent);
 
 #if 0
-    print_region ("send bits", &qxl->pending_copy);
+    print_region ("send bits", &qxl->to_be_sent);
 #endif
     
     while (nbox--)
@@ -495,7 +507,7 @@ qxl_send_copies (qxl_screen_t *qxl)
 	pBox++;
     }
 
-    REGION_EMPTY(qxl->pScrn->pScreen, &qxl->pending_copy);
+    REGION_EMPTY(qxl->pScrn->pScreen, &qxl->to_be_sent);
 }
 
 static void
@@ -529,6 +541,7 @@ qxl_block_handler(pointer data, OSTimePtr pTimeout, pointer pRead)
     qxl_screen_t *qxl = (qxl_screen_t *) data;
 
     qxl_sanity_check(qxl);
+    accept_damage (qxl);
     qxl_send_copies (qxl);
 }
 
@@ -537,6 +550,29 @@ qxl_wakeup_handler(pointer data, int i, pointer LastSelectMask)
 {
 }
 
+/* Damage Handling
+ * 
+ * When something is drawn, X first generates a damage callback, then
+ * it calls the GC function to actually draw it. In most cases, we want
+ * to simply draw into the shadow framebuffer, then submit a copy to the
+ * device, but when the operation is hardware accelerated, we don't want
+ * to submit the copy. So, damage is first accumulated into 'pending_copy',
+ * then if we accelerated the operation, that damage is deleted. 
+ *
+ * If we _didn't_ accelerate, we need to union the pending_copy damage 
+ * onto the to_be_sent damage, and then submit a copy command in the block
+ * handler.
+ *
+ * This means that when new damage happens, if there is already pending
+ * damage, that must first be unioned onto to_be_sent, and then the new
+ * damage must be stored in pending_copy.
+ * 
+ * The qxl_screen_t struct contains two regions, "pending_copy" and 
+ * "to_be_sent". 
+ *
+ * Pending copy is 
+ * 
+ */
 static void
 qxl_on_damage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 {
@@ -545,8 +581,8 @@ qxl_on_damage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 #if 0
     ErrorF ("damage\n");
 #endif
-    
-    qxl_send_copies (qxl);
+
+    accept_damage (qxl);
 
     REGION_COPY (qxl->pScrn->pScreen, &(qxl->pending_copy), pRegion);
 }
@@ -576,6 +612,11 @@ qxl_create_screen_resources(ScreenPtr pScreen)
 
     if (!RegisterBlockAndWakeupHandlers(qxl_block_handler, qxl_wakeup_handler, qxl))
 	return FALSE;
+
+    REGION_INIT (pScreen, &(qxl->pending_copy), NullBox, 0);
+
+    ErrorF ("initialized\n");
+    REGION_INIT (pScreen, &(qxl->to_be_sent), NullBox, 0);
  
     DamageRegister (&pPixmap->drawable, qxl->damage);
     return TRUE;
@@ -725,11 +766,19 @@ qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
+	RegionPtr *res;
+
+	/* We have to do this because the copy will cause the damage
+	 * to be sent to move.
+	 */
+	qxl_send_copies (qxl);
+    
+	res = fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
+			srcx, srcy, width, height, dstx, dsty,
+			qxl_copy_n_to_n, 0, NULL);
 	undamage (qxl);
 
-	return fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
-			 srcx, srcy, width, height, dstx, dsty,
-			 qxl_copy_n_to_n, 0, NULL);
+	return res;
     }
     else
     {
@@ -803,6 +852,11 @@ qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
     RegionRec rgnDst;
     int dx, dy;
 
+    /* We have to do this because the copy will cause the damage
+     * to be sent to move.
+     */
+    qxl_send_copies (qxl);
+
     dx = ptOldOrg.x - pWin->drawable.x;
     dy = ptOldOrg.y - pWin->drawable.y;
 
@@ -812,10 +866,10 @@ qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 
     REGION_INTERSECT(pScreen, &rgnDst, &pWin->borderClip, prgnSrc);
 
-    undamage (qxl);
-    
     fbCopyRegion (&pWin->drawable, &pWin->drawable,
 		  NULL, &rgnDst, dx, dy, qxl_copy_n_to_n, 0, NULL);
+
+    undamage (qxl);
 #if 0
 
     REGION_TRANSLATE (pScreen, prgnSrc, dx, dy);
