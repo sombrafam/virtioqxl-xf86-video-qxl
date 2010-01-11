@@ -490,6 +490,7 @@ struct _qxlScreen
     int				draw_area_size;
 
     void *			fb;
+    int				bytes_per_pixel;
 
     struct qxl_mem *		mem;	/* Context for qxl_alloc/free */
     

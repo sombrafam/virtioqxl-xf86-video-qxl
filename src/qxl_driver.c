@@ -272,11 +272,14 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 	return FALSE;
 
     /* if (debug) */
-    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n", m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
+    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n",
+	       m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
     outb(qxl->io_base + QXL_IO_RESET, 0);
     
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
+
+    qxl->bytes_per_pixel = (qxl->pScrn->bitsPerPixel + 7) / 8;
 
     /* If this happens out of ScreenInit, we won't have a screen yet. In that
      * case createScreenResources will make things right.
@@ -291,7 +294,7 @@ qxlSwitchMode(int scrnIndex, DisplayModePtr p, int flags)
 		pPixmap,
 		m->x_res, m->y_res,
 		-1, -1,
-		qxl->pScrn->displayWidth * ((qxl->pScrn->bitsPerPixel + 7) / 8),
+		qxl->pScrn->displayWidth * qxl->bytes_per_pixel,
 		NULL);
 	}
     }
@@ -431,7 +434,7 @@ submit_copy (qxlScreen *qxl, const struct qxl_rect *rect)
 	qxl, qxl_image_create (qxl, qxl->fb, rect->left, rect->top,
 			       rect->right - rect->left,
 			       rect->bottom - rect->top,
-			       pScrn->displayWidth * 4));
+			       pScrn->displayWidth * qxl->bytes_per_pixel));
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
@@ -870,8 +873,7 @@ qxlScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
 	goto out;
 
-    qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth,
-		      (pScrn->bitsPerPixel + 7)/8);
+    qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth, 4);
     if (!qxl->fb)
 	goto out;
 

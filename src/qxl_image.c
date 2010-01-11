@@ -19,26 +19,21 @@ static image_info_t *image_table[HASH_SIZE];
 static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
 	       uint8_t *dest, int dest_stride,
-	       int width, int height)
+	       int bytes_per_pixel, int width, int height)
 {
-    int i, j;
     unsigned int hash = 0;
-
+    int i;
+  
     for (i = 0; i < height; ++i)
     {
 	const uint8_t *src_line = src + i * src_stride;
 	uint8_t *dest_line = dest + i * dest_stride;
-	
-	for (j = 0; j < width; ++j)
-	{
-	    uint32_t *s = (uint32_t *)src_line;
-	    uint32_t *d = (uint32_t *)dest_line;
+	int n_bytes = width * bytes_per_pixel;
 
-	    if (dest)
-		d[j] = s[j];
-	}
+	if (dest)
+	    memcpy (dest_line, src_line, n_bytes);
 
-	hash = hashlittle (src_line, width * sizeof (uint32_t), hash);
+	hash = hashlittle (src_line, n_bytes, hash);
     }
 
     return hash;
@@ -108,9 +103,9 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
     unsigned int hash;
     image_info_t *info;
 
-    data += y * stride + x * sizeof (uint32_t);
+    data += y * stride + x * qxl->bytes_per_pixel;
 
-    hash = hash_and_copy (data, stride, NULL, -1, width, height);
+    hash = hash_and_copy (data, stride, NULL, -1, qxl->bytes_per_pixel, width, height);
 
     info = lookup_image_info (hash, width, height);
     if (info)
@@ -154,7 +149,7 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
     {
 	struct qxl_image *image;
 	struct qxl_data_chunk *chunk;
-	int dest_stride = width * sizeof (uint32_t);
+	int dest_stride = width * qxl->bytes_per_pixel;
 	image_info_t *info;
 
 #if 0
@@ -172,7 +167,7 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	
 	hash_and_copy (data, stride,
 		       chunk->data, dest_stride,
-		       width, height);
+		       qxl->bytes_per_pixel, width, height);
 
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
@@ -183,12 +178,20 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 	image->descriptor.flags = 0;
 	image->descriptor.width = width;
 	image->descriptor.height = height;
-	
-	image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
+
+	if (qxl->bytes_per_pixel == 2)
+	{
+	    image->u.bitmap.format = QXL_BITMAP_FMT_16BIT;
+	}
+	else
+	{
+	    image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
+	}
+
 	image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
 	image->u.bitmap.x = width;
 	image->u.bitmap.y = height;
-	image->u.bitmap.stride = width * sizeof (uint32_t);
+	image->u.bitmap.stride = width * qxl->bytes_per_pixel;
 	image->u.bitmap.palette = 0;
 	image->u.bitmap.data = physical_address (qxl, chunk);
 
