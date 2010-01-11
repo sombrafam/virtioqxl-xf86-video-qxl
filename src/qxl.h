@@ -469,9 +469,9 @@ struct qxl_ram_header {
 
 #pragma pack(pop)
 
-typedef struct _qxlScreen qxlScreen;
+typedef struct _qxl_screen_t qxl_screen_t;
 
-struct _qxlScreen
+struct _qxl_screen_t
 {
     /* These are the names QXL uses */
     void *			ram;	/* Video RAM */
@@ -503,21 +503,18 @@ struct _qxlScreen
     struct pci_device *		pci;
 #else
     pciVideoPtr			pci;
-    PCITAG			pciTag;
+    PCITAG			pci_tag;
 #endif
 
-    CreateScreenResourcesProcPtr CreateScreenResources;
-    CloseScreenProcPtr		CloseScreen;
-    CreateGCProcPtr		CreateGC;
-    PaintWindowProcPtr		PaintWindowBackground;
-    PaintWindowProcPtr		PaintWindowBorder;
-    CopyWindowProcPtr		CopyWindow;
-#if 0
-    CopyAreaProcPtr		CopyArea;
-#endif
+    CreateScreenResourcesProcPtr create_screen_resources;
+    CloseScreenProcPtr		close_screen;
+    CreateGCProcPtr		create_gc;
+    PaintWindowProcPtr		paint_window_background;
+    PaintWindowProcPtr		paint_window_border;
+    CopyWindowProcPtr		copy_window;
     
-    DamagePtr			pDamage;
-    RegionRec			pendingCopy;
+    DamagePtr			damage;
+    RegionRec			pending_copy;
     
     int16_t			cur_x;
     int16_t			cur_y;
@@ -528,13 +525,13 @@ struct _qxlScreen
 };
 
 static inline uint64_t
-physical_address (qxlScreen *qxl, void *virtual)
+physical_address (qxl_screen_t *qxl, void *virtual)
 {
     return (uint64_t) ((unsigned long)virtual + (((unsigned long)qxl->ram_physical - (unsigned long)qxl->ram)));
 }
 
 static inline void *
-virtual_address (qxlScreen *qxl, void *physical)
+virtual_address (qxl_screen_t *qxl, void *physical)
 {
     return (void *) ((unsigned long)physical + ((unsigned long)qxl->ram - (unsigned long)qxl->ram_physical));
 }
@@ -544,7 +541,7 @@ struct qxl_ring;
 /*
  * HW cursor
  */
-void              qxlCursorInit        (ScreenPtr               pScreen);
+void              qxl_cursor_init        (ScreenPtr               pScreen);
 
 
 
@@ -566,16 +563,16 @@ void              qxl_ring_wait_idle   (struct qxl_ring        *ring);
 /*
  * Images
  */
-struct qxl_image *qxl_image_create     (qxlScreen              *qxl,
+struct qxl_image *qxl_image_create     (qxl_screen_t              *qxl,
 					const uint8_t          *data,
 					int                     x,
 					int                     y,
 					int                     width,
 					int                     height,
 					int                     stride);
-void              qxl_image_destroy    (qxlScreen              *qxl,
+void              qxl_image_destroy    (qxl_screen_t              *qxl,
 					struct qxl_image       *image);
-void		  qxl_drop_image_cache (qxlScreen	       *qxl);
+void		  qxl_drop_image_cache (qxl_screen_t	       *qxl);
 
 
 /*
@@ -590,7 +587,7 @@ void *            qxl_alloc            (struct qxl_mem         *mem,
 void              qxl_free             (struct qxl_mem         *mem,
 					void                   *d);
 void              qxl_mem_free_all     (struct qxl_mem         *mem);
-void *            qxl_allocnf          (qxlScreen              *qxl,
+void *            qxl_allocnf          (qxl_screen_t              *qxl,
 					unsigned long           size);
 
 

@@ -25,7 +25,7 @@
 #include <cursorstr.h>
 
 static void
-push_cursor (qxlScreen *qxl, struct qxl_cursor_cmd *cursor)
+push_cursor (qxl_screen_t *qxl, struct qxl_cursor_cmd *cursor)
 {
     struct qxl_command cmd;
 
@@ -40,7 +40,7 @@ push_cursor (qxlScreen *qxl, struct qxl_cursor_cmd *cursor)
 }
 
 static struct qxl_cursor_cmd *
-qxl_alloc_cursor_cmd(qxlScreen *qxl)
+qxl_alloc_cursor_cmd(qxl_screen_t *qxl)
 {
     struct qxl_cursor_cmd *cmd =
 	qxl_allocnf (qxl, sizeof(struct qxl_cursor_cmd));
@@ -51,9 +51,9 @@ qxl_alloc_cursor_cmd(qxlScreen *qxl)
 }
 
 static void
-qxlSetCursorPosition(ScrnInfoPtr pScrn, int x, int y)
+qxl_set_cursor_position(ScrnInfoPtr pScrn, int x, int y)
 {
-    qxlScreen *qxl = pScrn->driverPrivate;
+    qxl_screen_t *qxl = pScrn->driverPrivate;
     struct qxl_cursor_cmd *cmd = qxl_alloc_cursor_cmd(qxl);
 
     qxl->cur_x = x;
@@ -67,20 +67,20 @@ qxlSetCursorPosition(ScrnInfoPtr pScrn, int x, int y)
 }
 
 static void
-qxlLoadCursorImage(ScrnInfoPtr pScrn, unsigned char *bits)
+qxl_load_cursor_image(ScrnInfoPtr pScrn, unsigned char *bits)
 {
 }
 
 static void
-qxlSetCursorColors(ScrnInfoPtr pScrn, int bg, int fg)
+qxl_set_cursor_colors(ScrnInfoPtr pScrn, int bg, int fg)
 {
     /* Should not be called since UseHWCursor returned FALSE */
 }
 
 static void
-qxlLoadCursorARGB (ScrnInfoPtr pScrn, CursorPtr pCurs)
+qxl_load_cursor_argb (ScrnInfoPtr pScrn, CursorPtr pCurs)
 {
-    qxlScreen *qxl = pScrn->driverPrivate;
+    qxl_screen_t *qxl = pScrn->driverPrivate;
     int w = pCurs->bits->width;
     int h = pCurs->bits->height;
     int size = w * h * sizeof (CARD32);
@@ -134,7 +134,7 @@ qxlLoadCursorARGB (ScrnInfoPtr pScrn, CursorPtr pCurs)
 }    
 
 static Bool
-qxlUseHWCursor (ScreenPtr pScrn, CursorPtr pCurs)
+qxl_use_hw_cursor (ScreenPtr pScrn, CursorPtr pCurs)
 {
     /* Old-school bitmap cursors are not
      * hardware accelerated for now.
@@ -143,15 +143,15 @@ qxlUseHWCursor (ScreenPtr pScrn, CursorPtr pCurs)
 }
 
 static Bool
-qxlUseHWCursorARGB (ScreenPtr pScrn, CursorPtr pCurs)
+qxl_use_hw_cursorARGB (ScreenPtr pScrn, CursorPtr pCurs)
 {
     return TRUE;
 }
 
 static void
-qxlHideCursor(ScrnInfoPtr pScrn)
+qxl_hide_cursor(ScrnInfoPtr pScrn)
 {
-    qxlScreen *qxl = pScrn->driverPrivate;
+    qxl_screen_t *qxl = pScrn->driverPrivate;
     struct qxl_cursor_cmd *cursor = qxl_alloc_cursor_cmd(qxl);
 
     cursor->type = QXL_CURSOR_HIDE;
@@ -160,19 +160,19 @@ qxlHideCursor(ScrnInfoPtr pScrn)
 }
 
 static void
-qxlShowCursor(ScrnInfoPtr pScrn)
+qxl_show_cursor(ScrnInfoPtr pScrn)
 {
     /*
      * slightly hacky, but there's no QXL_CURSOR_SHOW.  Could maybe do
      * QXL_CURSOR_SET?
      */
-    qxlScreen *qxl = pScrn->driverPrivate;
+    qxl_screen_t *qxl = pScrn->driverPrivate;
 
-    qxlSetCursorPosition(pScrn, qxl->cur_x, qxl->cur_y);
+    qxl_set_cursor_position(pScrn, qxl->cur_x, qxl->cur_y);
 }
 
 hidden void
-qxlCursorInit(ScreenPtr pScreen)
+qxl_cursor_init(ScreenPtr pScreen)
 {
     xf86CursorInfoPtr cursor;
 
@@ -182,14 +182,14 @@ qxlCursorInit(ScreenPtr pScreen)
 
     cursor->MaxWidth = cursor->MaxHeight = 64;
     /* cursor->Flags; */
-    cursor->SetCursorPosition = qxlSetCursorPosition;
-    cursor->LoadCursorARGB = qxlLoadCursorARGB;
-    cursor->UseHWCursor = qxlUseHWCursor;
-    cursor->UseHWCursorARGB = qxlUseHWCursorARGB;
-    cursor->LoadCursorImage = qxlLoadCursorImage;
-    cursor->SetCursorColors = qxlSetCursorColors;
-    cursor->HideCursor = qxlHideCursor;
-    cursor->ShowCursor = qxlShowCursor;
+    cursor->SetCursorPosition = qxl_set_cursor_position;
+    cursor->LoadCursorARGB = qxl_load_cursor_argb;
+    cursor->UseHWCursor = qxl_use_hw_cursor;
+    cursor->UseHWCursorARGB = qxl_use_hw_cursorARGB;
+    cursor->LoadCursorImage = qxl_load_cursor_image;
+    cursor->SetCursorColors = qxl_set_cursor_colors;
+    cursor->HideCursor = qxl_hide_cursor;
+    cursor->ShowCursor = qxl_show_cursor;
 
     if (!xf86InitCursor(pScreen, cursor))
 	xfree(cursor);

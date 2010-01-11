@@ -96,7 +96,7 @@ remove_image_info (image_info_t *info)
 }
 
 struct qxl_image *
-qxl_image_create (qxlScreen *qxl, const uint8_t *data,
+qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride)
 {
@@ -218,7 +218,7 @@ qxl_image_create (qxlScreen *qxl, const uint8_t *data,
 }
 
 void
-qxl_image_destroy (qxlScreen *qxl,
+qxl_image_destroy (qxl_screen_t *qxl,
 		   struct qxl_image *image)
 {
     struct qxl_data_chunk *chunk;
@@ -249,7 +249,7 @@ qxl_image_destroy (qxlScreen *qxl,
 }
 
 void
-qxl_drop_image_cache (qxlScreen *qxl)
+qxl_drop_image_cache (qxl_screen_t *qxl)
 {
     memset (image_table, 0, HASH_SIZE * sizeof (image_info_t *));
 }
