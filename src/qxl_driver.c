@@ -148,7 +148,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	
 	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 	
-	ErrorF ("eliminated memory (%d)\n", nth_oom++);
+ 	ErrorF ("eliminated memory (%d)\n", nth_oom++);
 
 	outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
 
@@ -386,6 +386,30 @@ enum ROPDescriptor {
 };
 
 static void
+undamage_box (qxl_screen_t *qxl, const struct qxl_rect *rect)
+{
+    RegionRec region;
+    BoxRec box;
+
+    box.x1 = rect->left;
+    box.y1 = rect->top;
+    box.x2 = rect->right;
+    box.y2 = rect->bottom;
+
+    REGION_INIT (qxl->pScrn->pScreen, &region, &box, 0);
+
+    REGION_SUBTRACT (qxl->pScrn->pScreen, &(qxl->pending_copy), &(qxl->pending_copy), &region);
+
+    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
+}
+
+static void
+clear_pending_damage (qxl_screen_t *qxl)
+{
+    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
+}
+
+static void
 submit_fill (qxl_screen_t *qxl, const struct qxl_rect *rect, uint32_t color)
 {
     struct qxl_drawable *drawable;
@@ -405,6 +429,8 @@ submit_fill (qxl_screen_t *qxl, const struct qxl_rect *rect, uint32_t color)
     drawable->u.fill.mask.bitmap = 0;
 
     push_drawable (qxl, drawable);
+
+    undamage_box (qxl, rect);
 }
 
 static void
@@ -475,12 +501,6 @@ accept_damage (qxl_screen_t *qxl)
 }
 
 static void
-undamage (qxl_screen_t *qxl)
-{
-    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
-}
-
-static void
 qxl_send_copies (qxl_screen_t *qxl)
 {
     BoxPtr pBox;
@@ -489,9 +509,8 @@ qxl_send_copies (qxl_screen_t *qxl)
     nbox = REGION_NUM_RECTS (&qxl->to_be_sent);
     pBox = REGION_RECTS (&qxl->to_be_sent);
 
-#if 0
-    print_region ("send bits", &qxl->to_be_sent);
-#endif
+/*     print_region ("send bits", &qxl->to_be_sent); */
+/*     print_region ("unsent bits", &qxl->pending_copy); */
     
     while (nbox--)
     {
@@ -529,9 +548,10 @@ static void qxl_sanity_check(qxl_screen_t *qxl)
     if (!qxl->rom || !qxl->pScrn)
 	return;
 
-    if (qxl->rom->mode == ~0) {
-	ErrorF("QXL device jumped back to VGA mode - resetting mode\n");
-	qxl_switch_mode(qxl->pScrn->scrnIndex, qxl->pScrn->currentMode, 0);
+    if (qxl->rom->mode == ~0) 
+    {
+ 	ErrorF("QXL device jumped back to VGA mode - resetting mode\n");
+ 	qxl_switch_mode(qxl->pScrn->scrnIndex, qxl->pScrn->currentMode, 0);
     }
 }
 
@@ -541,7 +561,9 @@ qxl_block_handler(pointer data, OSTimePtr pTimeout, pointer pRead)
     qxl_screen_t *qxl = (qxl_screen_t *) data;
 
     qxl_sanity_check(qxl);
+
     accept_damage (qxl);
+
     qxl_send_copies (qxl);
 }
 
@@ -578,11 +600,15 @@ qxl_on_damage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 {
     qxl_screen_t *qxl = closure;
 
+/*     print_region ("damage", pRegion); */
+    
 #if 0
     ErrorF ("damage\n");
 #endif
 
     accept_damage (qxl);
+
+/*     print_region ("accepting, qxl->to_be_sent is now", &qxl->to_be_sent); */
 
     REGION_COPY (qxl->pScrn->pScreen, &(qxl->pending_copy), pRegion);
 }
@@ -659,7 +685,7 @@ qxl_poly_fill_rect (DrawablePtr pDrawable,
 	RegionPtr pClip = fbGetCompositeClip (pGC);
 	BoxPtr pBox;
 	int nbox;
-
+	
 	REGION_TRANSLATE(pScreen, pReg, xoff, yoff);
 	REGION_INTERSECT(pScreen, pReg, pClip, pReg);
 
@@ -681,9 +707,6 @@ qxl_poly_fill_rect (DrawablePtr pDrawable,
 	}
 
 	REGION_DESTROY (pScreen, pReg);
-	
-	/* Clear pending damage */
-	undamage (qxl);
     }
     
     fbPolyFillRect (pDrawable, pGC, nrect, prect);
@@ -691,16 +714,16 @@ qxl_poly_fill_rect (DrawablePtr pDrawable,
 
 static void
 qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
-	     DrawablePtr    pDstDrawable,
-	     GCPtr	    pGC,
-	     BoxPtr	    pbox,
-	     int	    nbox,
-	     int	    dx,
-	     int	    dy,
-	     Bool	    reverse,
-	     Bool	    upsidedown,
-	     Pixel	    bitplane,
-	     void	    *closure)
+		 DrawablePtr    pDstDrawable,
+		 GCPtr	        pGC,
+		 BoxPtr	        pbox,
+		 int	        nbox,
+		 int	        dx,
+		 int	        dy,
+		 Bool	        reverse,
+		 Bool	        upsidedown,
+		 Pixel	        bitplane,
+		 void	       *closure)
 {
     ScreenPtr pScreen = pSrcDrawable->pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
@@ -717,6 +740,8 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 	
 	assert (pSrcPixmap == pDstPixmap);
 
+/* 	ErrorF ("Accelerated copy: %d boxes\n", n); */
+
 	while (n--)
 	{
 	    struct qxl_drawable *drawable;
@@ -727,11 +752,9 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 	    qrect.left = b->x1;
 	    qrect.right = b->x2;
 
-#if 0
-	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n",
-		    b->x1, b->y1, b->x2, b->y2,
-		    dx, dy, dst_xoff, dst_yoff);
-#endif
+/* 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n", */
+/* 		    b->x1, b->y1, b->x2, b->y2, */
+/* 		    dx, dy, dst_xoff, dst_yoff); */
 	    
 	    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
 	    drawable->u.copy_bits.src_pos.x = b->x1 + dx;
@@ -751,6 +774,8 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 	    b++;
 	}
     }
+/*     else */
+/* 	ErrorF ("Unaccelerated copy\n"); */
 
     fbCopyNtoN (pSrcDrawable, pDstDrawable, pGC, pbox, nbox, dx, dy, reverse, upsidedown, bitplane, closure);
 }
@@ -766,17 +791,18 @@ qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
-	RegionPtr *res;
+	RegionPtr res;
 
 	/* We have to do this because the copy will cause the damage
 	 * to be sent to move.
 	 */
+	clear_pending_damage (qxl);
+
 	qxl_send_copies (qxl);
     
 	res = fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
 			srcx, srcy, width, height, dstx, dsty,
 			qxl_copy_n_to_n, 0, NULL);
-	undamage (qxl);
 
 	return res;
     }
@@ -836,8 +862,6 @@ qxl_paint_window(WindowPtr pWin, RegionPtr pRegion, int what)
 	uint32_t pixel = pWin->background.pixel;
 
 	qxl_fill_region_solid (&pWin->drawable, pRegion, pixel);
-	
-	undamage (qxl);
     }
 
     qxl->paint_window_border (pWin, pRegion, what);
@@ -853,8 +877,11 @@ qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
     int dx, dy;
 
     /* We have to do this because the copy will cause the damage
-     * to be sent to move.
+     * to be sent to move, which means the "undamage" later will
+     * remove the wrong damage.
      */
+    clear_pending_damage (qxl);
+
     qxl_send_copies (qxl);
 
     dx = ptOldOrg.x - pWin->drawable.x;
@@ -867,15 +894,14 @@ qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
     REGION_INTERSECT(pScreen, &rgnDst, &pWin->borderClip, prgnSrc);
 
     fbCopyRegion (&pWin->drawable, &pWin->drawable,
-		  NULL, &rgnDst, dx, dy, qxl_copy_n_to_n, 0, NULL);
+		  NULL, 
+		  &rgnDst, dx, dy, qxl_copy_n_to_n, 0, NULL);
 
-    undamage (qxl);
-#if 0
+    REGION_UNINIT (pScreen, &rgnDst);
 
-    REGION_TRANSLATE (pScreen, prgnSrc, dx, dy);
+/*     REGION_TRANSLATE (pScreen, prgnSrc, dx, dy); */
     
-    fbCopyWindow (pWin, ptOldOrg, prgnSrc);
-#endif
+/*     fbCopyWindow (pWin, ptOldOrg, prgnSrc); */
 }
 
 static int
