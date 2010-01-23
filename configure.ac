@@ -60,7 +60,6 @@ XORG_DRIVER_CHECK_EXT(XFreeXDGA, xf86dgaproto)
 
 # Checks for pkg-config packages
 PKG_CHECK_MODULES(XORG, [xorg-server >= 1.0.99.901] xproto fontsproto $REQUIRED_MODULES)
-sdkdir=$(pkg-config --variable=sdkdir xorg-server)
 
 save_CFLAGS="$CFLAGS"
 CFLAGS="$XORG_CFLAGS"
@@ -80,7 +79,7 @@ if test "x$GCC" = xyes ; then
 fi
 
 CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "' -I$(top_srcdir)/src'
-INCLUDES="$XORG_INCS -I${sdkdir} "'-I$(top_srcdir)/src -I$(prefix)/include'
+INCLUDES="$XORG_INCS "'-I$(top_srcdir)/src -I$(prefix)/include'
 AC_SUBST([CFLAGS])
 AC_SUBST([INCLUDES])
 
