@@ -20,24 +20,29 @@
 #
 # Process this file with autoconf to produce a configure script
 
-AC_PREREQ(2.57)
+AC_PREREQ([2.60])
 AC_INIT([xf86-video-qxl],
-        0.0.8,
+        [0.0.8],
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
-        xf86-video-qxl)
-
+        [xf86-video-qxl])
 AC_CONFIG_SRCDIR([Makefile.am])
-AM_CONFIG_HEADER([config.h])
-AC_CONFIG_AUX_DIR(.)
-
-AM_INIT_AUTOMAKE([dist-bzip2])
-
+AC_CANONICAL_HOST
+AM_INIT_AUTOMAKE([foreign dist-bzip2])
 AM_MAINTAINER_MODE
+AM_CONFIG_HEADER([config.h])
+
+# Require xorg-macros: XORG_DEFAULT_OPTIONS
+m4_ifndef([XORG_MACROS_VERSION],
+          [m4_fatal([must install xorg-macros 1.4 or later before running autoconf/autogen])])
+XORG_MACROS_VERSION(1.4)
+XORG_DEFAULT_OPTIONS
 
 # Checks for programs.
 AC_DISABLE_STATIC
-AC_PROG_LIBTOOL
 AC_PROG_CC
+AC_PROG_CC_C99
+AC_PROG_INSTALL
+AC_PROG_LIBTOOL
 
 AH_TOP([#include "xorg-server.h"])
 
@@ -86,9 +91,6 @@ AC_HEADER_STDC
 
 DRIVER_NAME=qxl
 AC_SUBST([DRIVER_NAME])
-
-XORG_MANPAGE_SECTIONS
-XORG_RELEASE_VERSION
 
 AC_OUTPUT([
 	Makefile
