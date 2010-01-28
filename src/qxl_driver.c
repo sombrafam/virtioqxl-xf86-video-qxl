@@ -196,6 +196,9 @@ qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
 #endif
 
     qxl->ram = qxl->ram_physical = qxl->vram = qxl->rom = NULL;
+
+    qxl->num_modes = 0;
+    qxl->modes = NULL;
 }
 
 static Bool
@@ -240,6 +243,9 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
     xf86DrvMsg(scrnIndex, X_INFO, "ram at %p; vram at %p; rom at %p\n",
 	       qxl->ram, qxl->vram, qxl->rom);
 
+    qxl->num_modes = *(uint32_t *)((uint8_t *)qxl->rom + qxl->rom->modes_offset);
+    qxl->modes = (struct qxl_mode *)(((uint8_t *)qxl->rom) + qxl->rom->modes_offset + 4);
+
     return TRUE;
 }
 
@@ -265,15 +271,16 @@ static Bool
 qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 {
     qxl_screen_t *qxl = xf86Screens[scrnIndex]->driverPrivate;
-    struct qxl_mode *m = (void *)p->Private;
+    int mode_index = (int)(unsigned long)p->Private;
+    struct qxl_mode *m = qxl->modes + mode_index;
     ScreenPtr pScreen = qxl->pScrn->pScreen;
 
     if (!m)
 	return FALSE;
 
     /* if (debug) */
-    xf86DrvMsg(scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n",
-	       m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
+    xf86DrvMsg (scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n",
+		m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
     outb(qxl->io_base + QXL_IO_RESET, 0);
     
@@ -542,7 +549,8 @@ paint_shadow (qxl_screen_t *qxl)
     submit_copy (qxl, &qrect);
 }
 
-static void qxl_sanity_check(qxl_screen_t *qxl)
+static void
+qxl_sanity_check (qxl_screen_t *qxl)
 {
     /* read the mode back from the rom */
     if (!qxl->rom || !qxl->pScrn)
@@ -556,7 +564,7 @@ static void qxl_sanity_check(qxl_screen_t *qxl)
 }
 
 static void
-qxl_block_handler(pointer data, OSTimePtr pTimeout, pointer pRead)
+qxl_block_handler (pointer data, OSTimePtr pTimeout, pointer pRead)
 {
     qxl_screen_t *qxl = (qxl_screen_t *) data;
 
@@ -568,7 +576,7 @@ qxl_block_handler(pointer data, OSTimePtr pTimeout, pointer pRead)
 }
 
 static void
-qxl_wakeup_handler(pointer data, int i, pointer LastSelectMask)
+qxl_wakeup_handler (pointer data, int i, pointer LastSelectMask)
 {
 }
 
@@ -641,7 +649,6 @@ qxl_create_screen_resources(ScreenPtr pScreen)
 
     REGION_INIT (pScreen, &(qxl->pending_copy), NullBox, 0);
 
-    ErrorF ("initialized\n");
     REGION_INIT (pScreen, &(qxl->to_be_sent), NullBox, 0);
  
     DamageRegister (&pPixmap->drawable, qxl->damage);
@@ -1071,7 +1078,9 @@ qxl_color_setup(ScrnInfoPtr pScrn)
 
     if (!xf86SetDepthBpp(pScrn, 0, 0, 0, Support32bppFb))
 	return FALSE;
-    if (pScrn->depth != 16 && pScrn->depth != 24) {
+
+    if (pScrn->depth != 16 && pScrn->depth != 24) 
+    {
 	xf86DrvMsg(scrnIndex, X_ERROR, "Depth %d is not supported\n",
 		   pScrn->depth);
 	return FALSE;
@@ -1080,8 +1089,10 @@ qxl_color_setup(ScrnInfoPtr pScrn)
 
     if (!xf86SetWeight(pScrn, rzeros, rzeros))
 	return FALSE;
+
     if (!xf86SetDefaultVisual(pScrn, -1))
 	return FALSE;
+
     if (!xf86SetGamma(pScrn, gzeros))
 	return FALSE;
 
@@ -1089,23 +1100,28 @@ qxl_color_setup(ScrnInfoPtr pScrn)
 }
 
 static void
-qxl_print_mode(int scrnIndex, void *p)
+print_modes (qxl_screen_t *qxl, int scrnIndex)
 {
-    struct qxl_mode *m = p;
-    xf86DrvMsg(scrnIndex, X_INFO,
-	       "%d: %dx%d, %d bits, stride %d, %dmm x %dmm, orientation %d\n",
-	       m->id, m->x_res, m->y_res, m->bits, m->stride, m->x_mili,
-	       m->y_mili, m->orientation);
+    int i;
+
+    for (i = 0; i < qxl->num_modes; ++i)
+    {
+	struct qxl_mode *m = qxl->modes + i;
+
+	xf86DrvMsg (scrnIndex, X_INFO,
+		    "%d: %dx%d, %d bits, stride %d, %dmm x %dmm, orientation %d\n",
+		    m->id, m->x_res, m->y_res, m->bits, m->stride, m->x_mili,
+		    m->y_mili, m->orientation);
+    }
 }
 
 static Bool
 qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
-    int i, mode_offset;
     struct qxl_rom *rom = qxl->rom;
     struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram + rom->ram_header_offset);
-    
+
     CHECK_POINT();
     
     if (rom->magic != 0x4f525851) { /* "QXRO" little-endian */
@@ -1145,17 +1161,10 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
     qxl->draw_area_size = rom->draw_area_size;
     pScrn->videoRam = rom->draw_area_size / 1024;
     
-    mode_offset = rom->modes_offset / 4;
-    qxl->num_modes = ((uint32_t *)rom)[mode_offset];
-    xf86DrvMsg(scrnIndex, X_INFO, "%d available modes:\n", qxl->num_modes);
-    qxl->modes = (void *)((uint32_t *)rom + mode_offset + 1);
-    for (i = 0; i < qxl->num_modes; i++)
-	qxl_print_mode(scrnIndex, qxl->modes + i);
-
     return TRUE;
 }
 
-static struct qxl_mode *
+static int
 qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
 {
     int i;
@@ -1163,17 +1172,19 @@ qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
 
     CHECK_POINT();
     
-    for (i = 0; i < qxl->num_modes; i++) {
+    for (i = 0; i < qxl->num_modes; i++) 
+    {
 	struct qxl_mode *m = qxl->modes + i;
+
 	if (m->x_res == p->HDisplay &&
 	    m->y_res == p->VDisplay &&
 	    m->bits == pScrn->bitsPerPixel)
 	{
-	    return m;
+	    return i;
 	}
     }
 
-    return NULL;	
+    return -1;
 }
 
 static ModeStatus
@@ -1182,6 +1193,7 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
     ScrnInfoPtr pScrn = xf86Screens[scrn];
     qxl_screen_t *qxl = pScrn->driverPrivate;
     int bpp = pScrn->bitsPerPixel;
+    int mode_idx;
 
     /* FIXME: I don't think this is necessary now that we report the
      * correct amount of video ram?
@@ -1189,9 +1201,11 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
     if (p->HDisplay * p->VDisplay * (bpp/8) > qxl->draw_area_size)
 	return MODE_MEM;
 
-    p->Private = (void *)qxl_find_native_mode(pScrn, p);
-    if (!p->Private)
-       return MODE_NOMODE;
+    mode_idx = qxl_find_native_mode (pScrn, p);
+    if (mode_idx == -1)
+	return MODE_NOMODE;
+
+    p->Private = (void *)(unsigned long)mode_idx;
 
     assert (((struct qxl_mode *)p->Private)->x_res == p->HDisplay);
     assert (((struct qxl_mode *)p->Private)->y_res == p->VDisplay);
@@ -1287,6 +1301,8 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     {
 	goto out;
     }
+
+    print_modes (qxl, scrnIndex);
 
     /* hate */
     qxl_unmap_memory(qxl, scrnIndex);
