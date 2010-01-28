@@ -27,7 +27,7 @@
 qxl_drv_la_LTLIBRARIES = qxl_drv.la
 qxl_drv_la_LDFLAGS = -module -avoid-version
 qxl_drv_ladir = @moduledir@/drivers
-INCLUDES = -Wall -g
+AM_CFLAGS = -g
 
 qxl_drv_la_SOURCES =				\
 	qxl.h					\

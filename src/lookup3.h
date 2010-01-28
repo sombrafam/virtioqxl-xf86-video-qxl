@@ -1,7 +1,7 @@
 #ifndef __LOOKUP3_H
 #define __LOOKUP3_H
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__sun)
 
 #include <stdint.h>
 
