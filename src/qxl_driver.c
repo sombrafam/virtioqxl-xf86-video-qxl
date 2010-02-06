@@ -359,7 +359,7 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
 
     drawable->type = type;
 
-    drawable->effect = QXL_EFFECT_OPAQUE;
+    drawable->effect = QXL_EFFECT_BLEND;
     drawable->bitmap_offset = 0;
     drawable->bitmap_area.top = 0;
     drawable->bitmap_area.left = 0;
@@ -516,13 +516,13 @@ qxl_send_copies (qxl_screen_t *qxl)
     nbox = REGION_NUM_RECTS (&qxl->to_be_sent);
     pBox = REGION_RECTS (&qxl->to_be_sent);
 
-/*     print_region ("send bits", &qxl->to_be_sent); */
-/*     print_region ("unsent bits", &qxl->pending_copy); */
+/*      if (REGION_NUM_RECTS (&qxl->to_be_sent) > 0)  */
+/*        	print_region ("send bits", &qxl->to_be_sent); */
     
     while (nbox--)
     {
 	struct qxl_rect qrect;
-	
+
 	qrect.top = pBox->y1;
 	qrect.left = pBox->x1;
 	qrect.bottom = pBox->y2;
@@ -610,9 +610,7 @@ qxl_on_damage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
 
 /*     print_region ("damage", pRegion); */
     
-#if 0
-    ErrorF ("damage\n");
-#endif
+/*     print_region ("on_damage ", pRegion); */
 
     accept_damage (qxl);
 
@@ -749,6 +747,33 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 
 /* 	ErrorF ("Accelerated copy: %d boxes\n", n); */
 
+	/* At this point we know that any pending damage must
+	 * have been caused by whatever copy operation triggered us.
+	 * 
+	 * Therefore we can clear it.
+	 *
+	 * We couldn't clear it at the toplevel function because 
+	 * the copy might end up being empty, in which case no
+	 * damage would have been generated. Which means the
+	 * pending damage would have been caused by some
+	 * earlier operation.
+	 */
+	if (n)
+	{
+/* 	    ErrorF ("Clearing pending damage\n"); */
+	    clear_pending_damage (qxl);
+	    
+	    /* We have to do this because the copy will cause the damage
+	     * to be sent to move.
+	     * 
+	     * Instead of just sending the bits, we could also move
+	     * the existing damage around; however that's a bit more 
+	     * complex, and the performance win is unlikely to be
+	     * very big.
+	     */
+	    qxl_send_copies (qxl);
+	}
+    
 	while (n--)
 	{
 	    struct qxl_drawable *drawable;
@@ -793,20 +818,15 @@ qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
 {
     ScreenPtr pScreen = pSrcDrawable->pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
 
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
 	RegionPtr res;
 
-	/* We have to do this because the copy will cause the damage
-	 * to be sent to move.
-	 */
-	clear_pending_damage (qxl);
+/* 	ErrorF ("accelerated copy %d %d %d %d %d %d\n",  */
+/* 		srcx, srcy, width, height, dstx, dsty); */
 
-	qxl_send_copies (qxl);
-    
 	res = fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
 			srcx, srcy, width, height, dstx, dsty,
 			qxl_copy_n_to_n, 0, NULL);
@@ -815,6 +835,9 @@ qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
     }
     else
     {
+/* 	ErrorF ("Falling back %d %d %d %d %d %d\n",  */
+/* 		srcx, srcy, width, height, dstx, dsty); */
+
 	return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
 			   srcx, srcy, width, height, dstx, dsty);
     }
@@ -879,17 +902,8 @@ qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 {
     ScreenPtr pScreen = pWin->drawable.pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
     RegionRec rgnDst;
     int dx, dy;
-
-    /* We have to do this because the copy will cause the damage
-     * to be sent to move, which means the "undamage" later will
-     * remove the wrong damage.
-     */
-    clear_pending_damage (qxl);
-
-    qxl_send_copies (qxl);
 
     dx = ptOldOrg.x - pWin->drawable.x;
     dy = ptOldOrg.y - pWin->drawable.y;
