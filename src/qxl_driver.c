@@ -60,7 +60,7 @@ garbage_collect (qxl_screen_t *qxl)
 	     */
 #define POINTER_MASK ((1 << 2) - 1)
 	    
-	    union qxl_release_info *info = (void *)(id & ~POINTER_MASK);
+	    union qxl_release_info *info = u64_to_pointer (id & ~POINTER_MASK);
 	    struct qxl_cursor_cmd *cmd = (struct qxl_cursor_cmd *)info;
 	    struct qxl_drawable *drawable = (struct qxl_drawable *)info;
 	    int is_cursor = FALSE;
@@ -71,14 +71,14 @@ garbage_collect (qxl_screen_t *qxl)
 	    if (is_cursor && cmd->type == QXL_CURSOR_SET)
 	    {
 		struct qxl_cursor *cursor = (void *)virtual_address (
-		    qxl, (void *)cmd->u.set.shape);
+		    qxl, u64_to_pointer (cmd->u.set.shape));
 
 		qxl_free (qxl->mem, cursor);
 	    }
 	    else if (!is_cursor && drawable->type == QXL_DRAW_COPY)
 	    {
 		struct qxl_image *image = virtual_address (
-		    qxl, (void *)drawable->u.copy.src_bitmap);
+		    qxl, u64_to_pointer (drawable->u.copy.src_bitmap));
 
 		qxl_image_destroy (qxl, image);
 	    }
@@ -209,7 +209,7 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 			 qxl->pci->regions[0].size,
 			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
 			 &qxl->ram);
-    qxl->ram_physical = (void *)qxl->pci->regions[0].base_addr;
+    qxl->ram_physical = u64_to_pointer (qxl->pci->regions[0].base_addr);
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
 			 qxl->pci->regions[1].size,
@@ -218,7 +218,7 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 
     pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
 			 qxl->pci->regions[2].size, 0,
-			 &qxl->rom);
+			 (void **)&qxl->rom);
 
     qxl->io_base = qxl->pci->regions[3].base_addr;
 #else
@@ -355,7 +355,7 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
 
     CHECK_POINT();
 
-    drawable->release_info.id = (uint64_t)drawable;
+    drawable->release_info.id = pointer_to_u64 (drawable);
 
     drawable->type = type;
 

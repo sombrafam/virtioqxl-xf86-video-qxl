@@ -45,7 +45,7 @@ qxl_alloc_cursor_cmd(qxl_screen_t *qxl)
     struct qxl_cursor_cmd *cmd =
 	qxl_allocnf (qxl, sizeof(struct qxl_cursor_cmd));
 
-    cmd->release_info.id = (uint64_t)cmd | 1;
+    cmd->release_info.id = pointer_to_u64 (cmd) | 1;
     
     return cmd;
 }

@@ -537,6 +537,18 @@ virtual_address (qxl_screen_t *qxl, void *physical)
     return (void *) ((unsigned long)physical + ((unsigned long)qxl->ram - (unsigned long)qxl->ram_physical));
 }
 
+static inline void *
+u64_to_pointer (uint64_t u)
+{
+    return (void *)(unsigned long)u;
+}
+
+static inline uint64_t
+pointer_to_u64 (void *p)
+{
+    return (uint64_t)(unsigned long)p;
+}
+
 struct qxl_ring;
 
 /*

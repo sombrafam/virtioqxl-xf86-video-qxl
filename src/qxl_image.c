@@ -124,7 +124,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	    const uint8_t *src_line = data + i * stride;
 	    uint32_t *dest_line;
 		
-	    chunk = virtual_address (qxl, (void *)info->image->u.bitmap.data);
+	    chunk = virtual_address (qxl, u64_to_pointer (info->image->u.bitmap.data));
 	    
 	    dest_line = (uint32_t *)chunk->data + width * i;
 
@@ -224,7 +224,7 @@ qxl_image_destroy (qxl_screen_t *qxl,
     struct qxl_data_chunk *chunk;
     image_info_t *info;
 
-    chunk = virtual_address (qxl, (void *)image->u.bitmap.data);
+    chunk = virtual_address (qxl, u64_to_pointer (image->u.bitmap.data));
     
     info = lookup_image_info (image->descriptor.id,
 			      image->descriptor.width,
