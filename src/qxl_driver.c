@@ -359,7 +359,7 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
 
     drawable->type = type;
 
-    drawable->effect = QXL_EFFECT_BLEND;
+    drawable->effect = QXL_EFFECT_OPAQUE;
     drawable->bitmap_offset = 0;
     drawable->bitmap_area.top = 0;
     drawable->bitmap_area.left = 0;
