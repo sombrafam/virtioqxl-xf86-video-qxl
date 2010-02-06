@@ -816,9 +816,6 @@ static RegionPtr
 qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
 	    int srcx, int srcy, int width, int height, int dstx, int dsty)
 {
-    ScreenPtr pScreen = pSrcDrawable->pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
@@ -900,8 +897,6 @@ qxl_paint_window(WindowPtr pWin, RegionPtr pRegion, int what)
 static void
 qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
 {
-    ScreenPtr pScreen = pWin->drawable.pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     RegionRec rgnDst;
     int dx, dy;
 
