@@ -22,7 +22,7 @@
 
 AC_PREREQ([2.60])
 AC_INIT([xf86-video-qxl],
-        [0.0.10],
+        [0.0.11],
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         [xf86-video-qxl])
 AC_CONFIG_SRCDIR([Makefile.am])
