@@ -949,6 +949,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_screen_t *qxl = pScrn->driverPrivate;
     struct qxl_rom *rom;
     struct qxl_ram_header *ram_header;
+    VisualPtr visual;
 
     CHECK_POINT();
 
@@ -982,18 +983,21 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		      pScrn->currentMode->VDisplay,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
-	goto out;
     {
-	VisualPtr visual = pScreen->visuals + pScreen->numVisuals;
-	while (--visual >= pScreen->visuals) {
-	    if ((visual->class | DynamicClass) == DirectColor) {
-                visual->offsetRed = pScrn->offset.red;
-                visual->offsetGreen = pScrn->offset.green;
-                visual->offsetBlue = pScrn->offset.blue;
-                visual->redMask = pScrn->mask.red;
-                visual->greenMask = pScrn->mask.green;
-                visual->blueMask = pScrn->mask.blue;
-	    }
+	goto out;
+    }
+
+    visual = pScreen->visuals + pScreen->numVisuals;
+    while (--visual >= pScreen->visuals) 
+    {
+	if ((visual->class | DynamicClass) == DirectColor) 
+	{
+	    visual->offsetRed = pScrn->offset.red;
+	    visual->offsetGreen = pScrn->offset.green;
+	    visual->offsetBlue = pScrn->offset.blue;
+	    visual->redMask = pScrn->mask.red;
+	    visual->greenMask = pScrn->mask.green;
+	    visual->blueMask = pScrn->mask.blue;
 	}
     }
 
@@ -1088,7 +1092,7 @@ qxl_color_setup(ScrnInfoPtr pScrn)
     if (!xf86SetDepthBpp(pScrn, 0, 0, 0, Support32bppFb))
 	return FALSE;
 
-    if (pScrn->depth != 16 && pScrn->depth != 24) 
+    if (pScrn->depth != 15 && pScrn->depth != 24) 
     {
 	xf86DrvMsg(scrnIndex, X_ERROR, "Depth %d is not supported\n",
 		   pScrn->depth);
@@ -1189,7 +1193,16 @@ qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
 	    m->y_res == p->VDisplay &&
 	    m->bits == pScrn->bitsPerPixel)
 	{
-	    return i;
+	    /* What QXL calls 16 bit is actually x1r5g5b515 */
+	    if (m->bits == 16) 
+	    {
+		if (pScrn->depth == 15)
+		    return i;
+	    }
+	    else if (pScrn->depth == m->bits)
+	    {
+		return i;
+	    }
 	}
     }
 
