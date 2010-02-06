@@ -1193,15 +1193,17 @@ qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
 	    m->y_res == p->VDisplay &&
 	    m->bits == pScrn->bitsPerPixel)
 	{
-	    /* What QXL calls 16 bit is actually x1r5g5b515 */
 	    if (m->bits == 16) 
 	    {
+		/* What QXL calls 16 bit is actually x1r5g5b515 */
 		if (pScrn->depth == 15)
 		    return i;
 	    }
-	    else if (pScrn->depth == m->bits)
+	    else if (m->bits == 32)
 	    {
-		return i;
+		/* What QXL calls 32 bit is actually x8r8g8b8 */
+		if (pScrn->depth == 24)
+		    return i;
 	    }
 	}
     }
