@@ -79,9 +79,7 @@ if test "x$GCC" = xyes ; then
 fi
 
 CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "' -I$(top_srcdir)/src'
-INCLUDES='-I$(top_srcdir)/src'
 AC_SUBST([CFLAGS])
-AC_SUBST([INCLUDES])
 
 # Checks for libraries.
 
