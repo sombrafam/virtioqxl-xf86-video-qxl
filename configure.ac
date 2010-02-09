@@ -73,14 +73,6 @@ if test "x$XSERVER_LIBPCIACCESS" = xyes; then
 fi
 AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
-# blah, should be XORG_CWARNFLAGS
-if test "x$GCC" = xyes ; then
-        CWARNFLAGS="-Wall -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -fno-strict-aliasing -Wold-style-definition -Wbad-function-cast -Wdeclaration-after-statement"
-fi
-
-CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "
-AC_SUBST([CFLAGS])
-
 # Checks for libraries.
 
 # Checks for header files.

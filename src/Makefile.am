@@ -24,10 +24,12 @@
 # -avoid-version prevents gratuitous .0.0.0 version numbers on the end
 # _ladir passes a dummy rpath to libtool so the thing will actually link
 # TODO: -nostdlib/-Bstatic/-lgcc platform magic, not installing the .a, etc.
+
+AM_CFLAGS = $(XORG_CFLAGS) $(PCIACCESS_CFLAGS) $(CWARNFLAGS)
+
 qxl_drv_la_LTLIBRARIES = qxl_drv.la
 qxl_drv_la_LDFLAGS = -module -avoid-version
 qxl_drv_ladir = @moduledir@/drivers
-AM_CFLAGS = -g
 
 qxl_drv_la_SOURCES =				\
 	qxl.h					\
