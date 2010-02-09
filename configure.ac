@@ -78,7 +78,7 @@ if test "x$GCC" = xyes ; then
         CWARNFLAGS="-Wall -Wstrict-prototypes -Wpointer-arith -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -fno-strict-aliasing -Wold-style-definition -Wbad-function-cast -Wdeclaration-after-statement"
 fi
 
-CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "' -I$(top_srcdir)/src'
+CFLAGS="$CFLAGS $CWARNFLAGS $XORG_CFLAGS "
 AC_SUBST([CFLAGS])
 
 # Checks for libraries.
