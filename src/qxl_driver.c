@@ -1231,9 +1231,6 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
 
     p->Private = (void *)(unsigned long)mode_idx;
 
-    assert (((struct qxl_mode *)p->Private)->x_res == p->HDisplay);
-    assert (((struct qxl_mode *)p->Private)->y_res == p->VDisplay);
-    
     return MODE_OK;
 }
 
