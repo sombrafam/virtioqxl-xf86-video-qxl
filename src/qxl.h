@@ -60,6 +60,8 @@ enum {
     QXL_IO_RESET,
     QXL_IO_SET_MODE,
     QXL_IO_LOG,
+    QXL_IO_MEMSLOT_ADD,
+    QXL_IO_MEMSLOT_DEL
 };
 
 struct qxl_mode {
@@ -441,6 +443,12 @@ struct qxl_rom {
     uint32_t draw_area_size;
     uint32_t ram_header_offset;
     uint32_t mm_clock;
+    uint64_t flags;
+    uint8_t  slots_start;
+    uint8_t  slots_end;
+    uint8_t  slot_gen_bits;
+    uint8_t  slot_id_bits;
+    uint8_t  slot_generation;
 };
 
 struct qxl_ring_header {
