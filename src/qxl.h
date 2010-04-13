@@ -473,6 +473,9 @@ struct qxl_ram_header {
     struct qxl_ring_header  release_ring_hdr;
     uint64_t		    release_ring[8];
     struct qxl_rect	    update_area;
+    uint64_t		    mem_slot_start;
+    uint64_t		    mem_slot_end;
+    uint64_t		    flags;
 };
 
 #pragma pack(pop)
@@ -486,13 +489,8 @@ typedef struct
     uint64_t	end_phys_addr;
     uint64_t	start_virt_addr;
     uint64_t	end_virt_addr;
+    uint64_t	high_bits;
 } qxl_memslot_t;
-
-typedef struct
-{
-    qxl_memslot_t	slot;
-    uint64_t		high_bits;
-} qxl_pmemslot_t;
 
 struct _qxl_screen_t
 {
@@ -549,7 +547,7 @@ struct _qxl_screen_t
     
     ScrnInfoPtr			pScrn;
 
-    qxl_pmemslot_t *		mem_slots;
+    qxl_memslot_t *		mem_slots;
     uint8_t			n_mem_slots;
     uint8_t			main_mem_slot;
     uint8_t			slot_id_bits;
@@ -560,9 +558,9 @@ struct _qxl_screen_t
 static inline uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 {
-    qxl_pmemslot_t *p_slot = &(qxl->mem_slots[slot_id]);
+    qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
 
-    return p_slot->high_bits | ((unsigned long)virtual - p_slot->slot.start_virt_addr);
+    return p_slot->high_bits | ((unsigned long)virtual - p_slot->start_virt_addr);
 #if 0
     return (uint64_t) ((unsigned long)virtual + (((unsigned long)qxl->ram_physical - (unsigned long)qxl->ram)));
 #endif
@@ -571,11 +569,11 @@ physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 static inline void *
 virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
 {
-    qxl_pmemslot_t *p_slot = &(qxl->mem_slots[slot_id]);
+    qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
     unsigned long virt;
 
     virt = ((unsigned long)physical) & qxl->va_slot_mask;
-    virt += p_slot->slot.start_virt_addr;
+    virt += p_slot->start_virt_addr;
 
     return (void *)virt;
 #if 0
