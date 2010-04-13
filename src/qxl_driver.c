@@ -71,14 +71,14 @@ garbage_collect (qxl_screen_t *qxl)
 	    if (is_cursor && cmd->type == QXL_CURSOR_SET)
 	    {
 		struct qxl_cursor *cursor = (void *)virtual_address (
-		    qxl, u64_to_pointer (cmd->u.set.shape));
+		    qxl, u64_to_pointer (cmd->u.set.shape), qxl->main_mem_slot);
 
 		qxl_free (qxl->mem, cursor);
 	    }
 	    else if (!is_cursor && drawable->type == QXL_DRAW_COPY)
 	    {
 		struct qxl_image *image = virtual_address (
-		    qxl, u64_to_pointer (drawable->u.copy.src_bitmap));
+		    qxl, u64_to_pointer (drawable->u.copy.src_bitmap), qxl->main_mem_slot);
 
 		qxl_image_destroy (qxl, image);
 	    }
@@ -336,7 +336,7 @@ push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
     if (qxl->rom->mode != ~0)
     {
 	cmd.type = QXL_CMD_DRAW;
-	cmd.data = physical_address (qxl, drawable);
+	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
 	    
 	qxl_ring_push (qxl->command_ring, &cmd);
     }
@@ -467,7 +467,7 @@ submit_copy (qxl_screen_t *qxl, const struct qxl_rect *rect)
 	qxl, qxl_image_create (qxl, qxl->fb, rect->left, rect->top,
 			       rect->right - rect->left,
 			       rect->bottom - rect->top,
-			       pScrn->displayWidth * qxl->bytes_per_pixel));
+			       pScrn->displayWidth * qxl->bytes_per_pixel), qxl->main_mem_slot);
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;

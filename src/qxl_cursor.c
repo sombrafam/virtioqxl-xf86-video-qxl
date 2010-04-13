@@ -33,7 +33,7 @@ push_cursor (qxl_screen_t *qxl, struct qxl_cursor_cmd *cursor)
     if (qxl->rom->mode != ~0)
     {
         cmd.type = QXL_CMD_CURSOR;
-        cmd.data = physical_address (qxl, cursor);
+        cmd.data = physical_address (qxl, cursor, qxl->main_mem_slot);
       
         qxl_ring_push (qxl->cursor_ring, &cmd);
     }
@@ -127,7 +127,7 @@ qxl_load_cursor_argb (ScrnInfoPtr pScrn, CursorPtr pCurs)
     cmd->type = QXL_CURSOR_SET;
     cmd->u.set.position.x = qxl->cur_x + qxl->hot_x;
     cmd->u.set.position.y = qxl->cur_y + qxl->hot_y;
-    cmd->u.set.shape = physical_address (qxl, cursor);
+    cmd->u.set.shape = physical_address (qxl, cursor, qxl->main_mem_slot);
     cmd->u.set.visible = TRUE;
 
     push_cursor(qxl, cmd);
