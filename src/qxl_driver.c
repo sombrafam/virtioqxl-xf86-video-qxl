@@ -24,7 +24,7 @@
  * \author Adam Jackson <ajax@redhat.com>
  *
  * This is qxl, a driver for the Qumranet paravirtualized graphics device
- * in qemu.
+  * in qemu.
  */
 
 #include <unistd.h>
@@ -267,6 +267,53 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     return pScreen->CloseScreen(scrnIndex, pScreen);
 }
 
+static void
+qxl_reset (qxl_screen_t *qxl)
+{
+    qxl_memslot_t *slot;
+    uint64_t high_bits;
+    struct qxl_ram_header *ram_header;
+
+    outb(qxl->io_base + QXL_IO_RESET, 0);
+    
+    ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
+
+    /* Mem slots */
+    qxl->main_mem_slot = qxl->rom->slots_start;
+    qxl->n_mem_slots = qxl->rom->slots_end;
+    qxl->slot_gen_bits = qxl->rom->slot_gen_bits;
+    qxl->slot_id_bits = qxl->rom->slot_id_bits;
+    
+    qxl->mem_slots = xnfalloc (qxl->n_mem_slots * sizeof (qxl_memslot_t));
+
+    slot = &qxl->mem_slots[qxl->main_mem_slot];
+
+    slot->start_phys_addr = (unsigned long)qxl->ram_physical + (unsigned long)qxl->rom->pages_offset;
+    slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
+    slot->start_virt_addr = (uint64_t)qxl->ram;
+    slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
+
+    ram_header->mem_slot_start = slot->start_phys_addr;
+    ram_header->mem_slot_end = slot->end_phys_addr;
+
+    ErrorF ("before: %d\n", qxl->rom->slot_generation);
+    
+    outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
+
+    ErrorF ("after: %d\n", qxl->rom->slot_generation);
+    
+    slot->generation = qxl->rom->slot_generation;
+
+    high_bits = qxl->main_mem_slot << qxl->slot_gen_bits;
+    high_bits |= slot->generation;
+    high_bits <<= (64 - (qxl->slot_gen_bits + qxl->slot_id_bits));
+    slot->high_bits = high_bits;
+
+    qxl->va_slot_mask = (~(uint64_t)0) >> (qxl->slot_id_bits + qxl->slot_gen_bits);
+    
+    
+}
+
 static Bool
 qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 {
@@ -282,7 +329,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     xf86DrvMsg (scrnIndex, X_INFO, "Setting mode %d (%d x %d) (%d x %d) %p\n",
 		m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
-    outb(qxl->io_base + QXL_IO_RESET, 0);
+    qxl_reset (qxl);
     
     outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
 
@@ -952,7 +999,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     struct qxl_rom *rom;
     struct qxl_ram_header *ram_header;
     VisualPtr visual;
-    qxl_memslot_t *slot;
 
     CHECK_POINT();
 
@@ -1011,36 +1057,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     pScreen->CreateScreenResources = qxl_create_screen_resources;
 
     /* Set up resources */
-
-    /* Mem slots */
-    qxl->main_mem_slot = qxl->rom->slots_start;
-    qxl->n_mem_slots = qxl->rom->slots_end;
-    qxl->slot_gen_bits = qxl->rom->slot_gen_bits;
-    qxl->slot_id_bits = qxl->rom->slot_id_bits;
-    
-    qxl->mem_slots = xnfalloc (qxl->n_mem_slots * sizeof (qxl_memslot_t));
-
-    slot = &qxl->mem_slots[qxl->main_mem_slot];
-
-    slot->start_phys_addr = (unsigned long)qxl->ram_physical + (unsigned long)qxl->rom->pages_offset;
-    slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
-    slot->start_virt_addr = (uint64_t)qxl->ram;
-    slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
-
-    ram_header->mem_slot_start = slot->start_phys_addr;
-    ram_header->mem_slot_end = slot->end_phys_addr;
-
-    outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
-
-    slot->generation = qxl->rom->slot_generation;
-
-    uint64_t high_bits;
-    high_bits = qxl->main_mem_slot << qxl->slot_gen_bits;
-    high_bits |= slot->generation;
-    high_bits <<= (64 - (qxl->slot_gen_bits + qxl->slot_id_bits));
-    slot->high_bits = high_bits;
-
-    qxl->va_slot_mask = (~(uint64_t)0) >> (qxl->slot_id_bits + qxl->slot_gen_bits);
+    qxl_reset (qxl);
     
     qxl->mem = qxl_mem_create ((void *)((unsigned long)qxl->ram + (unsigned long)rom->pages_offset),
 			       rom->num_io_pages * getpagesize());

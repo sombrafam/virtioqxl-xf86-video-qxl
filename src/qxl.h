@@ -555,7 +555,7 @@ struct _qxl_screen_t
     uint64_t			va_slot_mask;
 };
 
-static inline uint64_t
+static uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 {
     qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
@@ -566,7 +566,7 @@ physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 #endif
 }
 
-static inline void *
+static void *
 virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
 {
     qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
