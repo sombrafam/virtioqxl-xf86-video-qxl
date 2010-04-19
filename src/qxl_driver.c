@@ -1226,7 +1226,9 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 
     qxl->draw_area_offset = rom->draw_area_offset;
     qxl->draw_area_size = rom->draw_area_size;
-    pScrn->videoRam = rom->draw_area_size / 1024;
+    pScrn->videoRam = (rom->num_io_pages * 4096) / 1024;
+
+    xf86DrvMsg(scrnIndex, X_INFO, "%d KB of video RAM\n", pScrn->videoRam);
     
     return TRUE;
 }
@@ -1269,6 +1271,7 @@ static ModeStatus
 qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrn];
+    int scrnIndex = pScrn->scrnIndex;
     qxl_screen_t *qxl = pScrn->driverPrivate;
     int bpp = pScrn->bitsPerPixel;
     int mode_idx;
@@ -1277,14 +1280,21 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
      * correct amount of video ram?
      */
     if (p->HDisplay * p->VDisplay * (bpp/8) > qxl->draw_area_size)
+    {
+	xf86DrvMsg(scrnIndex, X_INFO, "rejecting mode %d x %d: insufficient memory\n", p->HDisplay, p->VDisplay);
 	return MODE_MEM;
+    }
 
     mode_idx = qxl_find_native_mode (pScrn, p);
     if (mode_idx == -1)
+    {
+	xf86DrvMsg(scrnIndex, X_INFO, "rejecting unknown mode %d x %d\n", p->HDisplay, p->VDisplay);
 	return MODE_NOMODE;
-
+    }
     p->Private = (void *)(unsigned long)mode_idx;
 
+    xf86DrvMsg (scrnIndex, X_INFO, "accepting %d x %d\n", p->HDisplay, p->VDisplay);
+    
     return MODE_OK;
 }
 
