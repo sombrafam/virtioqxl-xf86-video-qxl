@@ -58,10 +58,14 @@ enum {
     QXL_IO_UPDATE_IRQ,
     QXL_IO_NOTIFY_OOM,
     QXL_IO_RESET,
-    QXL_IO_SET_MODE,
     QXL_IO_LOG,
     QXL_IO_MEMSLOT_ADD,
-    QXL_IO_MEMSLOT_DEL
+    QXL_IO_MEMSLOT_DEL,
+    QXL_IO_DETACH_PRIMARY,
+    QXL_IO_ATTACH_PRIMARY,
+    QXL_IO_CREATE_PRIMARY,
+    QXL_IO_DESTROY_PRIMARY,
+    QXL_IO_DESTROY_SURFACE_WAIT
 };
 
 struct qxl_mode {
@@ -100,6 +104,11 @@ struct qxl_rect {
 union qxl_release_info {
     uint64_t id;
     uint64_t next;
+};
+
+struct qxl_release_info_ext {
+    union qxl_release_info *	info;
+    uint32_t			group_id;
 };
 
 struct qxl_clip {
@@ -340,28 +349,28 @@ typedef enum {
 } qxl_draw_type;
 
 struct qxl_drawable {
-    union qxl_release_info release_info;
-    unsigned char effect;
-    unsigned char type;
-    unsigned short bitmap_offset;
-    struct qxl_rect bitmap_area;
-    struct qxl_rect bbox;
-    struct qxl_clip clip;
-    uint32_t mm_time;
+    union qxl_release_info	release_info;
+    uint8_t			effect;
+    uint8_t			type;
+    uint8_t			self_bitmap;
+    struct qxl_rect		bitmap_area;
+    struct qxl_rect		bbox;
+    struct qxl_clip		clip;
+    uint32_t			mm_time;
     union {
-	struct qxl_fill fill;
-	struct qxl_opaque opaque;
-	struct qxl_copy copy;
-	struct qxl_transparent transparent;
-	struct qxl_alpha_blend alpha_blend;
-	struct qxl_copy_bits copy_bits;
-	struct qxl_blend blend;
-	struct qxl_rop3 rop3;
-	struct qxl_stroke stroke;
-	struct qxl_text text;
-	struct qxl_blackness blackness;
-	struct qxl_inverse inverse;
-	struct qxl_whiteness whiteness;
+	struct qxl_fill		fill;
+	struct qxl_opaque	opaque;
+	struct qxl_copy		copy;
+	struct qxl_transparent	transparent;
+	struct qxl_alpha_blend	alpha_blend;
+	struct qxl_copy_bits	copy_bits;
+	struct qxl_blend	blend;
+	struct qxl_rop3		rop3;
+	struct qxl_stroke	stroke;
+	struct qxl_text		text;
+	struct qxl_blackness	blackness;
+	struct qxl_inverse	inverse;
+	struct qxl_whiteness	whiteness;
     } u;
 };
 
@@ -435,12 +444,9 @@ struct qxl_rom {
     uint32_t update_id;
     uint32_t compression_level;
     uint32_t log_level;
-    uint32_t mode;
     uint32_t modes_offset;
-    uint32_t num_io_pages;
-    uint32_t pages_offset;
-    uint32_t draw_area_offset;
-    uint32_t draw_area_size;
+    uint32_t num_pages;
+    uint32_t surface0_area_size;
     uint32_t ram_header_offset;
     uint32_t mm_clock;
     uint64_t flags;
@@ -459,23 +465,36 @@ struct qxl_ring_header {
     uint32_t notify_on_cons;
 };
 
+struct qxl_surface_create {
+    uint32_t	width;
+    uint32_t	height;
+    int32_t	stride;
+    uint32_t	depth;
+    uint32_t	position;
+    uint32_t	mouse_mode;
+    uint32_t	flags;
+    uint32_t	type;
+    uint64_t	mem;
+};
+
 #define QXL_LOG_BUF_SIZE 4096
 
 struct qxl_ram_header {
-    uint32_t magic;
-    uint32_t int_pending;
-    uint32_t int_mask;
-    unsigned char log_buf[QXL_LOG_BUF_SIZE];
-    struct qxl_ring_header  cmd_ring_hdr;
-    struct qxl_command	    cmd_ring[32];
-    struct qxl_ring_header  cursor_ring_hdr;
-    struct qxl_command	    cursor_ring[32];
-    struct qxl_ring_header  release_ring_hdr;
-    uint64_t		    release_ring[8];
-    struct qxl_rect	    update_area;
-    uint64_t		    mem_slot_start;
-    uint64_t		    mem_slot_end;
-    uint64_t		    flags;
+    uint32_t			magic;
+    uint32_t			int_pending;
+    uint32_t			int_mask;
+    unsigned char		log_buf[QXL_LOG_BUF_SIZE];
+    struct qxl_ring_header	cmd_ring_hdr;
+    struct qxl_command		cmd_ring[32];
+    struct qxl_ring_header	cursor_ring_hdr;
+    struct qxl_command		cursor_ring[32];
+    struct qxl_ring_header	release_ring_hdr;
+    uint64_t			release_ring[8];
+    struct qxl_rect		update_area;
+    uint64_t			mem_slot_start;
+    uint64_t			mem_slot_end;
+    struct qxl_surface_create	create_surface;
+    uint64_t			flags;
 };
 
 #pragma pack(pop)
