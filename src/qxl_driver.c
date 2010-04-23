@@ -245,6 +245,8 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 
     qxl->num_modes = *(uint32_t *)((uint8_t *)qxl->rom + qxl->rom->modes_offset);
     qxl->modes = (struct qxl_mode *)(((uint8_t *)qxl->rom) + qxl->rom->modes_offset + 4);
+    qxl->surface0_area = qxl->ram;
+    qxl->surface0_size = qxl->rom->surface0_area_size;
 
     return TRUE;
 }
@@ -288,10 +290,10 @@ qxl_reset (qxl_screen_t *qxl)
 
     slot = &qxl->mem_slots[qxl->main_mem_slot];
 
-    slot->start_phys_addr = (unsigned long)qxl->ram_physical + (unsigned long)qxl->rom->pages_offset;
-    slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
+    slot->start_phys_addr = (unsigned long)qxl->ram_physical;
+    slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
     slot->start_virt_addr = (uint64_t)qxl->ram;
-    slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_io_pages * getpagesize();
+    slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
 
     ram_header->mem_slot_start = slot->start_phys_addr;
     ram_header->mem_slot_end = slot->end_phys_addr;
@@ -321,6 +323,9 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     int mode_index = (int)(unsigned long)p->Private;
     struct qxl_mode *m = qxl->modes + mode_index;
     ScreenPtr pScreen = qxl->pScrn->pScreen;
+    struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
+						 qxl->rom->ram_header_offset);
+    struct qxl_surface_create *create = &(ram_header->create_surface);
 
     if (!m)
 	return FALSE;
@@ -330,8 +335,31 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 		m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
     qxl_reset (qxl);
+
+#if 0
+    struct qxl_surface_create {
+	uint32_t	width;
+	uint32_t	height;
+	int32_t		stride;
+	uint32_t	depth;
+	uint32_t	position;
+	uint32_t	mouse_mode;
+	uint32_t	flags;
+	uint32_t	type;
+	uint64_t	mem;
+    };
+#endif
+
+    create->width = m->x_res;
+    create->height = m->y_res;
+    create->stride = - (4 * m->x_res);
+    create->depth = m->bits;
+    create->position = 0; /* What is this? The Windows driver doesn't use it */
+    create->flags = 0;
+    create->type = QXL_SURF_TYPE_PRIMARY;
+    create->mem = physical_address (qxl, qxl->ram, qxl->main_mem_slot);
     
-    outb(qxl->io_base + QXL_IO_SET_MODE, m->id);
+    outb (qxl->io_base + QXL_IO_CREATE_PRIMARY, 0);
 
     qxl->bytes_per_pixel = (qxl->pScrn->bitsPerPixel + 7) / 8;
 
@@ -376,11 +404,8 @@ push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
      * is in VGA mode, they will be queued up, and then
      * the next time a mode set set, an assertion in the
      * device will take down the entire virtual machine.
-     * 
-     * The author of the QXL device is opposed to this
-     * for reasons I don't understand.
      */
-    if (qxl->rom->mode != ~0)
+    if (!in_vga_mode (qxl))
     {
 	cmd.type = QXL_CMD_DRAW;
 	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
@@ -407,7 +432,7 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
     drawable->type = type;
 
     drawable->effect = QXL_EFFECT_OPAQUE;
-    drawable->bitmap_offset = 0;
+    drawable->self_bitmap = 0;
     drawable->bitmap_area.top = 0;
     drawable->bitmap_area.left = 0;
     drawable->bitmap_area.bottom = 0;
@@ -603,7 +628,7 @@ qxl_sanity_check (qxl_screen_t *qxl)
     if (!qxl->rom || !qxl->pScrn)
 	return;
 
-    if (qxl->rom->mode == ~0) 
+    if (in_vga_mode (qxl))
     {
  	ErrorF("QXL device jumped back to VGA mode - resetting mode\n");
  	qxl_switch_mode(qxl->pScrn->scrnIndex, qxl->pScrn->currentMode, 0);
@@ -1059,10 +1084,10 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Set up resources */
     qxl_reset (qxl);
     
-    qxl->mem = qxl_mem_create ((void *)((unsigned long)qxl->ram + (unsigned long)rom->pages_offset),
-			       rom->num_io_pages * getpagesize());
-    qxl->io_pages = (void *)((unsigned long)qxl->ram + (unsigned long)rom->pages_offset);
-    qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical + (unsigned long)rom->pages_offset);
+    qxl->mem = qxl_mem_create ((void *)((unsigned long)qxl->ram + qxl->surface0_size),
+			       rom->num_pages * getpagesize());
+    qxl->io_pages = (void *)((unsigned long)qxl->ram);
+    qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
 
     qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
 					 sizeof (struct qxl_command),
@@ -1203,14 +1228,8 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 	       rom->compression_level,
 	       rom->log_level);
 
-    xf86DrvMsg(scrnIndex, X_INFO, "Currently using mode #%d, list at 0x%x\n",
-	       rom->mode, rom->modes_offset);
-
-    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%x\n",
-	       rom->num_io_pages, rom->pages_offset);
-
-    xf86DrvMsg(scrnIndex, X_INFO, "%d byte draw area at 0x%x\n",
-	       rom->draw_area_size, rom->draw_area_offset);
+    xf86DrvMsg(scrnIndex, X_INFO, "%d io pages at 0x%lx\n",
+	       rom->num_pages, (unsigned long)qxl->ram);
 
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
 
@@ -1224,9 +1243,7 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
     xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
 	       ram_header->magic);
 
-    qxl->draw_area_offset = rom->draw_area_offset;
-    qxl->draw_area_size = rom->draw_area_size;
-    pScrn->videoRam = (rom->num_io_pages * 4096) / 1024;
+    pScrn->videoRam = (rom->num_pages * 4096) / 1024;
 
     xf86DrvMsg(scrnIndex, X_INFO, "%d KB of video RAM\n", pScrn->videoRam);
     
@@ -1279,7 +1296,7 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
     /* FIXME: I don't think this is necessary now that we report the
      * correct amount of video ram?
      */
-    if (p->HDisplay * p->VDisplay * (bpp/8) > qxl->draw_area_size)
+    if (p->HDisplay * p->VDisplay * (bpp/8) > qxl->surface0_size)
     {
 	xf86DrvMsg(scrnIndex, X_INFO, "rejecting mode %d x %d: insufficient memory\n", p->HDisplay, p->VDisplay);
 	return MODE_MEM;

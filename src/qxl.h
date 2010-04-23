@@ -465,6 +465,8 @@ struct qxl_ring_header {
     uint32_t notify_on_cons;
 };
 
+#define QXL_SURF_TYPE_PRIMARY 0
+
 struct qxl_surface_create {
     uint32_t	width;
     uint32_t	height;
@@ -526,8 +528,8 @@ struct _qxl_screen_t
     int				num_modes;
     struct qxl_mode *		modes;
     int				io_base;
-    int				draw_area_offset;
-    int				draw_area_size;
+    void *			surface0_area;
+    long			surface0_size;
 
     void *			fb;
     int				bytes_per_pixel;
@@ -573,6 +575,16 @@ struct _qxl_screen_t
     uint8_t			slot_gen_bits;
     uint64_t			va_slot_mask;
 };
+
+static inline Bool
+in_vga_mode (qxl_screen_t *qxl)
+{
+    /* FIXME: The ability to detect whether we are in VGA
+     * mode has been remvoed in newer devices.
+     */
+    
+    return FALSE;
+}
 
 static uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
@@ -665,5 +677,3 @@ void              qxl_free             (struct qxl_mem         *mem,
 void              qxl_mem_free_all     (struct qxl_mem         *mem);
 void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
-
-
