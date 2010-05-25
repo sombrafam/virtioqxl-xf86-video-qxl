@@ -100,6 +100,12 @@ struct qxl_command {
     uint32_t pad;
 };
 
+struct qxl_command_ext {
+    struct qxl_command	cmd;
+    uint32_t		group_id;
+    uint32_t		flags;
+};
+
 struct qxl_rect {
     uint32_t top;
     uint32_t left;
@@ -354,7 +360,8 @@ typedef enum {
     QXL_DRAW_ALPHA_BLEND,
 } qxl_draw_type;
 
-struct qxl_drawable {
+/* QXL 1 */
+struct qxl_compat_drawable {
     union qxl_release_info	release_info;
     uint8_t			effect;
     uint8_t			type;
@@ -380,10 +387,47 @@ struct qxl_drawable {
     } u;
 };
 
-struct qxl_update_cmd {
+/* QXL 2 */
+struct qxl_drawable {
+    union qxl_release_info	release_info;
+    uint32_t			surface_id;
+    uint8_t			effect;
+    uint8_t			type;
+    uint8_t			self_bitmap;
+    struct qxl_rect		self_bitmap_area;
+    struct qxl_rect		bbox;
+    struct qxl_clip		clip;
+    uint32_t			mm_time;
+    int32_t			surfaces_dest[3];
+    struct qxl_rect		surfaces_rects[3];
+    union {
+	struct qxl_fill		fill;
+	struct qxl_opaque	opaque;
+	struct qxl_copy		copy;
+	struct qxl_transparent	transparent;
+	struct qxl_alpha_blend	alpha_blend;
+	struct qxl_copy_bits	copy_bits;
+	struct qxl_blend	blend;
+	struct qxl_rop3		rop3;
+	struct qxl_stroke	stroke;
+	struct qxl_text		text;
+	struct qxl_blackness	blackness;
+	struct qxl_inverse	inverse;
+	struct qxl_whiteness	whiteness;
+    } u;
+};
+
+struct qxl_compat_update_cmd {
     union qxl_release_info release_info;
     struct qxl_rect area;
     uint32_t update_id;
+};
+
+struct qxl_update_cmd {
+    union qxl_release_info	release_info;
+    struct qxl_rect		area;
+    uint32_t			update_id;
+    uint32_t			surface_id;
 };
 
 struct qxl_point16 {

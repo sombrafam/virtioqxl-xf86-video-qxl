@@ -145,6 +145,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	ram_header->update_area.bottom = 1280;
 	ram_header->update_area.left = 0;
 	ram_header->update_area.right = 800;
+	ram_header->update_surface = 0;		/* Only primary for now */
 	
 	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 	
@@ -426,7 +427,8 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
 	       /* , pRegion clip */)
 {
     struct qxl_drawable *drawable;
-
+    int i;
+    
     CHECK_POINT();
     
     drawable = qxl_allocnf (qxl, sizeof *drawable);
@@ -437,15 +439,20 @@ make_drawable (qxl_screen_t *qxl, uint8_t type,
 
     drawable->type = type;
 
+    drawable->surface_id = 0;		/* Only primary for now */
     drawable->effect = QXL_EFFECT_OPAQUE;
     drawable->self_bitmap = 0;
-    drawable->bitmap_area.top = 0;
-    drawable->bitmap_area.left = 0;
-    drawable->bitmap_area.bottom = 0;
-    drawable->bitmap_area.right = 0;
+    drawable->self_bitmap_area.top = 0;
+    drawable->self_bitmap_area.left = 0;
+    drawable->self_bitmap_area.bottom = 0;
+    drawable->self_bitmap_area.right = 0;
     /* FIXME: add clipping */
     drawable->clip.type = QXL_CLIP_TYPE_NONE;
 
+    /* FIXME: What are you supposed to put in surfaces_dest and surfaces_rects? */
+    for (i = 0; i < 3; ++i)
+	drawable->surfaces_dest[i] = -1;
+    
     if (rect)
 	drawable->bbox = *rect;
 
