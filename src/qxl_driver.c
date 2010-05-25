@@ -303,13 +303,9 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header->mem_slot_start = slot->start_phys_addr;
     ram_header->mem_slot_end = slot->end_phys_addr;
 
-    ErrorF ("before: %d\n", qxl->rom->slot_generation);
-
-    ErrorF ("slot: %d\n", qxl->main_mem_slot);
-    
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
-    ErrorF ("after: %d\n", qxl->rom->slot_generation);
+    ErrorF ("Created memslot from %p to %p\n", slot->start_phys_addr, slot->end_phys_addr);
     
     slot->generation = qxl->rom->slot_generation;
 
@@ -1098,7 +1094,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_reset (qxl);
     
     qxl->mem = qxl_mem_create ((void *)((unsigned long)qxl->ram + qxl->surface0_size),
-			       rom->num_pages * getpagesize());
+			       rom->num_pages * getpagesize() - qxl->surface0_size);
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
 

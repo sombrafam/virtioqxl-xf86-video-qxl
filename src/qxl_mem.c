@@ -56,6 +56,8 @@ qxl_mem_create (void *base, unsigned long n_bytes)
     if (!mem)
 	goto out;
 
+    ErrorF ("memory space from %p to %p\n", base, base + n_bytes);
+    
     mem->base = base;
     mem->n_bytes = n_bytes;
 
