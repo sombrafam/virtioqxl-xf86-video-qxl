@@ -47,6 +47,7 @@
 #define PCI_VENDOR_RED_HAT	0x1b36
 
 #define PCI_CHIP_QXL_0100	0x0100
+#define PCI_CHIP_QXL_01FF	0x01ff
 
 #pragma pack(push,1)
 
@@ -58,14 +59,19 @@ enum {
     QXL_IO_UPDATE_IRQ,
     QXL_IO_NOTIFY_OOM,
     QXL_IO_RESET,
+    QXL_IO_SET_MODE,			/* qxl 1 */
     QXL_IO_LOG,
+    /* Appended in qxl 2 */
     QXL_IO_MEMSLOT_ADD,
     QXL_IO_MEMSLOT_DEL,
     QXL_IO_DETACH_PRIMARY,
     QXL_IO_ATTACH_PRIMARY,
     QXL_IO_CREATE_PRIMARY,
     QXL_IO_DESTROY_PRIMARY,
-    QXL_IO_DESTROY_SURFACE_WAIT
+    QXL_IO_DESTROY_SURFACE_WAIT,
+    QXL_IO_DESTROY_ALL_SURFACES,
+
+    QXL_IO_RANGE_SIZE
 };
 
 struct qxl_mode {
@@ -444,17 +450,23 @@ struct qxl_rom {
     uint32_t update_id;
     uint32_t compression_level;
     uint32_t log_level;
+    uint32_t mode;			/* qxl 1 */
     uint32_t modes_offset;
     uint32_t num_pages;
-    uint32_t surface0_area_size;
+    uint32_t pages_offset;		/* qxl 1 */
+    uint32_t draw_area_offset;		/* qxl 1 */
+    uint32_t surface0_area_size;	/* qxl 1 name: draw_area_size */
     uint32_t ram_header_offset;
     uint32_t mm_clock;
+    /* Appended for qxl-2 */
+    uint32_t n_surfaces;
     uint64_t flags;
     uint8_t  slots_start;
     uint8_t  slots_end;
     uint8_t  slot_gen_bits;
     uint8_t  slot_id_bits;
     uint8_t  slot_generation;
+    uint8_t padding[3];
 };
 
 struct qxl_ring_header {
@@ -493,6 +505,8 @@ struct qxl_ram_header {
     struct qxl_ring_header	release_ring_hdr;
     uint64_t			release_ring[8];
     struct qxl_rect		update_area;
+    /* appended for qxl-2 */
+    uint32_t			update_surface;
     uint64_t			mem_slot_start;
     uint64_t			mem_slot_end;
     struct qxl_surface_create	create_surface;

@@ -281,6 +281,10 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
 
     /* Mem slots */
+    ErrorF ("slots start: %d, slots end: %d\n",
+	    qxl->rom->slots_start,
+	    qxl->rom->slots_end);
+    
     qxl->main_mem_slot = qxl->rom->slots_start;
     qxl->n_mem_slots = qxl->rom->slots_end;
     qxl->slot_gen_bits = qxl->rom->slot_gen_bits;
@@ -299,6 +303,8 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header->mem_slot_end = slot->end_phys_addr;
 
     ErrorF ("before: %d\n", qxl->rom->slot_generation);
+
+    ErrorF ("slot: %d\n", qxl->main_mem_slot);
     
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
@@ -1432,6 +1438,10 @@ enum qxl_class
 static const struct pci_id_match qxl_device_match[] = {
     {
 	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_0100, PCI_MATCH_ANY, PCI_MATCH_ANY,
+	0x00030000, 0x00ffffff, CHIP_QXL_1
+    },
+    {
+	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_01FF, PCI_MATCH_ANY, PCI_MATCH_ANY,
 	0x00030000, 0x00ffffff, CHIP_QXL_1
     },
 
