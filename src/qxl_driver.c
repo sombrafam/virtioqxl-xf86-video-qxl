@@ -106,24 +106,6 @@ qxl_usleep (int useconds)
     
 }
 
-#if 0
-static void
-push_update_area (qxl_screen_t *qxl, const struct qxl_rect *area)
-{
-    struct qxl_update_cmd *update = qxl_allocnf (qxl, sizeof *update);
-    struct qxl_command cmd;
-
-    update->release_info.id = (uint64_t)update;
-    update->area = *area;
-    update->update_id = 0;
-
-    cmd.type = QXL_CMD_UDPATE;
-    cmd.data = physical_address (qxl, update);
-
-    qxl_ring_push (qxl->command_ring, &cmd);
-}
-#endif
-
 void *
 qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 {
@@ -305,7 +287,7 @@ qxl_reset (qxl_screen_t *qxl)
 
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
-    ErrorF ("Created memslot from %p to %p\n", slot->start_phys_addr, slot->end_phys_addr);
+    ErrorF ("Created memslot from %lx to %lx\n", slot->start_phys_addr, slot->end_phys_addr);
     
     slot->generation = qxl->rom->slot_generation;
 
@@ -338,20 +320,6 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 		m->id, m->x_res, m->y_res, p->HDisplay, p->VDisplay, p);
 
     qxl_reset (qxl);
-
-#if 0
-    struct qxl_surface_create {
-	uint32_t	width;
-	uint32_t	height;
-	int32_t		stride;
-	uint32_t	depth;
-	uint32_t	position;
-	uint32_t	mouse_mode;
-	uint32_t	flags;
-	uint32_t	type;
-	uint64_t	mem;
-    };
-#endif
 
     create->width = m->x_res;
     create->height = m->y_res;
@@ -875,15 +843,6 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 
 	    push_drawable (qxl, drawable);
 
-#if 0
-	    if (closure)
-		qxl_usleep (1000000);
-#endif
-	    
-#if 0
-	    submit_fill (qxl, &qrect, rand());
-#endif
-
 	    b++;
 	}
     }
@@ -1025,6 +984,72 @@ qxl_create_gc (GCPtr pGC)
     return TRUE;
 }
 
+static int uxa_pixmap_index;
+
+static Bool
+setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
+{
+	ScrnInfoPtr scrn = xf86Screens[screen->myNum];
+
+	if (!dixRequestPrivate(&uxa_pixmap_index, 0))
+		return FALSE;
+
+	qxl->uxa = uxa_driver_alloc();
+	if (qxl->uxa == NULL)
+		return FALSE;
+
+	memset(qxl->uxa, 0, sizeof(*qxl->uxa));
+
+	qxl->uxa->uxa_major = 1;
+	qxl->uxa->uxa_minor = 0;
+
+#if 0
+	/* Solid fill */
+	qxl->uxa->check_solid = qxl_check_solid;
+	qxl->uxa->prepare_solid = qxl_prepare_solid;
+	qxl->uxa->solid = qxl_solid;
+	qxl->uxa->done_solid = qxl_done_solid;
+
+	/* Copy */
+	qxl->uxa->check_copy = qxl_check_copy;
+	qxl->uxa->prepare_copy = qxl_prepare_copy;
+	qxl->uxa->copy = qxl_copy;
+	qxl->uxa->done_copy = qxl_done_copy;
+
+	/* Composite */
+	qxl->uxa->check_composite = i830_check_composite;
+	qxl->uxa->check_composite_target = i830_check_composite_target;
+	qxl->uxa->check_composite_texture = i830_check_composite_texture;
+	qxl->uxa->prepare_composite = i830_prepare_composite;
+	qxl->uxa->composite = i830_composite;
+	qxl->uxa->done_composite = i830_done_composite;
+
+	/* PutImage */
+	qxl->uxa->put_image = qxl_put_image;
+
+	/* Prepare access */
+	qxl->uxa->prepare_access = qxl_prepare_access;
+	qxl->uxa->finish_access = qxl_finish_access;
+	qxl->uxa->pixmap_is_offscreen = qxl_pixmap_is_offscreen;
+
+	screen->CreatePixmap = qxl_create_pixmap;
+	screen->DestroyPixmap = qxl_destroy_pixmap;
+#endif
+
+	if (!uxa_driver_init(screen, qxl->uxa)) {
+		xf86DrvMsg(scrn->scrnIndex, X_ERROR,
+			   "UXA initialization failed\n");
+		xfree(qxl->uxa);
+		return FALSE;
+	}
+
+#if 0
+	uxa_set_fallback_debug(screen, FALSE);
+#endif
+
+	return TRUE;
+}
+
 static Bool
 qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
@@ -1087,6 +1112,10 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     fbPictureInit(pScreen, 0, 0);
 
+    qxl->uxa = uxa_driver_alloc ();
+
+    setup_uxa (qxl, pScreen);
+    
     qxl->create_screen_resources = pScreen->CreateScreenResources;
     pScreen->CreateScreenResources = qxl_create_screen_resources;
 
@@ -1109,10 +1138,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 					 8, 0);
 
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
-
-#if 0 /* XV accel */
-    qxlInitVideo(pScreen);
-#endif
 
     pScreen->SaveScreen = qxl_blank_screen;
     qxl->close_screen = pScreen->CloseScreen;

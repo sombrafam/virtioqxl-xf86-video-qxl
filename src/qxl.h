@@ -39,6 +39,7 @@
 #include "pciaccess.h"
 #endif
 #include "fb.h"
+#include "uxa/uxa.h"
 
 #define hidden _X_HIDDEN
 
@@ -606,6 +607,8 @@ struct _qxl_screen_t
     PCITAG			pci_tag;
 #endif
 
+    uxa_driver_t *		uxa;
+    
     CreateScreenResourcesProcPtr create_screen_resources;
     CloseScreenProcPtr		close_screen;
     CreateGCProcPtr		create_gc;
