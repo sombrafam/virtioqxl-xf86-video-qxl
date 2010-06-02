@@ -82,5 +82,6 @@ AC_SUBST([DRIVER_NAME])
 AC_CONFIG_FILES([
                 Makefile
                 src/Makefile
+		src/uxa/Makefile
 ])
 AC_OUTPUT
