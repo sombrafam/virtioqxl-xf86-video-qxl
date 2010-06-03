@@ -323,7 +323,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 
     create->width = m->x_res;
     create->height = m->y_res;
-    create->stride = - (4 * m->x_res);
+    create->stride = - m->stride;
     create->depth = m->bits;
     create->position = 0; /* What is this? The Windows driver doesn't use it */
     create->flags = 0;
@@ -685,10 +685,9 @@ qxl_create_screen_resources(ScreenPtr pScreen)
 	return FALSE;
 
     qxl->damage = DamageCreate (qxl_on_damage, NULL,
-			        DamageReportRawRegion,
+				DamageReportRawRegion,
 				TRUE, pScreen, qxl);
-
-
+    
     pPixmap = pScreen->GetScreenPixmap(pScreen);
 
     if (!RegisterBlockAndWakeupHandlers(qxl_block_handler, qxl_wakeup_handler, qxl))
@@ -856,6 +855,8 @@ static RegionPtr
 qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
 	    int srcx, int srcy, int width, int height, int dstx, int dsty)
 {
+    ErrorF ("Copy Area\n");
+    
     if (pSrcDrawable->type == DRAWABLE_WINDOW &&
 	pDstDrawable->type == DRAWABLE_WINDOW)
     {
@@ -987,6 +988,91 @@ qxl_create_gc (GCPtr pGC)
 static int uxa_pixmap_index;
 
 static Bool
+unaccel ()
+{
+    return FALSE;
+}
+
+static Bool
+qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
+						 qxl->rom->ram_header_offset);
+    int n_bytes;
+    uint8_t *copy;
+    int w, h, stride;
+
+    ErrorF ("preparing access\n");
+    
+    w = pixmap->drawable.width;
+    h = pixmap->drawable.height;
+    stride = (pixmap->drawable.width * pixmap->drawable.bitsPerPixel + 7) / 8;
+    
+    /* Rather than go out of memory, we simply tell the
+     * device to dump everything
+     */
+    ram_header->update_area.top = 0;
+    ram_header->update_area.bottom = w;
+    ram_header->update_area.left = 0;
+    ram_header->update_area.right = h;
+    ram_header->update_surface = 0;		/* Only primary for now */
+    
+    outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
+
+    n_bytes = stride * pixmap->drawable.height;
+
+    copy = malloc (n_bytes);
+
+    if (!copy)
+	return FALSE;
+
+    memcpy (copy, qxl->ram, qxl->rom->surface0_area_size);
+    
+    pixmap->devPrivate.ptr = copy;
+    
+    return TRUE;
+}
+
+static void
+qxl_finish_access (PixmapPtr pixmap)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    struct qxl_drawable *drawable;
+    int w = pixmap->drawable.width;
+    int h = pixmap->drawable.height;
+    int stride = (pixmap->drawable.width * pixmap->drawable.bitsPerPixel + 7) / 8;
+    struct qxl_rect rect;
+
+    rect.left = 0;
+    rect.right = w;
+    rect.top = 0;
+    rect.bottom = h;
+
+    drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
+
+    drawable->u.copy.src_bitmap = physical_address (
+	qxl, qxl_image_create (qxl, pixmap->devPrivate.ptr,
+			       0, 0, w, h, stride), qxl->main_mem_slot);
+
+    drawable->u.copy.src_area = rect;
+    drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
+    drawable->u.copy.scale_mode = 0;
+    drawable->u.copy.mask.flags = 0;
+    drawable->u.copy.mask.pos.x = 0;
+    drawable->u.copy.mask.pos.y = 0;
+    drawable->u.copy.mask.bitmap = 0;
+
+    push_drawable (qxl, drawable);
+    
+    pixmap->devPrivate.ptr = NULL;
+}
+
+static Bool
 setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 {
 	ScrnInfoPtr scrn = xf86Screens[screen->myNum];
@@ -1003,35 +1089,37 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	qxl->uxa->uxa_major = 1;
 	qxl->uxa->uxa_minor = 0;
 
-#if 0
 	/* Solid fill */
-	qxl->uxa->check_solid = qxl_check_solid;
-	qxl->uxa->prepare_solid = qxl_prepare_solid;
-	qxl->uxa->solid = qxl_solid;
-	qxl->uxa->done_solid = qxl_done_solid;
+	qxl->uxa->check_solid = unaccel;
+	qxl->uxa->prepare_solid = unaccel;
+	qxl->uxa->solid = unaccel;
+	qxl->uxa->done_solid = unaccel;
 
 	/* Copy */
-	qxl->uxa->check_copy = qxl_check_copy;
-	qxl->uxa->prepare_copy = qxl_prepare_copy;
-	qxl->uxa->copy = qxl_copy;
-	qxl->uxa->done_copy = qxl_done_copy;
+	qxl->uxa->check_copy = unaccel;
+	qxl->uxa->prepare_copy = unaccel;
+	qxl->uxa->copy = unaccel;
+	qxl->uxa->done_copy = unaccel;
 
 	/* Composite */
-	qxl->uxa->check_composite = i830_check_composite;
-	qxl->uxa->check_composite_target = i830_check_composite_target;
-	qxl->uxa->check_composite_texture = i830_check_composite_texture;
-	qxl->uxa->prepare_composite = i830_prepare_composite;
-	qxl->uxa->composite = i830_composite;
-	qxl->uxa->done_composite = i830_done_composite;
+	qxl->uxa->check_composite = unaccel;
+	qxl->uxa->check_composite_target = unaccel;
+	qxl->uxa->check_composite_texture = unaccel;
+	qxl->uxa->prepare_composite = unaccel;
+	qxl->uxa->composite = unaccel;
+	qxl->uxa->done_composite = unaccel;
 
 	/* PutImage */
-	qxl->uxa->put_image = qxl_put_image;
+	qxl->uxa->put_image = unaccel;
 
 	/* Prepare access */
-	qxl->uxa->prepare_access = qxl_prepare_access;
-	qxl->uxa->finish_access = qxl_finish_access;
-	qxl->uxa->pixmap_is_offscreen = qxl_pixmap_is_offscreen;
+	qxl->uxa->prepare_access = unaccel;
+	qxl->uxa->finish_access = unaccel;
+#if 0
+	qxl->uxa->pixmap_is_offscreen = unaccel;
+#endif
 
+#if 0
 	screen->CreatePixmap = qxl_create_pixmap;
 	screen->DestroyPixmap = qxl_destroy_pixmap;
 #endif
@@ -1047,6 +1135,11 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	uxa_set_fallback_debug(screen, FALSE);
 #endif
 
+#if 0
+	if (!uxa_driver_init (screen, qxl->uxa))
+	    return FALSE;
+#endif
+	
 	return TRUE;
 }
 
@@ -1068,6 +1161,9 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     rom = qxl->rom;
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
+
+    printf ("ram_header at %d\n", qxl->rom->ram_header_offset);
+    printf ("surf0 size: %d\n", qxl->rom->surface0_area_size);
     
     qxl_save_state(qxl);
     qxl_blank_screen(pScreen, SCREEN_SAVER_ON);
@@ -1082,10 +1178,10 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth, 4);
     if (!qxl->fb)
 	goto out;
-
+	
     pScrn->virtualX = pScrn->currentMode->HDisplay;
     pScrn->virtualY = pScrn->currentMode->VDisplay;
-    
+
     if (!fbScreenInit(pScreen, qxl->fb,
 		      pScrn->currentMode->HDisplay,
 		      pScrn->currentMode->VDisplay,
@@ -1110,7 +1206,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     }
 
     
-    fbPictureInit(pScreen, 0, 0);
+    fbPictureInit(pScreen, NULL, 0);
 
     qxl->uxa = uxa_driver_alloc ();
 
@@ -1140,21 +1236,25 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
 
     pScreen->SaveScreen = qxl_blank_screen;
-    qxl->close_screen = pScreen->CloseScreen;
-    pScreen->CloseScreen = qxl_close_screen;
-
-    qxl->create_gc = pScreen->CreateGC;
-    pScreen->CreateGC = qxl_create_gc;
 
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
     qxl->paint_window_background = pScreen->PaintWindowBackground;
     qxl->paint_window_border = pScreen->PaintWindowBorder;
-    pScreen->PaintWindowBackground = qxl_paint_window;
-    pScreen->PaintWindowBorder = qxl_paint_window;
+    qxl->paint_window_background = pScreen->PaintWindowBackground;
+    qxl->paint_window_border = pScreen->PaintWindowBorder;
 #endif
 
+#if 0
+    qxl->close_screen = pScreen->CloseScreen;
+    qxl->create_gc = pScreen->CreateGC;
     qxl->copy_window = pScreen->CopyWindow;
+    pScreen->PaintWindowBackground = qxl_paint_window;
+    pScreen->PaintWindowBorder = qxl_paint_window;
+
     pScreen->CopyWindow = qxl_copy_window;
+    pScreen->CloseScreen = qxl_close_screen;
+    pScreen->CreateGC = qxl_create_gc;
+#endif
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 

@@ -155,7 +155,9 @@ static Bool uxa_realize_glyph_caches(ScreenPtr pScreen)
 					       0 /* INTEL_CREATE_PIXMAP_TILING_X -- FIXME */);
 		if (!pixmap)
 			goto bail;
+#if 0
 		assert (uxa_pixmap_is_offscreen(pixmap));
+#endif
 
 		component_alpha = NeedsComponent(pPictFormat->format);
 		picture = CreatePicture(0, &pixmap->drawable, pPictFormat,
