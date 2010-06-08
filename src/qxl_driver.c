@@ -455,30 +455,6 @@ enum ROPDescriptor {
 };
 
 static void
-undamage_box (qxl_screen_t *qxl, const struct qxl_rect *rect)
-{
-    RegionRec region;
-    BoxRec box;
-
-    box.x1 = rect->left;
-    box.y1 = rect->top;
-    box.x2 = rect->right;
-    box.y2 = rect->bottom;
-
-    REGION_INIT (qxl->pScrn->pScreen, &region, &box, 0);
-
-    REGION_SUBTRACT (qxl->pScrn->pScreen, &(qxl->pending_copy), &(qxl->pending_copy), &region);
-
-    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
-}
-
-static void
-clear_pending_damage (qxl_screen_t *qxl)
-{
-    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
-}
-
-static void
 submit_fill (qxl_screen_t *qxl, const struct qxl_rect *rect, uint32_t color)
 {
     struct qxl_drawable *drawable;
@@ -498,8 +474,6 @@ submit_fill (qxl_screen_t *qxl, const struct qxl_rect *rect, uint32_t color)
     drawable->u.fill.mask.bitmap = 0;
 
     push_drawable (qxl, drawable);
-
-    undamage_box (qxl, rect);
 }
 
 static void
@@ -561,44 +535,6 @@ print_region (const char *header, RegionPtr pRegion)
 }
 
 static void
-accept_damage (qxl_screen_t *qxl)
-{
-    REGION_UNION (qxl->pScrn->pScreen, &(qxl->to_be_sent), &(qxl->to_be_sent), 
-		  &(qxl->pending_copy));
-
-    REGION_EMPTY (qxl->pScrn->pScreen, &(qxl->pending_copy));
-}
-
-static void
-qxl_send_copies (qxl_screen_t *qxl)
-{
-    BoxPtr pBox;
-    int nbox;
-
-    nbox = REGION_NUM_RECTS (&qxl->to_be_sent);
-    pBox = REGION_RECTS (&qxl->to_be_sent);
-
-/*      if (REGION_NUM_RECTS (&qxl->to_be_sent) > 0)  */
-/*        	print_region ("send bits", &qxl->to_be_sent); */
-    
-    while (nbox--)
-    {
-	struct qxl_rect qrect;
-
-	qrect.top = pBox->y1;
-	qrect.left = pBox->x1;
-	qrect.bottom = pBox->y2;
-	qrect.right = pBox->x2;
-	
-	submit_copy (qxl, &qrect);
-
-	pBox++;
-    }
-
-    REGION_EMPTY(qxl->pScrn->pScreen, &qxl->to_be_sent);
-}
-
-static void
 paint_shadow (qxl_screen_t *qxl)
 {
     struct qxl_rect qrect;
@@ -626,61 +562,9 @@ qxl_sanity_check (qxl_screen_t *qxl)
 }
 
 static void
-qxl_block_handler (pointer data, OSTimePtr pTimeout, pointer pRead)
-{
-    qxl_screen_t *qxl = (qxl_screen_t *) data;
-
-    qxl_sanity_check(qxl);
-
-    accept_damage (qxl);
-
-    qxl_send_copies (qxl);
-}
-
-static void
 qxl_wakeup_handler (pointer data, int i, pointer LastSelectMask)
 {
 }
-
-/* Damage Handling
- * 
- * When something is drawn, X first generates a damage callback, then
- * it calls the GC function to actually draw it. In most cases, we want
- * to simply draw into the shadow framebuffer, then submit a copy to the
- * device, but when the operation is hardware accelerated, we don't want
- * to submit the copy. So, damage is first accumulated into 'pending_copy',
- * then if we accelerated the operation, that damage is deleted. 
- *
- * If we _didn't_ accelerate, we need to union the pending_copy damage 
- * onto the to_be_sent damage, and then submit a copy command in the block
- * handler.
- *
- * This means that when new damage happens, if there is already pending
- * damage, that must first be unioned onto to_be_sent, and then the new
- * damage must be stored in pending_copy.
- * 
- * The qxl_screen_t struct contains two regions, "pending_copy" and 
- * "to_be_sent". 
- *
- * Pending copy is 
- * 
- */
-static void
-qxl_on_damage (DamagePtr pDamage, RegionPtr pRegion, pointer closure)
-{
-    qxl_screen_t *qxl = closure;
-
-/*     print_region ("damage", pRegion); */
-    
-/*     print_region ("on_damage ", pRegion); */
-
-    accept_damage (qxl);
-
-/*     print_region ("accepting, qxl->to_be_sent is now", &qxl->to_be_sent); */
-
-    REGION_COPY (qxl->pScrn->pScreen, &(qxl->pending_copy), pRegion);
-}
-
 
 static Bool
 qxl_create_screen_resources(ScreenPtr pScreen)
@@ -697,21 +581,10 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     if (!ret)
 	return FALSE;
 
-    qxl->damage = DamageCreate (qxl_on_damage, NULL,
-				DamageReportRawRegion,
-				TRUE, pScreen, qxl);
     pPixmap = pScreen->GetScreenPixmap (pScreen);
     
     set_screen_pixmap_header (pScreen);
 
-    if (!RegisterBlockAndWakeupHandlers(qxl_block_handler, qxl_wakeup_handler, qxl))
-	return FALSE;
-
-    REGION_INIT (pScreen, &(qxl->pending_copy), NullBox, 0);
-
-    REGION_INIT (pScreen, &(qxl->to_be_sent), NullBox, 0);
- 
-    DamageRegister (&pPixmap->drawable, qxl->damage);
     return TRUE;
 }
 
@@ -823,7 +696,6 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 	if (n)
 	{
 /* 	    ErrorF ("Clearing pending damage\n"); */
-	    clear_pending_damage (qxl);
 	    
 	    /* We have to do this because the copy will cause the damage
 	     * to be sent to move.
@@ -833,7 +705,6 @@ qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
 	     * complex, and the performance win is unlikely to be
 	     * very big.
 	     */
-	    qxl_send_copies (qxl);
 	}
     
 	while (n--)
@@ -1002,7 +873,7 @@ qxl_create_gc (GCPtr pGC)
 static int uxa_pixmap_index;
 
 static Bool
-unaccel ()
+unaccel (void)
 {
     return FALSE;
 }

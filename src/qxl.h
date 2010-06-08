@@ -620,10 +620,6 @@ struct _qxl_screen_t
 #endif
     CopyWindowProcPtr		copy_window;
     
-    DamagePtr			damage;
-    RegionRec			pending_copy;
-    RegionRec			to_be_sent;
-    
     int16_t			cur_x;
     int16_t			cur_y;
     int16_t			hot_x;
