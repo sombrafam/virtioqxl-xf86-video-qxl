@@ -593,6 +593,8 @@ struct _qxl_screen_t
     void *			fb;
     int				bytes_per_pixel;
 
+    struct qxl_mode *		current_mode;
+    
     struct qxl_mem *		mem;	/* Context for qxl_alloc/free */
     
     EntityInfoPtr		entity;

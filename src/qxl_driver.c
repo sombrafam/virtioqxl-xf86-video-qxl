@@ -301,6 +301,28 @@ qxl_reset (qxl_screen_t *qxl)
     
 }
 
+static void
+set_screen_pixmap_header (ScreenPtr pScreen)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
+    
+    if (pPixmap && qxl->current_mode)
+    {
+	ErrorF ("new stride: %d (display width: %d, bpp: %d)\n", qxl->pScrn->displayWidth * qxl->bytes_per_pixel, qxl->pScrn->displayWidth, qxl->bytes_per_pixel);
+	
+	pScreen->ModifyPixmapHeader(
+	    pPixmap,
+	    qxl->current_mode->x_res, qxl->current_mode->y_res,
+	    -1, -1,
+	    qxl->pScrn->displayWidth * qxl->bytes_per_pixel,
+	    NULL);
+    }
+    else
+	ErrorF ("pix: %p; mode: %p\n", pPixmap, qxl->current_mode);
+}
+
 static Bool
 qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 {
@@ -339,17 +361,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
      */
     if (pScreen)
     {
-	PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
-
-	if (pPixmap)
-	{
-	    pScreen->ModifyPixmapHeader(
-		pPixmap,
-		m->x_res, m->y_res,
-		-1, -1,
-		qxl->pScrn->displayWidth * qxl->bytes_per_pixel,
-		NULL);
-	}
+	set_screen_pixmap_header (pScreen);
     }
     
     if (qxl->mem)
@@ -358,6 +370,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 	qxl_drop_image_cache (qxl);
     }
 
+    qxl->current_mode = m;
     
     return TRUE;
 }
@@ -687,8 +700,9 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     qxl->damage = DamageCreate (qxl_on_damage, NULL,
 				DamageReportRawRegion,
 				TRUE, pScreen, qxl);
+    pPixmap = pScreen->GetScreenPixmap (pScreen);
     
-    pPixmap = pScreen->GetScreenPixmap(pScreen);
+    set_screen_pixmap_header (pScreen);
 
     if (!RegisterBlockAndWakeupHandlers(qxl_block_handler, qxl_wakeup_handler, qxl))
 	return FALSE;
@@ -1005,11 +1019,13 @@ qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
     uint8_t *copy;
     int w, h, stride;
 
-    ErrorF ("preparing access\n");
+    ErrorF ("preparing access to %p\n", pixmap);
     
     w = pixmap->drawable.width;
     h = pixmap->drawable.height;
-    stride = (pixmap->drawable.width * pixmap->drawable.bitsPerPixel + 7) / 8;
+    stride = qxl->current_mode->stride;
+
+    ErrorF ("Width, stride: %d %d, real stride: %d, display wid: %d\n", w, stride, pixmap->devKind, pScrn->displayWidth);
     
     /* Rather than go out of memory, we simply tell the
      * device to dump everything
@@ -1022,16 +1038,17 @@ qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
     
     outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
-    n_bytes = stride * pixmap->drawable.height;
+    n_bytes = ((stride > 0)? stride : -stride) * pixmap->drawable.height;
 
     copy = malloc (n_bytes);
 
     if (!copy)
 	return FALSE;
 
-    memcpy (copy, qxl->ram, qxl->rom->surface0_area_size);
-    
-    pixmap->devPrivate.ptr = copy;
+    memcpy (copy, qxl->ram, n_bytes);
+
+    pScreen->ModifyPixmapHeader(
+	pixmap, w, h, -1, -1, stride, copy);
     
     return TRUE;
 }
@@ -1048,6 +1065,8 @@ qxl_finish_access (PixmapPtr pixmap)
     int stride = (pixmap->drawable.width * pixmap->drawable.bitsPerPixel + 7) / 8;
     struct qxl_rect rect;
 
+    ErrorF ("Finishing access to %p\n", pixmap);
+    
     rect.left = 0;
     rect.right = w;
     rect.top = 0;
@@ -1068,8 +1087,26 @@ qxl_finish_access (PixmapPtr pixmap)
     drawable->u.copy.mask.bitmap = 0;
 
     push_drawable (qxl, drawable);
+
+    pScreen->ModifyPixmapHeader(
+	pixmap, w, h, -1, -1, pScrn->displayWidth * pixmap->drawable.bitsPerPixel, NULL);
+}
+
+static Bool
+qxl_pixmap_is_offscreen (PixmapPtr pixmap)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    PixmapPtr scr_pixmap = pScreen->GetScreenPixmap(pScreen);
+
+    if (pixmap == scr_pixmap)
+    {
+	ErrorF ("%p is offscreen \n", pixmap);
+	return TRUE;
+    }
+
+    ErrorF ("is not offscreen \n");
     
-    pixmap->devPrivate.ptr = NULL;
+    return FALSE;
 }
 
 static Bool
@@ -1113,11 +1150,10 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	qxl->uxa->put_image = unaccel;
 
 	/* Prepare access */
-	qxl->uxa->prepare_access = unaccel;
-	qxl->uxa->finish_access = unaccel;
-#if 0
-	qxl->uxa->pixmap_is_offscreen = unaccel;
-#endif
+	qxl->uxa->prepare_access = qxl_prepare_access;
+	qxl->uxa->finish_access = qxl_finish_access;
+
+	qxl->uxa->pixmap_is_offscreen = qxl_pixmap_is_offscreen;
 
 #if 0
 	screen->CreatePixmap = qxl_create_pixmap;
@@ -1175,16 +1211,14 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
 	goto out;
 
-    qxl->fb = xcalloc(pScrn->virtualX * pScrn->displayWidth, 4);
+    pScrn->displayWidth = pScrn->virtualX;
+
+    qxl->fb = xcalloc(pScrn->virtualY * pScrn->displayWidth, 4);
     if (!qxl->fb)
 	goto out;
 	
-    pScrn->virtualX = pScrn->currentMode->HDisplay;
-    pScrn->virtualY = pScrn->currentMode->VDisplay;
-
     if (!fbScreenInit(pScreen, qxl->fb,
-		      pScrn->currentMode->HDisplay,
-		      pScrn->currentMode->VDisplay,
+		      pScrn->virtualX, pScrn->virtualY,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 		      pScrn->bitsPerPixel))
     {
