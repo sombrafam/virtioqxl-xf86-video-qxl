@@ -310,7 +310,8 @@ set_screen_pixmap_header (ScreenPtr pScreen)
     
     if (pPixmap && qxl->current_mode)
     {
-	ErrorF ("new stride: %d (display width: %d, bpp: %d)\n", qxl->pScrn->displayWidth * qxl->bytes_per_pixel, qxl->pScrn->displayWidth, qxl->bytes_per_pixel);
+	ErrorF ("new stride: %d (display width: %d, bpp: %d)\n",
+		qxl->pScrn->displayWidth * qxl->bytes_per_pixel, qxl->pScrn->displayWidth, qxl->bytes_per_pixel);
 	
 	pScreen->ModifyPixmapHeader(
 	    pPixmap,
@@ -845,7 +846,7 @@ qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
     
     w = pixmap->drawable.width;
     h = pixmap->drawable.height;
-    stride = qxl->current_mode->stride;
+    stride = - qxl->current_mode->stride;
 
     ErrorF ("Width, stride: %d %d, real stride: %d, display wid: %d\n", w, stride, pixmap->devKind, pScrn->displayWidth);
     
@@ -860,8 +861,12 @@ qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
     
     outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
-    n_bytes = ((stride > 0)? stride : -stride) * pixmap->drawable.height;
+    usleep (10000);
 
+    n_bytes = ((stride < 0)? -stride : stride) * pixmap->drawable.height;
+
+    ErrorF ("allocated %d bytes\n", n_bytes);
+    
     copy = malloc (n_bytes);
 
     if (!copy)
@@ -869,8 +874,16 @@ qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
 
     memcpy (copy, qxl->ram, n_bytes);
 
+    if (stride < 0)
+	copy += - stride * (h - 1);
+    
     pScreen->ModifyPixmapHeader(
-	pixmap, w, h, -1, -1, stride, copy);
+	pixmap, w, h, -1, -1, -1, copy);
+
+    /* miModifyPixmapHeader() doesn't seem to actually set a negative
+     * stride, so just set it here.
+     */
+    pixmap->devKind = stride;
     
     return TRUE;
 }
@@ -884,10 +897,10 @@ qxl_finish_access (PixmapPtr pixmap)
     struct qxl_drawable *drawable;
     int w = pixmap->drawable.width;
     int h = pixmap->drawable.height;
-    int stride = (pixmap->drawable.width * pixmap->drawable.bitsPerPixel + 7) / 8;
+    int stride = pixmap->devKind;
     struct qxl_rect rect;
 
-    ErrorF ("Finishing access to %p\n", pixmap);
+    ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
     
     rect.left = 0;
     rect.right = w;
@@ -911,7 +924,7 @@ qxl_finish_access (PixmapPtr pixmap)
     push_drawable (qxl, drawable);
 
     pScreen->ModifyPixmapHeader(
-	pixmap, w, h, -1, -1, pScrn->displayWidth * pixmap->drawable.bitsPerPixel, NULL);
+	pixmap, w, h, -1, -1, 0, NULL);
 }
 
 static Bool
