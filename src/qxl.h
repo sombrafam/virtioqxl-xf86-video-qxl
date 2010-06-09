@@ -633,6 +633,7 @@ struct _qxl_screen_t
     union
     {
 	PixmapPtr		copy_source;
+	Pixel			solid_pixel;
     } u;
 };
 

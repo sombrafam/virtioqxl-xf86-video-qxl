@@ -945,6 +945,64 @@ qxl_pixmap_is_offscreen (PixmapPtr pixmap)
 }
 
 /*
+ * Solid fill
+ */
+static Bool
+qxl_check_solid (DrawablePtr drawable, int alu, Pixel planemask)
+{
+    if (!UXA_PM_IS_SOLID (drawable, planemask))
+    {
+	ErrorF ("non solid planemask\n");
+	return FALSE;
+    }
+
+    if (drawable->bitsPerPixel != 16 &&
+	drawable->bitsPerPixel != 32)
+    {
+	ErrorF ("wrong bpp\n");
+	return FALSE;
+    }
+
+    if (alu != GXcopy)
+	return FALSE;
+    
+    return TRUE;
+}
+
+static Bool
+qxl_prepare_solid (PixmapPtr pixmap, int alu, Pixel planemask, Pixel fg)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+
+    qxl->u.solid_pixel = fg;
+
+    return TRUE;
+}
+
+static void
+qxl_solid (PixmapPtr pixmap, int x1, int y1, int x2, int y2)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    struct qxl_rect qrect;
+
+    qrect.top = y1;
+    qrect.bottom = y2;
+    qrect.left = x1;
+    qrect.right = x2;
+    
+    submit_fill (qxl, &qrect, qxl->u.solid_pixel);
+}
+
+static void
+qxl_done_solid (PixmapPtr pixmap)
+{
+}
+
+/*
  * Copy
  */
 static Bool
@@ -1049,10 +1107,10 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	qxl->uxa->uxa_minor = 0;
 
 	/* Solid fill */
-	qxl->uxa->check_solid = unaccel;
-	qxl->uxa->prepare_solid = unaccel;
-	qxl->uxa->solid = unaccel;
-	qxl->uxa->done_solid = unaccel;
+	qxl->uxa->check_solid = qxl_check_solid;
+	qxl->uxa->prepare_solid = qxl_prepare_solid;
+	qxl->uxa->solid = qxl_solid;
+	qxl->uxa->done_solid = qxl_done_solid;
 
 	/* Copy */
 	qxl->uxa->check_copy = qxl_check_copy;
