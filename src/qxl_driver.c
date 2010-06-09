@@ -944,6 +944,93 @@ qxl_pixmap_is_offscreen (PixmapPtr pixmap)
     return FALSE;
 }
 
+/*
+ * Copy
+ */
+static Bool
+qxl_check_copy (PixmapPtr source, PixmapPtr dest,
+		int alu, Pixel planemask)
+{
+    if (!UXA_PM_IS_SOLID (&source->drawable, planemask))
+    {
+	ErrorF ("non solid planemask\n");
+	return FALSE;
+    }
+    
+    if (source->drawable.bitsPerPixel != dest->drawable.bitsPerPixel)
+    {
+	ErrorF ("differing bitsperpixel\n");
+	return FALSE;
+    }
+
+    if (source->drawable.bitsPerPixel != 16		&&
+	source->drawable.bitsPerPixel != 32)
+    {
+	ErrorF ("bad bpp\n");
+	return FALSE;
+    }
+
+    /* FIXME: support other rops */
+    if (alu != GXcopy)
+    {
+	ErrorF ("not gxcopy\n");
+	return FALSE;
+    }
+    
+    return TRUE;
+}
+
+static Bool
+qxl_prepare_copy (PixmapPtr source, PixmapPtr dest,
+		  int xdir, int ydir, int alu,
+		  Pixel planemask)
+{
+    ScreenPtr pScreen = source->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+
+    qxl->u.copy_source = source;
+    
+    return TRUE;
+}
+
+static Bool
+qxl_copy (PixmapPtr dest,
+	  int src_x1, int src_y1,
+	  int dest_x1, int dest_y1,
+	  int width, int height)
+{
+    ScreenPtr pScreen = dest->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    struct qxl_drawable *drawable;
+    struct qxl_rect qrect;
+
+    assert (qxl->u.copy_source == pScreen->GetScreenPixmap (pScreen));
+    
+    qrect.top = dest_y1;
+    qrect.bottom = dest_y1 + height;
+    qrect.left = dest_x1;
+    qrect.right = dest_x1 + width;
+    
+/* 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n", */
+/* 		    b->x1, b->y1, b->x2, b->y2, */
+/* 		    dx, dy, dst_xoff, dst_yoff); */
+    
+    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
+    drawable->u.copy_bits.src_pos.x = src_x1;
+    drawable->u.copy_bits.src_pos.y = src_y1;
+    
+    push_drawable (qxl, drawable);
+
+    return TRUE;
+}
+
+static void
+qxl_done_copy (PixmapPtr dest)
+{
+}
+
 static Bool
 setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 {
@@ -968,10 +1055,10 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	qxl->uxa->done_solid = unaccel;
 
 	/* Copy */
-	qxl->uxa->check_copy = unaccel;
-	qxl->uxa->prepare_copy = unaccel;
-	qxl->uxa->copy = unaccel;
-	qxl->uxa->done_copy = unaccel;
+	qxl->uxa->check_copy = qxl_check_copy;
+	qxl->uxa->prepare_copy = qxl_prepare_copy;
+	qxl->uxa->copy = qxl_copy;
+	qxl->uxa->done_copy = qxl_done_copy;
 
 	/* Composite */
 	qxl->uxa->check_composite = unaccel;

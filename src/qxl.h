@@ -629,6 +629,11 @@ struct _qxl_screen_t
     uint8_t			slot_id_bits;
     uint8_t			slot_gen_bits;
     uint64_t			va_slot_mask;
+
+    union
+    {
+	PixmapPtr		copy_source;
+    } u;
 };
 
 static inline Bool
