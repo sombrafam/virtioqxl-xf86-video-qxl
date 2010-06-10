@@ -614,10 +614,6 @@ struct _qxl_screen_t
     CreateScreenResourcesProcPtr create_screen_resources;
     CloseScreenProcPtr		close_screen;
     CreateGCProcPtr		create_gc;
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
-    PaintWindowProcPtr		paint_window_background;
-    PaintWindowProcPtr		paint_window_border;
-#endif
     CopyWindowProcPtr		copy_window;
     
     int16_t			cur_x;

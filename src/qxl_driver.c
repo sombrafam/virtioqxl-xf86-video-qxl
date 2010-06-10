@@ -799,55 +799,6 @@ qxl_fill_region_solid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 		       fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
 }
 
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
-static void
-qxl_paint_window(WindowPtr pWin, RegionPtr pRegion, int what)
-{
-    ScreenPtr pScreen = pWin->drawable.pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
-
-    if (!REGION_NUM_RECTS(pRegion))
-	return;
-
-    if (what == PW_BACKGROUND &&
-	pWin->backgroundState == BackgroundPixel)
-    {
-	uint32_t pixel = pWin->background.pixel;
-
-	qxl_fill_region_solid (&pWin->drawable, pRegion, pixel);
-    }
-
-    qxl->paint_window_border (pWin, pRegion, what);
-}
-#endif
-
-static void
-qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
-{
-    RegionRec rgnDst;
-    int dx, dy;
-
-    dx = ptOldOrg.x - pWin->drawable.x;
-    dy = ptOldOrg.y - pWin->drawable.y;
-
-    REGION_TRANSLATE (pScreen, prgnSrc, -dx, -dy);
-
-    REGION_INIT (pScreen, &rgnDst, NullBox, 0);
-
-    REGION_INTERSECT(pScreen, &rgnDst, &pWin->borderClip, prgnSrc);
-
-    fbCopyRegion (&pWin->drawable, &pWin->drawable,
-		  NULL, 
-		  &rgnDst, dx, dy, qxl_copy_n_to_n, 0, NULL);
-
-    REGION_UNINIT (pScreen, &rgnDst);
-
-/*     REGION_TRANSLATE (pScreen, prgnSrc, dx, dy); */
-    
-/*     fbCopyWindow (pWin, ptOldOrg, prgnSrc); */
-}
-
 static int
 qxl_create_gc (GCPtr pGC)
 {
@@ -1141,25 +1092,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
 
     pScreen->SaveScreen = qxl_blank_screen;
-
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
-    qxl->paint_window_background = pScreen->PaintWindowBackground;
-    qxl->paint_window_border = pScreen->PaintWindowBorder;
-    qxl->paint_window_background = pScreen->PaintWindowBackground;
-    qxl->paint_window_border = pScreen->PaintWindowBorder;
-#endif
-
-#if 0
-    qxl->close_screen = pScreen->CloseScreen;
-    qxl->create_gc = pScreen->CreateGC;
-    qxl->copy_window = pScreen->CopyWindow;
-    pScreen->PaintWindowBackground = qxl_paint_window;
-    pScreen->PaintWindowBorder = qxl_paint_window;
-
-    pScreen->CopyWindow = qxl_copy_window;
-    pScreen->CloseScreen = qxl_close_screen;
-    pScreen->CreateGC = qxl_create_gc;
-#endif
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
