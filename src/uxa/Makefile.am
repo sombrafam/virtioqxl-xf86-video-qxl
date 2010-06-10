@@ -13,5 +13,6 @@ libuxa_la_SOURCES = \
 	uxa-glyphs.c \
 	uxa-render.c \
 	uxa-priv.h \
-	uxa-unaccel.c
-
+	uxa-unaccel.c	\
+	uxa-damage.c	\
+	uxa-damage.h
