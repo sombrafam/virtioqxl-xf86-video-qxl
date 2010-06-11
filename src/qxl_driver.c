@@ -842,6 +842,9 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     uint8_t *dev_line;
     int height = y2 - y1;
 
+    if (y1 != 0 || x1 != 0 || y2 != 1200 || x2 != 1600)
+	ErrorF ("asdf\n");
+    
     ram_header->update_area.top = y1;
     ram_header->update_area.bottom = y2;
     ram_header->update_area.left = x1;
@@ -850,7 +853,12 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     
     outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
-    dev_line = (uint8_t *)qxl->ram + y1 * stride + x1 * Bpp;
+    usleep (10000);
+    
+    dev_line = ((uint8_t *)qxl->ram) +
+	(qxl->current_mode->y_res - 1) * (-stride) +	/* top of frame buffer */
+	y1 * stride +					/* first line */
+	x1 * Bpp;
     host_line = host + y1 * stride + x1 * Bpp;
 
     ErrorF ("stride: %d\n", stride);
@@ -902,7 +910,7 @@ qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
     }
 
     pScreen->ModifyPixmapHeader(
-	pixmap, -1, -1, -1, -1, -1, copy);
+	pixmap, pixmap->drawable.width, pixmap->drawable.height, -1, -1, -1, copy);
 
     /* miModifyPixmapHeader() doesn't seem to actually set a negative
      * stride, so just set it here.
@@ -928,8 +936,13 @@ qxl_finish_access (PixmapPtr pixmap)
 
     ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
 
-    drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
+    rect.left = 0;
+    rect.right = w;
+    rect.top = 0;
+    rect.bottom = h;
     
+    drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
+
     drawable->u.copy.src_bitmap = physical_address (
 	qxl, qxl_image_create (qxl, pixmap->devPrivate.ptr,
 			       0, 0, w, h, stride), qxl->main_mem_slot);
