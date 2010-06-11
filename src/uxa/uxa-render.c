@@ -555,7 +555,7 @@ uxa_picture_from_pixman_image(ScreenPtr screen,
 		}
 		ValidatePicture(src);
 
-		if (uxa_prepare_access(picture->pDrawable, UXA_ACCESS_RW)) {
+		if (uxa_prepare_access(picture->pDrawable, NULL, UXA_ACCESS_RW)) {
 			fbComposite(PictOpSrc, src, NULL, picture,
 				    0, 0, 0, 0, 0, 0, width, height);
 			uxa_finish_access(picture->pDrawable);
@@ -581,7 +581,7 @@ uxa_create_solid(ScreenPtr screen, uint32_t color)
 	if (!pixmap)
 		return 0;
 
-	if (!uxa_prepare_access((DrawablePtr)pixmap, UXA_ACCESS_RW)) {
+	if (!uxa_prepare_access((DrawablePtr)pixmap, NULL, UXA_ACCESS_RW)) {
 		(*screen->DestroyPixmap)(pixmap);
 		return 0;
 	}
@@ -686,7 +686,7 @@ uxa_acquire_pattern(ScreenPtr pScreen,
 	if (!pDst)
 		return 0;
 
-	if (uxa_prepare_access(pDst->pDrawable, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDst->pDrawable, NULL, UXA_ACCESS_RW)) {
 		fbComposite(PictOpSrc, pSrc, NULL, pDst,
 			    x, y, 0, 0, 0, 0, width, height);
 		uxa_finish_access(pDst->pDrawable);
@@ -743,8 +743,8 @@ uxa_render_picture(ScreenPtr screen,
 	if (!picture)
 		return 0;
 
-	if (uxa_prepare_access(picture->pDrawable, UXA_ACCESS_RW)) {
-		if (uxa_prepare_access(src->pDrawable, UXA_ACCESS_RO)) {
+	if (uxa_prepare_access(picture->pDrawable, NULL, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(src->pDrawable, NULL, UXA_ACCESS_RO)) {
 			ret = 1;
 			fbComposite(PictOpSrc, src, NULL, picture,
 				    x, y, 0, 0, 0, 0, width, height);
@@ -1783,7 +1783,7 @@ uxa_trapezoids(CARD8 op, PicturePtr src, PicturePtr dst,
 		xoff += pDraw->x;
 		yoff += pDraw->y;
 
-		if (uxa_prepare_access(pDraw, UXA_ACCESS_RW)) {
+		if (uxa_prepare_access(pDraw, NULL, UXA_ACCESS_RW)) {
 			PictureScreenPtr ps = GetPictureScreen(screen);
 
 			for (; ntrap; ntrap--, traps++)
@@ -1897,7 +1897,7 @@ uxa_triangles(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 	 */
 	if (direct) {
 		DrawablePtr pDraw = pDst->pDrawable;
-		if (uxa_prepare_access(pDraw, UXA_ACCESS_RW)) {
+		if (uxa_prepare_access(pDraw, NULL, UXA_ACCESS_RW)) {
 			(*ps->AddTriangles) (pDst, 0, 0, ntri, tris);
 			uxa_finish_access(pDraw);
 		}
@@ -1932,7 +1932,7 @@ uxa_triangles(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
 		uxa_check_poly_fill_rect(pPicture->pDrawable, pGC, 1, &rect);
 		FreeScratchGC(pGC);
 
-		if (uxa_prepare_access(pPicture->pDrawable, UXA_ACCESS_RW)) {
+		if (uxa_prepare_access(pPicture->pDrawable, NULL, UXA_ACCESS_RW)) {
 			(*ps->AddTriangles) (pPicture, -bounds.x1, -bounds.y1,
 					     ntri, tris);
 			uxa_finish_access(pPicture->pDrawable);

@@ -136,19 +136,40 @@ PixmapPtr uxa_get_offscreen_pixmap(DrawablePtr drawable, int *xp, int *yp)
  * It deals with waiting for synchronization with the card, determining if
  * PrepareAccess() is necessary, and working around PrepareAccess() failure.
  */
-Bool uxa_prepare_access(DrawablePtr pDrawable, uxa_access_t access)
+Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t access)
 {
 	ScreenPtr pScreen = pDrawable->pScreen;
 	uxa_screen_t *uxa_screen = uxa_get_screen(pScreen);
 	PixmapPtr pPixmap = uxa_get_drawable_pixmap(pDrawable);
 	Bool offscreen = uxa_pixmap_is_offscreen(pPixmap);
+	BoxRec box;
+	RegionRec region_rec;
+	Bool result;
 
 	if (!offscreen)
-		return TRUE;
+	    return TRUE;
+
+	if (!region)
+	{
+	    region = &region_rec;
+
+	    box.x1 = 0;
+	    box.y1 = 0;
+	    box.x2 = pPixmap->drawable.width;
+	    box.y2 = pPixmap->drawable.height;
+
+	    REGION_INIT (pScreen, &region_rec, &box, 1);
+	}
+	
+	result = TRUE;
 
 	if (uxa_screen->info->prepare_access)
-		return (*uxa_screen->info->prepare_access) (pPixmap, access);
-	return TRUE;
+	    result = (*uxa_screen->info->prepare_access) (pPixmap, region, access);
+
+	if (region == &region_rec)
+	    REGION_UNINIT (pScreen, &region_rec);
+	
+	return result;
 }
 
 /**
@@ -207,7 +228,7 @@ uxa_validate_gc(GCPtr pGC, unsigned long changes, DrawablePtr pDrawable)
 				 * FB until at least one accelerated UXA op.
 				 */
 				if (uxa_prepare_access
-				    (&pOldTile->drawable, UXA_ACCESS_RO)) {
+				    (&pOldTile->drawable, NULL, UXA_ACCESS_RO)) {
 					pNewTile =
 					    fb24_32ReformatTile(pOldTile,
 								pDrawable->
@@ -228,7 +249,7 @@ uxa_validate_gc(GCPtr pGC, unsigned long changes, DrawablePtr pDrawable)
 		    && FbEvenTile(pGC->tile.pixmap->drawable.width *
 				  pDrawable->bitsPerPixel)) {
 			if (uxa_prepare_access
-			    (&pGC->tile.pixmap->drawable, UXA_ACCESS_RW)) {
+			    (&pGC->tile.pixmap->drawable, NULL, UXA_ACCESS_RW)) {
 				fbPadPixmap(pGC->tile.pixmap);
 				uxa_finish_access(&pGC->tile.pixmap->drawable);
 			}
@@ -243,7 +264,7 @@ uxa_validate_gc(GCPtr pGC, unsigned long changes, DrawablePtr pDrawable)
 		/* We can't inline stipple handling like we do for GCTile
 		 * because it sets fbgc privates.
 		 */
-		if (uxa_prepare_access(&pGC->stipple->drawable, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(&pGC->stipple->drawable, NULL, UXA_ACCESS_RW)) {
 			fbValidateGC(pGC, changes, pDrawable);
 			uxa_finish_access(&pGC->stipple->drawable);
 		}
@@ -282,13 +303,13 @@ Bool uxa_prepare_access_window(WindowPtr pWin)
 {
 	if (pWin->backgroundState == BackgroundPixmap) {
 		if (!uxa_prepare_access
-		    (&pWin->background.pixmap->drawable, UXA_ACCESS_RO))
+		    (&pWin->background.pixmap->drawable, NULL, UXA_ACCESS_RO))
 			return FALSE;
 	}
 
 	if (pWin->borderIsPixel == FALSE) {
 		if (!uxa_prepare_access
-		    (&pWin->border.pixmap->drawable, UXA_ACCESS_RO)) {
+		    (&pWin->border.pixmap->drawable, NULL, UXA_ACCESS_RO)) {
 			if (pWin->backgroundState == BackgroundPixmap)
 				uxa_finish_access(&pWin->background.pixmap->
 						  drawable);
@@ -321,7 +342,7 @@ static Bool uxa_change_window_attributes(WindowPtr pWin, unsigned long mask)
 static RegionPtr uxa_bitmap_to_region(PixmapPtr pPix)
 {
 	RegionPtr ret;
-	if (!uxa_prepare_access(&pPix->drawable, UXA_ACCESS_RO))
+	if (!uxa_prepare_access(&pPix->drawable, NULL, UXA_ACCESS_RO))
 		return NULL;
 	ret = fbPixmapToRegion(pPix);
 	uxa_finish_access(&pPix->drawable);

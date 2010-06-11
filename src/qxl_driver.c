@@ -830,60 +830,86 @@ unaccel (void)
     return FALSE;
 }
 
-static Bool
-qxl_prepare_access(PixmapPtr pixmap, uxa_access_t access)
+static void
+download_box (qxl_screen_t *qxl, uint8_t *host,
+	      int x1, int y1, int x2, int y2)
 {
-    ScreenPtr pScreen = pixmap->drawable.pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
     struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
 						 qxl->rom->ram_header_offset);
-    int n_bytes;
-    uint8_t *copy;
-    int w, h, stride;
+    int stride = - qxl->current_mode->stride;
+    int Bpp = qxl->current_mode->bits / 8;
+    uint8_t *host_line;
+    uint8_t *dev_line;
+    int height = y2 - y1;
 
-    ErrorF ("preparing access to %p\n", pixmap);
-    
-    w = pixmap->drawable.width;
-    h = pixmap->drawable.height;
-    stride = - qxl->current_mode->stride;
-
-    ErrorF ("Width, stride: %d %d, real stride: %d, display wid: %d\n", w, stride, pixmap->devKind, pScrn->displayWidth);
-    
-    /* Rather than go out of memory, we simply tell the
-     * device to dump everything
-     */
-    ram_header->update_area.top = 0;
-    ram_header->update_area.bottom = w;
-    ram_header->update_area.left = 0;
-    ram_header->update_area.right = h;
+    ram_header->update_area.top = y1;
+    ram_header->update_area.bottom = y2;
+    ram_header->update_area.left = x1;
+    ram_header->update_area.right = x2;
     ram_header->update_surface = 0;		/* Only primary for now */
     
     outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
-    usleep (10000);
+    dev_line = (uint8_t *)qxl->ram + y1 * stride + x1 * Bpp;
+    host_line = host + y1 * stride + x1 * Bpp;
 
-    n_bytes = ((stride < 0)? -stride : stride) * pixmap->drawable.height;
-
-    ErrorF ("allocated %d bytes\n", n_bytes);
+    ErrorF ("stride: %d\n", stride);
     
+    while (height--)
+    {
+	uint8_t *h = host_line;
+	uint8_t *d = dev_line;
+	int w = x2 - x1;
+
+	host_line += stride;
+	dev_line += stride;
+	
+	while (w--)
+	    *h++ = *d++;
+    }
+}
+
+static Bool
+qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
+{
+    ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    uint8_t *copy;
+    int n_bytes;
+    BoxPtr boxes;
+    int n_boxes;
+    int stride;
+
+    stride = qxl->current_mode->stride;
+    
+    n_bytes = stride * pixmap->drawable.height;
+
     copy = malloc (n_bytes);
 
     if (!copy)
 	return FALSE;
 
-    memcpy (copy, qxl->ram, n_bytes);
-
-    if (stride < 0)
-	copy += - stride * (h - 1);
+    /* QXL's framebuffer has a negative stride */
+    copy += stride * (pixmap->drawable.height - 1);
     
+    n_boxes = REGION_NUM_RECTS (region);
+    boxes = REGION_RECTS (region);
+    while (n_boxes--)
+    {
+	download_box (qxl, copy, boxes->x1, boxes->y1, boxes->x2, boxes->y2);
+	boxes++;
+    }
+
     pScreen->ModifyPixmapHeader(
-	pixmap, w, h, -1, -1, -1, copy);
+	pixmap, -1, -1, -1, -1, -1, copy);
 
     /* miModifyPixmapHeader() doesn't seem to actually set a negative
      * stride, so just set it here.
      */
-    pixmap->devKind = stride;
+    pixmap->devKind = - stride;
+
+    qxl->u.access_region = region;
     
     return TRUE;
 }
@@ -901,18 +927,13 @@ qxl_finish_access (PixmapPtr pixmap)
     struct qxl_rect rect;
 
     ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
-    
-    rect.left = 0;
-    rect.right = w;
-    rect.top = 0;
-    rect.bottom = h;
 
     drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
-
+    
     drawable->u.copy.src_bitmap = physical_address (
 	qxl, qxl_image_create (qxl, pixmap->devPrivate.ptr,
 			       0, 0, w, h, stride), qxl->main_mem_slot);
-
+    
     drawable->u.copy.src_area = rect;
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
     drawable->u.copy.scale_mode = 0;
@@ -920,9 +941,9 @@ qxl_finish_access (PixmapPtr pixmap)
     drawable->u.copy.mask.pos.x = 0;
     drawable->u.copy.mask.pos.y = 0;
     drawable->u.copy.mask.bitmap = 0;
-
+    
     push_drawable (qxl, drawable);
-
+    
     pScreen->ModifyPixmapHeader(
 	pixmap, w, h, -1, -1, 0, NULL);
 }
@@ -1021,8 +1042,7 @@ qxl_check_copy (PixmapPtr source, PixmapPtr dest,
 	return FALSE;
     }
 
-    if (source->drawable.bitsPerPixel != 16		&&
-	source->drawable.bitsPerPixel != 32)
+    if (source->drawable.bitsPerPixel != 16 && source->drawable.bitsPerPixel != 32)
     {
 	ErrorF ("bad bpp\n");
 	return FALSE;

@@ -338,7 +338,7 @@ uxa_do_put_image(DrawablePtr pDrawable, GCPtr pGC, int depth, int x, int y,
 			int dstBpp;
 			int dstXoff, dstYoff;
 
-			if (!uxa_prepare_access(pDrawable, UXA_ACCESS_RW))
+			if (!uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW))
 				return FALSE;
 
 			fbGetStipDrawable(pDrawable, dst, dst_stride, dstBpp,
@@ -600,8 +600,8 @@ fallback:
 	UXA_FALLBACK(("from %p to %p (%c,%c)\n", pSrcDrawable, pDstDrawable,
 		      uxa_drawable_location(pSrcDrawable),
 		      uxa_drawable_location(pDstDrawable)));
-	if (uxa_prepare_access(pDstDrawable, UXA_ACCESS_RW)) {
-		if (uxa_prepare_access(pSrcDrawable, UXA_ACCESS_RO)) {
+	if (uxa_prepare_access(pDstDrawable, NULL, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(pSrcDrawable, NULL, UXA_ACCESS_RO)) {
 			fbCopyNtoN(pSrcDrawable, pDstDrawable, pGC, pbox, nbox,
 				   dx, dy, reverse, upsidedown, bitplane,
 				   closure);
@@ -1248,7 +1248,7 @@ fallback:
 	UXA_FALLBACK(("from %p (%c)\n", pDrawable,
 		      uxa_drawable_location(pDrawable)));
 
-	if (uxa_prepare_access(pDrawable, UXA_ACCESS_RO)) {
+	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RO)) {
 		fbGetImage(pDrawable, x, y, w, h, format, planeMask, d);
 		uxa_finish_access(pDrawable);
 	}

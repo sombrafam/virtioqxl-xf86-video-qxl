@@ -501,7 +501,7 @@ typedef struct _UxaDriver {
 	 * @return FALSE if prepare_access() is unsuccessful and UXA should use
 	 * get_image() to migate the pixmap out.
 	 */
-	Bool(*prepare_access) (PixmapPtr pPix, uxa_access_t access);
+         Bool(*prepare_access) (PixmapPtr pPix, RegionPtr region, uxa_access_t access);
 
 	/**
 	 * finish_access() is called after CPU access to an offscreen pixmap.

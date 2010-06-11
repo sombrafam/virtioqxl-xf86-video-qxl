@@ -316,7 +316,7 @@ uxa_check_composite(CARD8 op,
 #endif
 
 /* uxa.c */
-Bool uxa_prepare_access(DrawablePtr pDrawable, uxa_access_t access);
+Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t access);
 
 void uxa_finish_access(DrawablePtr pDrawable);
 
