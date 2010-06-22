@@ -127,12 +127,18 @@ uxa_check_copy_area(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
 {
 	ScreenPtr screen = pSrc->pScreen;
 	RegionPtr ret = NULL;
+	RegionRec region;
+
+	/* FIXME: Hmm, it's not totally clear what to do in this case. In fact,
+	 * all cases where more than one drawable can get prepare_access() called
+	 * on it multiple times is kinda bad.
+	 */
 
 	UXA_FALLBACK(("from %p to %p (%c,%c)\n", pSrc, pDst,
 		      uxa_drawable_location(pSrc),
 		      uxa_drawable_location(pDst)));
-	if (uxa_prepare_access(pDst, NULL, UXA_ACCESS_RW)) {
-	    if (uxa_prepare_access(pSrc, NULL, UXA_ACCESS_RO)) {
+	if (uxa_prepare_access(pDst, &region, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(pSrc, &region, UXA_ACCESS_RO)) {
 			ret =
 			    fbCopyArea(pSrc, pDst, pGC, srcx, srcy, w, h, dstx,
 				       dsty);
@@ -260,17 +266,23 @@ uxa_check_poly_fill_rect(DrawablePtr pDrawable, GCPtr pGC,
 			 int nrect, xRectangle * prect)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
 
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_poly_fill_rect (&region, pDrawable, pGC, nrect, prect);
+	
 	UXA_FALLBACK(("to %p (%c)\n", pDrawable,
 		      uxa_drawable_location(pDrawable)));
 
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 		if (uxa_prepare_access_gc(pGC)) {
 			fbPolyFillRect(pDrawable, pGC, nrect, prect);
 			uxa_finish_access_gc(pGC);
 		}
 		uxa_finish_access(pDrawable);
 	}
+
+	REGION_UNINIT (screen, &region);
 }
 
 void
