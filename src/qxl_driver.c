@@ -900,8 +900,6 @@ qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
     if (!copy)
 	return FALSE;
 
-    memset (copy, 0x80, n_bytes);
-    
     /* QXL's framebuffer has a negative stride */
     copy += stride * (pixmap->drawable.height - 1);
     
@@ -921,7 +919,8 @@ qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
      */
     pixmap->devKind = - stride;
 
-    qxl->u.access_region = region;
+    REGION_INIT (pScreen, &(qxl->u.access_region), (BoxPtr)NULL, 0);
+    REGION_COPY (pScreen, &(qxl->u.access_region), region);
     
     return TRUE;
 }
@@ -932,48 +931,59 @@ qxl_finish_access (PixmapPtr pixmap)
     ScreenPtr pScreen = pixmap->drawable.pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     qxl_screen_t *qxl = pScrn->driverPrivate;
-    struct qxl_drawable *drawable;
     int w = pixmap->drawable.width;
     int h = pixmap->drawable.height;
     int stride = pixmap->devKind;
     struct qxl_rect rect;
+    int n_boxes;
+    BoxPtr boxes;
 
     ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
 
+    n_boxes = REGION_NUM_RECTS (&qxl->u.access_region);
+    boxes = REGION_RECTS (&qxl->u.access_region);
+    while (n_boxes--)
     {
-	struct qxl_rect qrect;
+	struct qxl_rect rect;
+	struct qxl_drawable *drawable;
+	struct qxl_image *image;
+	int x1, y1, x2, y2;
 
-	qrect.left = 0;
-	qrect.right = w;
-	qrect.top = 0;
-	qrect.bottom = h;
+	x1 = boxes->x1;
+	y1 = boxes->y1;
+	x2 = boxes->x2;
+	y2 = boxes->y2;
+
+	rect.left = x1;
+	rect.right = x2;
+	rect.top = y1;
+	rect.bottom = y2;
+    
+	/* Paint a green flash before uploading */
+	submit_fill (qxl, &rect, 0xff00ff00);
 	
-	submit_fill (qxl, &qrect, 0xff00ff00);
+	drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
+	drawable->u.copy.src_area = rect;
+	drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
+	drawable->u.copy.scale_mode = 0;
+	drawable->u.copy.mask.flags = 0;
+	drawable->u.copy.mask.pos.x = 0;
+	drawable->u.copy.mask.pos.y = 0;
+	drawable->u.copy.mask.bitmap = 0;
+	
+	image = qxl_image_create (qxl, pixmap->devPrivate.ptr,
+				  x1, y1, x2 - x1, y2 - y1, stride);
+	drawable->u.copy.src_bitmap =
+	    physical_address (qxl, image, qxl->main_mem_slot);
+
+	push_drawable (qxl, drawable);
+	
+	boxes++;
     }
 
-    rect.left = 0;
-    rect.right = w;
-    rect.top = 0;
-    rect.bottom = h;
+    REGION_UNINIT (pScreen, &qxl->u.access_region);
     
-    drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
-
-    drawable->u.copy.src_bitmap = physical_address (
-	qxl, qxl_image_create (qxl, pixmap->devPrivate.ptr,
-			       0, 0, w, h, stride), qxl->main_mem_slot);
-    
-    drawable->u.copy.src_area = rect;
-    drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
-    drawable->u.copy.scale_mode = 0;
-    drawable->u.copy.mask.flags = 0;
-    drawable->u.copy.mask.pos.x = 0;
-    drawable->u.copy.mask.pos.y = 0;
-    drawable->u.copy.mask.bitmap = 0;
-    
-    push_drawable (qxl, drawable);
-    
-    pScreen->ModifyPixmapHeader(
-	pixmap, w, h, -1, -1, 0, NULL);
+    pScreen->ModifyPixmapHeader(pixmap, w, h, -1, -1, 0, NULL);
 }
 
 static Bool

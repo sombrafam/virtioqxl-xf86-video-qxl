@@ -634,7 +634,7 @@ struct _qxl_screen_t
     {
 	PixmapPtr		copy_source;
 	Pixel			solid_pixel;
-	RegionPtr		access_region;
+	RegionRec		access_region;
     } u;
 };
 
