@@ -844,7 +844,7 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
 
     if (y1 != 0 || x1 != 0 || y2 != 1200 || x2 != 1600)
 	ErrorF ("asdf\n");
-    
+
     ram_header->update_area.top = y1;
     ram_header->update_area.bottom = y2;
     ram_header->update_area.left = x1;
@@ -867,7 +867,7 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     {
 	uint8_t *h = host_line;
 	uint8_t *d = dev_line;
-	int w = x2 - x1;
+	int w = (x2 - x1) * Bpp;
 
 	host_line += stride;
 	dev_line += stride;
@@ -890,6 +890,8 @@ qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
     int stride;
 
     stride = qxl->current_mode->stride;
+
+    ErrorF ("Stride: %d\n", stride);
     
     n_bytes = stride * pixmap->drawable.height;
 
@@ -898,6 +900,8 @@ qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
     if (!copy)
 	return FALSE;
 
+    memset (copy, 0x80, n_bytes);
+    
     /* QXL's framebuffer has a negative stride */
     copy += stride * (pixmap->drawable.height - 1);
     
@@ -935,6 +939,17 @@ qxl_finish_access (PixmapPtr pixmap)
     struct qxl_rect rect;
 
     ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
+
+    {
+	struct qxl_rect qrect;
+
+	qrect.left = 0;
+	qrect.right = w;
+	qrect.top = 0;
+	qrect.bottom = h;
+	
+	submit_fill (qxl, &qrect, 0xff00ff00);
+    }
 
     rect.left = 0;
     rect.right = w;
@@ -1140,16 +1155,16 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	qxl->uxa->uxa_minor = 0;
 
 	/* Solid fill */
-	qxl->uxa->check_solid = qxl_check_solid;
-	qxl->uxa->prepare_solid = qxl_prepare_solid;
-	qxl->uxa->solid = qxl_solid;
-	qxl->uxa->done_solid = qxl_done_solid;
+	qxl->uxa->check_solid = unaccel; // qxl_check_solid;
+	qxl->uxa->prepare_solid = unaccel; // qxl_prepare_solid;
+	qxl->uxa->solid = unaccel; // qxl_solid;
+	qxl->uxa->done_solid = unaccel; // qxl_done_solid;
 
 	/* Copy */
-	qxl->uxa->check_copy = qxl_check_copy;
-	qxl->uxa->prepare_copy = qxl_prepare_copy;
-	qxl->uxa->copy = qxl_copy;
-	qxl->uxa->done_copy = qxl_done_copy;
+	qxl->uxa->check_copy = unaccel; // qxl_check_copy;
+	qxl->uxa->prepare_copy = unaccel; // qxl_prepare_copy;
+	qxl->uxa->copy = unaccel; // qxl_copy;
+	qxl->uxa->done_copy = unaccel; // qxl_done_copy;
 
 	/* Composite */
 	qxl->uxa->check_composite = unaccel;
