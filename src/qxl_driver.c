@@ -518,24 +518,6 @@ submit_copy (qxl_screen_t *qxl, const struct qxl_rect *rect)
 }
 
 static void
-print_region (const char *header, RegionPtr pRegion)
-{
-    int nbox = REGION_NUM_RECTS (pRegion);
-    BoxPtr pbox = REGION_RECTS (pRegion);
-
-    ErrorF ("%s \n", header);
-    
-    while (nbox--)
-    {
-	ErrorF ("   %d %d %d %d (size: %d %d)\n",
-		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
-		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
-
-	pbox++;
-    }
-}
-
-static void
 paint_shadow (qxl_screen_t *qxl)
 {
     struct qxl_rect qrect;
@@ -877,6 +859,24 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     }
 }
 
+static void
+print_region (const char *header, RegionPtr pRegion)
+{
+    int nbox = REGION_NUM_RECTS (pRegion);
+    BoxPtr pbox = REGION_RECTS (pRegion);
+
+    ErrorF ("%s \n", header);
+    
+    while (nbox--)
+    {
+	ErrorF ("   %d %d %d %d (size: %d %d)\n",
+		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
+
+	pbox++;
+    }
+}
+
 static Bool
 qxl_prepare_access(PixmapPtr pixmap, RegionPtr region, uxa_access_t access)
 {
@@ -934,11 +934,10 @@ qxl_finish_access (PixmapPtr pixmap)
     int w = pixmap->drawable.width;
     int h = pixmap->drawable.height;
     int stride = pixmap->devKind;
-    struct qxl_rect rect;
     int n_boxes;
     BoxPtr boxes;
 
-    ErrorF ("Finishing access to %p (stride: %d)\n", pixmap, stride);
+    print_region ("Finishing access", &qxl->u.access_region);
 
     n_boxes = REGION_NUM_RECTS (&qxl->u.access_region);
     boxes = REGION_RECTS (&qxl->u.access_region);
@@ -961,9 +960,12 @@ qxl_finish_access (PixmapPtr pixmap)
     
 	/* Paint a green flash before uploading */
 	submit_fill (qxl, &rect, 0xff00ff00);
+
+	usleep (50000);
 	
 	drawable = make_drawable (qxl, QXL_DRAW_COPY, &rect);
 	drawable->u.copy.src_area = rect;
+	translate_rect (&drawable->u.copy.src_area);
 	drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
 	drawable->u.copy.scale_mode = 0;
 	drawable->u.copy.mask.flags = 0;

@@ -22,6 +22,7 @@
  */
 
 #include "uxa-priv.h"
+#include "uxa-damage.h"
 
 #ifdef RENDER
 #include "mipict.h"
@@ -278,10 +279,14 @@ uxa_check_image_glyph_blt(DrawablePtr pDrawable, GCPtr pGC,
 			  CharInfoPtr * ppci, pointer pglyphBase)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_image_glyph_blt (&region, pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
 
 	UXA_FALLBACK(("to %p (%c)\n", pDrawable,
 		      uxa_drawable_location(pDrawable)));
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 		if (uxa_prepare_access_gc(pGC)) {
 			fbImageGlyphBlt(pDrawable, pGC, x, y, nglyph, ppci,
 					pglyphBase);
@@ -289,6 +294,8 @@ uxa_check_image_glyph_blt(DrawablePtr pDrawable, GCPtr pGC,
 		}
 		uxa_finish_access(pDrawable);
 	}
+
+	REGION_UNINIT (screen, &region);
 }
 
 void
@@ -297,11 +304,15 @@ uxa_check_poly_glyph_blt(DrawablePtr pDrawable, GCPtr pGC,
 			 CharInfoPtr * ppci, pointer pglyphBase)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_poly_glyph_blt (&region, pDrawable, pGC, x, y, nglyph, ppci, pglyphBase);
 
 	UXA_FALLBACK(("to %p (%c), style %d alu %d\n", pDrawable,
 		      uxa_drawable_location(pDrawable), pGC->fillStyle,
 		      pGC->alu));
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 		if (uxa_prepare_access_gc(pGC)) {
 			fbPolyGlyphBlt(pDrawable, pGC, x, y, nglyph, ppci,
 				       pglyphBase);
@@ -309,6 +320,8 @@ uxa_check_poly_glyph_blt(DrawablePtr pDrawable, GCPtr pGC,
 		}
 		uxa_finish_access(pDrawable);
 	}
+
+	REGION_UNINIT (screen, &region);
 }
 
 void

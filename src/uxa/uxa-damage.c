@@ -91,7 +91,6 @@ trim_region (RegionPtr   pRegion,
 	     DrawablePtr pDrawable,
 	     int         subWindowMode)
 {
-    RegionPtr       pDamageRegion;
     RegionRec       pixClip;
     int             draw_x, draw_y;
 #ifdef COMPOSITE
@@ -153,7 +152,7 @@ trim_region (RegionPtr   pRegion,
 	box.y2 = draw_y + pDrawable->height;
 	
 	REGION_INIT(pScreen, &pixClip, &box, 1);
-	REGION_INTERSECT (pScreen, pDamageRegion, pRegion, &pixClip);
+	REGION_INTERSECT (pScreen, pRegion, pRegion, &pixClip);
 	REGION_UNINIT(pScreen, &pixClip);
     }
     
