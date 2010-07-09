@@ -62,7 +62,7 @@ qxl_set_cursor_position(ScrnInfoPtr pScrn, int x, int y)
     cmd->type = QXL_CURSOR_MOVE;
     cmd->u.position.x = qxl->cur_x + qxl->hot_x;
     cmd->u.position.y = qxl->cur_y + qxl->hot_y;
-
+    
     push_cursor(qxl, cmd);
 }
 
@@ -167,7 +167,7 @@ qxl_show_cursor(ScrnInfoPtr pScrn)
      * QXL_CURSOR_SET?
      */
     qxl_screen_t *qxl = pScrn->driverPrivate;
-
+    
     qxl_set_cursor_position(pScrn, qxl->cur_x, qxl->cur_y);
 }
 

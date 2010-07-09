@@ -509,7 +509,9 @@ uxa_copy_n_to_n(DrawablePtr pSrcDrawable,
 	int src_off_x, src_off_y;
 	int dst_off_x, dst_off_y;
 	PixmapPtr pSrcPixmap, pDstPixmap;
-
+	RegionRec src_region;
+	RegionRec dst_region;
+	
 	pSrcPixmap = uxa_get_drawable_pixmap(pSrcDrawable);
 	pDstPixmap = uxa_get_drawable_pixmap(pDstDrawable);
 	if (!pSrcPixmap || !pDstPixmap)
@@ -597,18 +599,34 @@ uxa_copy_n_to_n(DrawablePtr pSrcDrawable,
 	return;
 
 fallback:
+#if 0
+	ErrorF ("falling back: %d boxes\n", nbox);
+#endif
+
+	pixman_region_init_rects (&dst_region, pbox, nbox);
+	REGION_INIT (NULL, &src_region, (BoxPtr)NULL, 0);
+	REGION_COPY (NULL, &src_region, &dst_region);
+	REGION_TRANSLATE (NULL, &src_region, dx, dy);
+
 	UXA_FALLBACK(("from %p to %p (%c,%c)\n", pSrcDrawable, pDstDrawable,
 		      uxa_drawable_location(pSrcDrawable),
 		      uxa_drawable_location(pDstDrawable)));
-	if (uxa_prepare_access(pDstDrawable, NULL, UXA_ACCESS_RW)) {
-	    if (uxa_prepare_access(pSrcDrawable, NULL, UXA_ACCESS_RO)) {
-			fbCopyNtoN(pSrcDrawable, pDstDrawable, pGC, pbox, nbox,
-				   dx, dy, reverse, upsidedown, bitplane,
-				   closure);
-			uxa_finish_access(pSrcDrawable);
-		}
-		uxa_finish_access(pDstDrawable);
+	if (uxa_prepare_access(pDstDrawable, &dst_region, UXA_ACCESS_RW))
+	{
+	    if (uxa_prepare_access(pSrcDrawable, &src_region, UXA_ACCESS_RO))
+	    {
+		fbCopyNtoN(pSrcDrawable, pDstDrawable, pGC, pbox, nbox,
+			   dx, dy, reverse, upsidedown, bitplane,
+			   closure);
+
+		uxa_finish_access(pSrcDrawable);
+	    }
+
+	    uxa_finish_access(pDstDrawable);
 	}
+
+	REGION_UNINIT (NULL, &src_region);
+	REGION_UNINIT (NULL, &dst_region);
 }
 
 RegionPtr
@@ -1212,6 +1230,7 @@ uxa_get_image(DrawablePtr pDrawable, int x, int y, int w, int h,
 	PixmapPtr pPix = uxa_get_drawable_pixmap(pDrawable);
 	int xoff, yoff;
 	Bool ok;
+	RegionRec region;
 
 	uxa_get_drawable_deltas(pDrawable, pPix, &xoff, &yoff);
 
@@ -1248,10 +1267,14 @@ fallback:
 	UXA_FALLBACK(("from %p (%c)\n", pDrawable,
 		      uxa_drawable_location(pDrawable)));
 
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RO)) {
+	REGION_INIT(screen, &region, &Box, 1);
+	
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RO)) {
 		fbGetImage(pDrawable, x, y, w, h, format, planeMask, d);
 		uxa_finish_access(pDrawable);
 	}
 
+	REGION_UNINIT(screen, &region);
+	
 	return;
 }

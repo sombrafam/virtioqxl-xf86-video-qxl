@@ -78,10 +78,15 @@ uxa_check_fill_spans(DrawablePtr pDrawable, GCPtr pGC, int nspans,
 		     DDXPointPtr ppt, int *pwidth, int fSorted)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_fill_spans (&region, pDrawable, pGC, nspans,
+			       ppt, pwidth, fSorted);
 
 	UXA_FALLBACK(("to %p (%c)\n", pDrawable,
 		      uxa_drawable_location(pDrawable)));
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 		if (uxa_prepare_access_gc(pGC)) {
 			fbFillSpans(pDrawable, pGC, nspans, ppt, pwidth,
 				    fSorted);
@@ -89,6 +94,8 @@ uxa_check_fill_spans(DrawablePtr pDrawable, GCPtr pGC, int nspans,
 		}
 		uxa_finish_access(pDrawable);
 	}
+
+	REGION_UNINIT (screen, &region);
 }
 
 void
@@ -127,7 +134,13 @@ uxa_check_copy_area(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
 {
 	ScreenPtr screen = pSrc->pScreen;
 	RegionPtr ret = NULL;
-	RegionRec region;
+	RegionRec src_region;
+	RegionRec dst_region;
+	BoxRec src_box = { srcx, srcy, srcx + w, srcy + h };
+	BoxRec dst_box = { dstx, dsty, dstx + w, dsty + h };
+
+	REGION_INIT (screen, &src_region, &src_box, 1);
+	REGION_INIT (screen, &dst_region, &dst_box, 1);
 
 	/* FIXME: Hmm, it's not totally clear what to do in this case. In fact,
 	 * all cases where more than one drawable can get prepare_access() called
@@ -137,8 +150,8 @@ uxa_check_copy_area(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
 	UXA_FALLBACK(("from %p to %p (%c,%c)\n", pSrc, pDst,
 		      uxa_drawable_location(pSrc),
 		      uxa_drawable_location(pDst)));
-	if (uxa_prepare_access(pDst, &region, UXA_ACCESS_RW)) {
-	    if (uxa_prepare_access(pSrc, &region, UXA_ACCESS_RO)) {
+	if (uxa_prepare_access(pDst, &dst_region, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(pSrc, &src_region, UXA_ACCESS_RO)) {
 			ret =
 			    fbCopyArea(pSrc, pDst, pGC, srcx, srcy, w, h, dstx,
 				       dsty);
@@ -146,6 +159,10 @@ uxa_check_copy_area(DrawablePtr pSrc, DrawablePtr pDst, GCPtr pGC,
 		}
 		uxa_finish_access(pDst);
 	}
+
+	REGION_UNINIT (screen, &src_region);
+	REGION_UNINIT (screen, &dst_region);
+	
 	return ret;
 }
 
@@ -215,12 +232,16 @@ uxa_check_poly_segment(DrawablePtr pDrawable, GCPtr pGC,
 		       int nsegInit, xSegment * pSegInit)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_poly_segment (&region, pDrawable, pGC, nsegInit, pSegInit);
 
 	UXA_FALLBACK(("to %p (%c) width %d, count %d\n", pDrawable,
 		      uxa_drawable_location(pDrawable), pGC->lineWidth,
 		      nsegInit));
 	if (pGC->lineWidth == 0) {
-	    if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	    if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 			if (uxa_prepare_access_gc(pGC)) {
 				fbPolySegment(pDrawable, pGC, nsegInit,
 					      pSegInit);
@@ -228,10 +249,14 @@ uxa_check_poly_segment(DrawablePtr pDrawable, GCPtr pGC,
 			}
 			uxa_finish_access(pDrawable);
 		}
-		return;
+	    goto out;
 	}
+	
 	/* fb calls mi functions in the lineWidth != 0 case. */
 	fbPolySegment(pDrawable, pGC, nsegInit, pSegInit);
+
+out:
+	REGION_UNINIT (screen, &region);
 }
 
 void
@@ -341,11 +366,15 @@ uxa_check_push_pixels(GCPtr pGC, PixmapPtr pBitmap,
 		      DrawablePtr pDrawable, int w, int h, int x, int y)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_push_pixels (&region, pGC, pBitmap, pDrawable, w, h, x, y);
 
 	UXA_FALLBACK(("from %p to %p (%c,%c)\n", pBitmap, pDrawable,
 		      uxa_drawable_location(&pBitmap->drawable),
 		      uxa_drawable_location(pDrawable)));
-	if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+	if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 	    if (uxa_prepare_access(&pBitmap->drawable, NULL, UXA_ACCESS_RO)) {
 			if (uxa_prepare_access_gc(pGC)) {
 				fbPushPixels(pGC, pBitmap, pDrawable, w, h, x,
@@ -356,6 +385,8 @@ uxa_check_push_pixels(GCPtr pGC, PixmapPtr pBitmap,
 		}
 		uxa_finish_access(pDrawable);
 	}
+
+	REGION_UNINIT (screen, &region);
 }
 
 void
@@ -384,10 +415,21 @@ uxa_check_composite(CARD8 op,
 		    CARD16 width, CARD16 height)
 {
 	ScreenPtr screen = pDst->pDrawable->pScreen;
+	RegionRec region;
 
 	UXA_FALLBACK(("from picts %p/%p to pict %p\n", pSrc, pMask, pDst));
 
-	if (uxa_prepare_access(pDst->pDrawable, NULL, UXA_ACCESS_RW)) {
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_composite (&region, op, pSrc, pMask, pDst,
+			      xSrc, ySrc, xMask, yMask, xDst, yDst,
+			      width, height);
+
+#if 0
+	ErrorF ("destination: %p\n", pDst->pDrawable);
+	ErrorF ("source: %p\n", pSrc->pDrawable);
+	ErrorF ("mask: %p\n", pMask? pMask->pDrawable : NULL);
+#endif
+	if (uxa_prepare_access(pDst->pDrawable, &region, UXA_ACCESS_RW)) {
 		if (pSrc->pDrawable == NULL ||
 		    uxa_prepare_access(pSrc->pDrawable, NULL, UXA_ACCESS_RO)) {
 			if (!pMask || pMask->pDrawable == NULL ||

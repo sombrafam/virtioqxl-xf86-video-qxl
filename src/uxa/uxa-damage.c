@@ -92,7 +92,6 @@ trim_region (RegionPtr   pRegion,
 	     int         subWindowMode)
 {
     RegionRec       pixClip;
-    int             draw_x, draw_y;
 #ifdef COMPOSITE
     int             screen_x = 0, screen_y = 0;
 #endif
@@ -135,6 +134,9 @@ trim_region (RegionPtr   pRegion,
         /* If subWindowMode is set to an invalid value, don't perform
          * any drawable-based clipping. */
     }
+
+    int draw_x = 0;
+    int draw_y = 0;
     
     /* Clip against border or pixmap bounds */
     if (pDrawable->type == DRAWABLE_WINDOW)
@@ -145,6 +147,20 @@ trim_region (RegionPtr   pRegion,
     else
     {
 	BoxRec  box;
+
+	draw_x = pDrawable->x;
+	draw_y = pDrawable->y;
+#ifdef COMPOSITE
+	/*
+	 * Need to move everyone to screen coordinates
+	 * XXX what about off-screen pixmaps with non-zero x/y?
+	 */
+	if (!WindowDrawable(pDrawable->type))
+	{
+	    draw_x += ((PixmapPtr) pDrawable)->screen_x;
+	    draw_y += ((PixmapPtr) pDrawable)->screen_y;
+	}
+#endif
 	
 	box.x1 = draw_x;
 	box.y1 = draw_y;

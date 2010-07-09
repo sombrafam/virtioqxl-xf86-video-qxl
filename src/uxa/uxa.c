@@ -149,17 +149,22 @@ Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t ac
 	if (!offscreen)
 	    return TRUE;
 
+	box.x1 = 0;
+	box.y1 = 0;
+	box.x2 = pPixmap->drawable.width;
+	box.y2 = pPixmap->drawable.height;
+	
+	REGION_INIT (pScreen, &region_rec, &box, 1);
 	if (!region)
-	{
 	    region = &region_rec;
 
-	    box.x1 = 0;
-	    box.y1 = 0;
-	    box.x2 = pPixmap->drawable.width;
-	    box.y2 = pPixmap->drawable.height;
-
-	    REGION_INIT (pScreen, &region_rec, &box, 1);
-	}
+#if 0
+	/* Confine to the size of the drawable pixmap. The original
+	 * drawable may be bigger than the underlying one. For example,
+	 * the root window might be bigger than the screen pixmap.
+	 */
+	REGION_INTERSECT (pScreen, region, region, &region_rec);
+#endif
 	
 	result = TRUE;
 
