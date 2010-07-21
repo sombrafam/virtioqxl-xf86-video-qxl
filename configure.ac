@@ -73,8 +73,6 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # Checks for libraries.
 
-# Checks for header files.
-AC_HEADER_STDC
 
 DRIVER_NAME=qxl
 AC_SUBST([DRIVER_NAME])
