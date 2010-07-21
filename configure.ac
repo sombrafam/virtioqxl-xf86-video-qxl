@@ -77,7 +77,8 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 DRIVER_NAME=qxl
 AC_SUBST([DRIVER_NAME])
 
-AC_OUTPUT([
-	Makefile
-	src/Makefile
+AC_CONFIG_FILES([
+                Makefile
+                src/Makefile
 ])
+AC_OUTPUT
