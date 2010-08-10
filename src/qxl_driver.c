@@ -873,6 +873,7 @@ qxl_fill_region_solid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
 		       fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
 }
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
 static void
 qxl_paint_window(WindowPtr pWin, RegionPtr pRegion, int what)
 {
@@ -893,6 +894,7 @@ qxl_paint_window(WindowPtr pWin, RegionPtr pRegion, int what)
 
     qxl->paint_window_border (pWin, pRegion, what);
 }
+#endif
 
 static void
 qxl_copy_window (WindowPtr pWin, DDXPointRec ptOldOrg, RegionPtr prgnSrc)
@@ -1036,11 +1038,14 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->create_gc = pScreen->CreateGC;
     pScreen->CreateGC = qxl_create_gc;
 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 8
     qxl->paint_window_background = pScreen->PaintWindowBackground;
     qxl->paint_window_border = pScreen->PaintWindowBorder;
-    qxl->copy_window = pScreen->CopyWindow;
     pScreen->PaintWindowBackground = qxl_paint_window;
     pScreen->PaintWindowBorder = qxl_paint_window;
+#endif
+
+    qxl->copy_window = pScreen->CopyWindow;
     pScreen->CopyWindow = qxl_copy_window;
 
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
