@@ -810,19 +810,11 @@ void		    qxl_surface_copy	     (qxl_surface_t *dest,
 					      int  dest_x1, int dest_y1,
 					      int width, int height);
 
-#if HAS_DEVPRIVATEKEYREC
 extern DevPrivateKeyRec uxa_pixmap_index;
-#else
-extern int uxa_pixmap_index;
-#endif
 
 static inline qxl_surface_t *get_surface (PixmapPtr pixmap)
 {
-#if HAS_DEVPRIVATEKEYREC
     return dixGetPrivate(&pixmap->devPrivates, &uxa_pixmap_index);
-#else
-    return dixLookupPrivate(&pixmap->devPrivates, &uxa_pixmap_index);
-#endif
 }
 
 static inline void set_surface (PixmapPtr pixmap, qxl_surface_t *surface)

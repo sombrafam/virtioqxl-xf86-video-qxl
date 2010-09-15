@@ -83,16 +83,16 @@ struct uxa_glyph {
 	uint16_t size, pos;
 };
 
-static int uxa_glyph_index;
+static DevPrivateKeyRec uxa_glyph_key;
 
 static inline struct uxa_glyph *uxa_glyph_get_private(GlyphPtr glyph)
 {
-	return dixLookupPrivate(&glyph->devPrivates, &uxa_glyph_index);
+	return dixGetPrivate(&glyph->devPrivates, &uxa_glyph_key);
 }
 
 static inline void uxa_glyph_set_private(GlyphPtr glyph, struct uxa_glyph *priv)
 {
-	dixSetPrivate(&glyph->devPrivates, &uxa_glyph_index, priv);
+	dixSetPrivate(&glyph->devPrivates, &uxa_glyph_key, priv);
 }
 
 #define NeedsComponent(f) (PICT_FORMAT_A(f) != 0 && PICT_FORMAT_RGB(f) != 0)
@@ -109,7 +109,7 @@ static void uxa_unrealize_glyph_caches(ScreenPtr pScreen)
 			FreePicture(cache->picture, 0);
 
 		if (cache->glyphs)
-			xfree(cache->glyphs);
+			free(cache->glyphs);
 	}
 }
 
@@ -172,7 +172,7 @@ static Bool uxa_realize_glyph_caches(ScreenPtr pScreen)
 		ValidatePicture(picture);
 
 		cache->picture = picture;
-		cache->glyphs = xcalloc(sizeof(GlyphPtr), GLYPH_CACHE_SIZE);
+		cache->glyphs = calloc(sizeof(GlyphPtr), GLYPH_CACHE_SIZE);
 		if (!cache->glyphs)
 			goto bail;
 
@@ -190,7 +190,7 @@ bail:
 
 Bool uxa_glyphs_init(ScreenPtr pScreen)
 {
-	if (!dixRequestPrivate(&uxa_glyph_index, 0))
+	if (!dixRegisterPrivateKey(&uxa_glyph_key, PRIVATE_GLYPH, 0))
 		return FALSE;
 
 	if (!uxa_realize_glyph_caches(pScreen))
@@ -286,7 +286,7 @@ uxa_glyph_unrealize(ScreenPtr pScreen,
 	priv->cache->glyphs[priv->pos] = NULL;
 
 	uxa_glyph_set_private(pGlyph, NULL);
-	xfree(priv);
+	free(priv);
 }
 
 /* Cut and paste from render/glyph.c - probably should export it instead */
@@ -588,7 +588,7 @@ uxa_glyph_cache(ScreenPtr screen, GlyphPtr glyph, int *out_x, int *out_y)
 				GlyphPtr evicted = cache->glyphs[pos + s];
 				if (evicted != NULL) {
 					if (priv != NULL)
-						xfree(priv);
+						free(priv);
 
 					priv = uxa_glyph_get_private(evicted);
 					uxa_glyph_set_private(evicted, NULL);
@@ -602,7 +602,7 @@ uxa_glyph_cache(ScreenPtr screen, GlyphPtr glyph, int *out_x, int *out_y)
 	}
 
 	if (priv == NULL) {
-		priv = xalloc(sizeof(struct uxa_glyph));
+		priv = malloc(sizeof(struct uxa_glyph));
 		if (priv == NULL)
 			return NULL;
 	}

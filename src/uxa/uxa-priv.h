@@ -158,11 +158,10 @@ typedef struct {
     (PixmapWidthPaddingInfo[d].padRoundUp+1)))
 #endif
 
-extern int uxa_screen_index;
+extern DevPrivateKeyRec uxa_screen_index;
 static inline uxa_screen_t *uxa_get_screen(ScreenPtr screen)
 {
-	return (uxa_screen_t *) dixLookupPrivate(&screen->devPrivates,
-						 &uxa_screen_index);
+	return dixGetPrivate (&screen->devPrivates, &uxa_screen_index);
 }
 
 /** Align an offset to an arbitrary alignment */

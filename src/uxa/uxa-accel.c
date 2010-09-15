@@ -661,7 +661,7 @@ uxa_poly_point(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt,
 		return;
 	}
 
-	prect = xalloc(sizeof(xRectangle) * npt);
+	prect = malloc(sizeof(xRectangle) * npt);
 	if (!prect)
 		return;
 	for (i = 0; i < npt; i++) {
@@ -675,7 +675,7 @@ uxa_poly_point(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt,
 		prect[i].height = 1;
 	}
 	pGC->ops->PolyFillRect(pDrawable, pGC, npt, prect);
-	xfree(prect);
+	free(prect);
 }
 
 /**
@@ -698,7 +698,7 @@ uxa_poly_lines(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt,
 		return;
 	}
 
-	prect = xalloc(sizeof(xRectangle) * (npt - 1));
+	prect = malloc(sizeof(xRectangle) * (npt - 1));
 	if (!prect)
 		return;
 	x1 = ppt[0].x;
@@ -714,7 +714,7 @@ uxa_poly_lines(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt,
 		}
 
 		if (x1 != x2 && y1 != y2) {
-			xfree(prect);
+			free(prect);
 			uxa_check_poly_lines(pDrawable, pGC, mode, npt, ppt);
 			return;
 		}
@@ -738,7 +738,7 @@ uxa_poly_lines(DrawablePtr pDrawable, GCPtr pGC, int mode, int npt,
 		y1 = y2;
 	}
 	pGC->ops->PolyFillRect(pDrawable, pGC, npt - 1, prect);
-	xfree(prect);
+	free(prect);
 }
 
 /**
@@ -767,7 +767,7 @@ uxa_poly_segment(DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pSeg)
 		}
 	}
 
-	prect = xalloc(sizeof(xRectangle) * nseg);
+	prect = malloc(sizeof(xRectangle) * nseg);
 	if (!prect)
 		return;
 	for (i = 0; i < nseg; i++) {
@@ -795,7 +795,7 @@ uxa_poly_segment(DrawablePtr pDrawable, GCPtr pGC, int nseg, xSegment * pSeg)
 		}
 	}
 	pGC->ops->PolyFillRect(pDrawable, pGC, nseg, prect);
-	xfree(prect);
+	free(prect);
 }
 
 static Bool uxa_fill_region_solid(DrawablePtr pDrawable, RegionPtr pRegion,

@@ -176,7 +176,7 @@ qxl_cursor_init(ScreenPtr pScreen)
 {
     xf86CursorInfoPtr cursor;
 
-    cursor = xcalloc(1, sizeof(xf86CursorInfoRec));
+    cursor = calloc(1, sizeof(xf86CursorInfoRec));
     if (!cursor)
 	return;
 
@@ -192,5 +192,5 @@ qxl_cursor_init(ScreenPtr pScreen)
     cursor->ShowCursor = qxl_show_cursor;
 
     if (!xf86InitCursor(pScreen, cursor))
-	xfree(cursor);
+      free(cursor);
 }

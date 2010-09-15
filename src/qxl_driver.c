@@ -284,7 +284,7 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     pScrn->vtSema = FALSE;
 
     ErrorF ("Freeing %p\n", qxl->fb);
-    xfree(qxl->fb);
+    free(qxl->fb);
     qxl->fb = NULL;
     
     pScreen->CreateScreenResources = qxl->create_screen_resources;
@@ -404,6 +404,8 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 
     qxl_reset (qxl);
     
+    ErrorF ("done reset\n");
+
     qxl->primary = qxl_surface_create_primary (qxl, m);
     qxl->current_mode = m;
     qxl->bytes_per_pixel = (qxl->pScrn->bitsPerPixel + 7) / 8;
@@ -860,11 +862,7 @@ qxl_create_gc (GCPtr pGC)
     return TRUE;
 }
 
-#if HAS_DEVPRIVATEKEYREC
 DevPrivateKeyRec uxa_pixmap_index;
-#else
-int uxa_pixmap_index;
-#endif
 
 static Bool
 unaccel (void)
@@ -1008,8 +1006,6 @@ qxl_done_copy (PixmapPtr dest)
 static void
 qxl_set_screen_pixmap (PixmapPtr pixmap)
 {
-    ErrorF ("asdf\n");
-
     pixmap->drawable.pScreen->devPrivate = pixmap;
 }
 
@@ -1070,14 +1066,14 @@ static Bool
 setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 {
     ScrnInfoPtr scrn = xf86Screens[screen->myNum];
-    
-    if (!dixRequestPrivate(&uxa_pixmap_index, 0))
+
+    if (!dixRegisterPrivateKey(&uxa_pixmap_index, PRIVATE_PIXMAP, 0))
 	return FALSE;
     
     qxl->uxa = uxa_driver_alloc();
     if (qxl->uxa == NULL)
 	return FALSE;
-    
+
     memset(qxl->uxa, 0, sizeof(*qxl->uxa));
     
     qxl->uxa->uxa_major = 1;
@@ -1123,6 +1119,8 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	xfree(qxl->uxa);
 	return FALSE;
     }
+    
+
     
 #if 0
     uxa_set_fallback_debug(screen, FALSE);
@@ -1174,12 +1172,14 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     pScrn->displayWidth = pScrn->virtualX;
     
-    qxl->fb = xcalloc (pScrn->virtualY * pScrn->displayWidth, 4);
+    qxl->fb = calloc (pScrn->virtualY * pScrn->displayWidth, 4);
     if (!qxl->fb)
 	goto out;
     
     ErrorF ("allocated %d x %d  %p\n", pScrn->virtualX, pScrn->virtualY, qxl->fb);
     
+    pScreen->totalPixmapSize = 100;
+
     if (!fbScreenInit(pScreen, qxl->fb,
 		      pScrn->virtualX, pScrn->virtualY,
 		      pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
@@ -1208,6 +1208,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     /* Set up resources */
     qxl_reset (qxl);
+    ErrorF ("done reset\n");
     
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
@@ -1227,6 +1228,16 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
     
     pScreen->SaveScreen = qxl_blank_screen;
+
+    /* Note: this must be done before setup_uxa(), because it 
+     * calls DamageSetup() which registers a pixmap private. 
+     * 
+     * That will trigger an assert if _dixInitPrivates has
+     * been called, which setup_uxa() eventually does.
+     */
+    miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
+    if (!miCreateDefColormap(pScreen))
+      goto out;
     
     setup_uxa (qxl, pScreen);
     
@@ -1235,11 +1246,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     qxl->close_screen = pScreen->CloseScreen;
     pScreen->CloseScreen = qxl_close_screen;
-    
-    miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
-    
-    if (!miCreateDefColormap(pScreen))
-	goto out;
     
     qxl_cursor_init (pScreen);
     
@@ -1535,9 +1541,9 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
 out:
     if (clockRanges)
-	xfree(clockRanges);
+	free(clockRanges);
     if (qxl)
-	xfree(qxl);
+	free(qxl);
     
     return FALSE;
 }
