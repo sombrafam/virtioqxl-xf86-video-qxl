@@ -71,7 +71,7 @@ static qxl_surface_t *
 surface_new (void)
 {
     qxl_surface_t *result = NULL;
-    
+
     if (free_surfaces)
     {
 	result = free_surfaces;
@@ -189,9 +189,10 @@ qxl_surface_create (qxl_screen_t *qxl,
     pixman_format_code_t pformat;
     int stride;
     uint32_t *dev_addr;
+    static int count;
 
-    /* This just doesn't work yet */
-    return NULL;
+    if (++count < 200)
+      return NULL;
     
 #if 0
     ErrorF ("   qxl_surface: attempting to allocate %d x %d @ %d\n", width, height, bpp);
@@ -271,6 +272,10 @@ retry:
 	format = QXL_SURFACE_FMT_32_ARGB;
 	pformat = PIXMAN_a8r8g8b8;
 	break;
+
+    default:
+      return NULL;
+      break;
     }
 
     cmd->u.surface_create.format = format;
@@ -745,4 +750,3 @@ qxl_surface_copy (qxl_surface_t *dest,
     
     push_drawable (qxl, drawable);
 }
-

@@ -1031,6 +1031,10 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 	ErrorF ("   Successfully created surface in video memory\n");
 	
 	pixmap = fbCreatePixmap (screen, 0, 0, depth, usage);
+
+	screen->ModifyPixmapHeader(pixmap, w, h,
+				   -1, -1, -1,
+				   NULL);
 	
 	set_surface (pixmap, surface);
     }
