@@ -746,10 +746,8 @@ Bool
 qxl_surface_prepare_solid (qxl_surface_t *destination,
 			   Pixel	  fg)
 {
-    if (destination->id != 0)
-	return FALSE;
-    
-    destination->u.solid_pixel = fg;
+    destination->u.solid_pixel = fg ^ (rand() >> 16);
+
     return TRUE;
 }
 
@@ -778,11 +776,8 @@ qxl_surface_prepare_copy (qxl_surface_t *dest,
 			  qxl_surface_t *source)
 {
     if (source->id != 0)
-    {
-	/* ErrorF ("bad surface\n"); */
 	return FALSE;
-    }
-    
+
     dest->u.copy_src = source;
     return TRUE;
 }
