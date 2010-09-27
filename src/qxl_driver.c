@@ -560,7 +560,8 @@ submit_copy (qxl_screen_t *qxl, const struct qxl_rect *rect)
 	qxl, qxl_image_create (qxl, qxl->fb, rect->left, rect->top,
 			       rect->right - rect->left,
 			       rect->bottom - rect->top,
-			       pScrn->displayWidth * qxl->bytes_per_pixel), qxl->main_mem_slot);
+			       pScrn->displayWidth * qxl->bytes_per_pixel, qxl->bytes_per_pixel),
+	qxl->main_mem_slot);
     drawable->u.copy.src_area = *rect;
     translate_rect (&drawable->u.copy.src_area);
     drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
@@ -1028,7 +1029,7 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
     
     if (surface)
     {
-	ErrorF ("   Successfully created surface in video memory\n");
+	/* ErrorF ("   Successfully created surface in video memory\n"); */
 	
 	pixmap = fbCreatePixmap (screen, 0, 0, depth, usage);
 

@@ -12,9 +12,11 @@ struct qxl_surface_t
     RegionRec		access_region;
 
     void *		address;
+    void *		end;
     
     qxl_surface_t *	next;
     int			in_use;
+    int			Bpp;
 
     union
     {
@@ -143,6 +145,8 @@ qxl_surface_create_primary (qxl_screen_t	*qxl,
     surface->dev_image = dev_image;
     surface->host_image = host_image;
     surface->qxl = qxl;
+    surface->Bpp = PIXMAN_FORMAT_BPP (format) / 8;
+    
     REGION_INIT (NULL, &(surface->access_region), (BoxPtr)NULL, 0);
     
     return surface;
@@ -204,6 +208,12 @@ qxl_surface_create (qxl_screen_t *qxl,
 	return NULL;
     }
 
+    if (bpp == 8)
+      {
+	ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
+	return NULL;
+      }
+
     if (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 24)
     {
 	ErrorF ("   Unknown bpp\n");
@@ -233,24 +243,6 @@ retry:
 	return NULL;
     }
     
-    stride = width * bpp / 8;
-    stride = (stride + 3) & ~3;
-
-    surface->address = qxl_alloc (qxl->surf_mem, stride * height);
-#if 0
-    ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
-#endif
-
-    if (!surface->address)
-    {
-	ErrorF ("   Not enough vmem allocating %u\n", surface->id);
-
-	surface_free (surface);
-	return NULL;
-    }
-    
-    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_CREATE);
-
     switch (bpp)
     {
     case 8:
@@ -278,12 +270,37 @@ retry:
       break;
     }
 
+    stride = width * PIXMAN_FORMAT_BPP (pformat) / 8;
+    stride = (stride + 3) & ~3;
+
+    /* the final + stride is to work around a bug where the device apparently 
+     * scribbles after the end of the image
+     */
+    surface->address = qxl_alloc (qxl->surf_mem, stride * height + stride);
+    surface->end = surface->address + stride * height;
+#if 0
+    ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
+#endif
+
+    if (!surface->address)
+    {
+	ErrorF ("   Not enough vmem allocating %u\n", surface->id);
+
+	surface_free (surface);
+	return NULL;
+    }
+    
+    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_CREATE);
+
     cmd->u.surface_create.format = format;
     cmd->u.surface_create.width = width;
     cmd->u.surface_create.height = height;
     cmd->u.surface_create.stride = - stride;
-    cmd->u.surface_create.physical = physical_address (
-	qxl, surface->address, qxl->vram_mem_slot);
+
+    ErrorF ("stride: %d\n", stride);
+
+    cmd->u.surface_create.physical = 
+      physical_address (qxl, surface->address, qxl->vram_mem_slot);
 
 #if 0
     ErrorF ("create %d\n", cmd->surface_id);
@@ -298,6 +315,8 @@ retry:
 
     surface->host_image = pixman_image_create_bits (
 	pformat, width, height, NULL, -1);
+
+    surface->Bpp = PIXMAN_FORMAT_BPP (pformat) / 8;
     
 #if 0
     ErrorF ("   Allocating %d %lx\n", surface->id, surface->address);
@@ -410,26 +429,45 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     }
 }
 #endif
+    void sanity_check (struct qxl_mem *mem);
+
 
 static void
 download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
     struct qxl_ram_header *ram_header = get_ram_header (surface->qxl);
+    uint32_t before, after;
 
 #if 0
     ErrorF ("Downloading %d %d %d %d\n", x1, y1, x2 - x1, y2 - y1);
 #endif
+    sanity_check (surface->qxl->surf_mem);
+
+    before = *((uint32_t *)surface->address - 1);
     
     ram_header->update_area.top = y1;
     ram_header->update_area.bottom = y2;
     ram_header->update_area.left = x1;
     ram_header->update_area.right = x2;
     ram_header->update_surface = surface->id;
-    
+
     outb (surface->qxl->io_base + QXL_IO_UPDATE_AREA, 0);
     
+    after = *((uint32_t *)surface->address - 1);
+
+    if (surface->id != 0 && before != after)
+      abort();
+
+    sanity_check (surface->qxl->surf_mem);
+
+    pixman_color_t p = { 0xffff, 0x0000, 0xffff, 0xffff };
+    pixman_image_t *pink = pixman_image_create_solid_fill (&p);
+
+    pixman_image_composite (PIXMAN_OP_SRC, pink, NULL, surface->host_image,
+			    0, 0, 0, 0, x1, y1, x2 - x1, y2 - y1);
+
     pixman_image_composite (PIXMAN_OP_SRC,
-			    surface->dev_image,
+     			    surface->dev_image,
 			    NULL,
 			    surface->host_image,
 			    x1, y1, 0, 0, x1, y1, x2 - x1, y2 - y1);
@@ -445,6 +483,7 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
     BoxPtr boxes;
     ScreenPtr pScreen = pixmap->drawable.pScreen;
     RegionRec new;
+    int stride, height;
 
     REGION_INIT (NULL, &new, (BoxPtr)NULL, 0);
     REGION_SUBTRACT (NULL, &new, region, &surface->access_region);
@@ -456,6 +495,15 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
 
 #if 0
     ErrorF ("Preparing access to %d boxes\n", n_boxes);
+#endif
+
+    stride = pixman_image_get_stride (surface->dev_image);
+    height = pixman_image_get_height (surface->dev_image);
+
+#if 0
+    ErrorF ("Flattening %p -> %p  (allocated end %p)\n", 
+	    surface->address, 
+	    surface->address + stride * height, surface->end);
 #endif
 
     if (n_boxes < 25)
@@ -526,7 +574,7 @@ make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
     
     drawable->type = type;
     
-    drawable->surface_id = 0;		/* Only primary for now */
+    drawable->surface_id = surface;		/* Only primary for now */
     drawable->effect = QXL_EFFECT_OPAQUE;
     drawable->self_bitmap = 0;
     drawable->self_bitmap_area.top = 0;
@@ -621,10 +669,14 @@ upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     rect.bottom = y2;
     
 #if 0
-    /* Paint a green flash before uploading */
-    submit_fill (qxl, surface->id, &rect, 0xff00ff00);
 #endif
     
+    /* if (surface->id != 0) */
+    /* {  */
+    /* 	/\* Paint a green flash after uploading *\/ */
+    /* 	submit_fill (qxl, surface->id, &rect, rand()); */
+    /* } */
+
     drawable = make_drawable (qxl, surface->id, QXL_DRAW_COPY, &rect);
     drawable->u.copy.src_area = rect;
     translate_rect (&drawable->u.copy.src_area);
@@ -639,11 +691,18 @@ upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     stride = pixman_image_get_stride (surface->host_image);
     
     image = qxl_image_create (
-	qxl, (const uint8_t *)data, x1, y1, x2 - x1, y2 - y1, stride);
+	qxl, (const uint8_t *)data, x1, y1, x2 - x1, y2 - y1, stride, 
+	surface->Bpp);
     drawable->u.copy.src_bitmap =
 	physical_address (qxl, image, qxl->main_mem_slot);
     
     push_drawable (qxl, drawable);
+
+    /* if (surface->id != 0) */
+    /* {  */
+    /* 	/\* Paint a green flash after uploading *\/ */
+    /* 	submit_fill (qxl, surface->id, &rect, rand()); */
+    /* } */
 }
 
 void
@@ -687,6 +746,9 @@ Bool
 qxl_surface_prepare_solid (qxl_surface_t *destination,
 			   Pixel	  fg)
 {
+    if (destination->id != 0)
+	return FALSE;
+    
     destination->u.solid_pixel = fg;
     return TRUE;
 }
@@ -717,7 +779,7 @@ qxl_surface_prepare_copy (qxl_surface_t *dest,
 {
     if (source->id != 0)
     {
-	ErrorF ("bad surface\n");
+	/* ErrorF ("bad surface\n"); */
 	return FALSE;
     }
     

@@ -123,6 +123,24 @@ qxl_mem_dump_stats (struct qxl_mem *mem, const char *header)
 	     mem->n_bytes - (mem->total_allocated - mem->total_freed));
 }
 
+void
+sanity_check (struct qxl_mem *mem)
+{
+#if 0
+    struct block *b;
+
+    ErrorF ("sanity check\n");
+
+    for (b = mem->unused; b != NULL; b = b->u.unused.next)
+    {
+	ErrorF (" %p\n", b);
+
+	if (b == (void *)0xffffffffffffffff)
+	    abort();
+    }
+#endif
+}
+
 void *
 qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 {
@@ -190,6 +208,8 @@ qxl_alloc (struct qxl_mem *mem, unsigned long n_bytes)
 	    }
 
 	    mem->total_allocated += n_bytes;
+
+	    sanity_check (mem);
 	    
 	    return (void *)b->u.used.data;
 	}
@@ -276,6 +296,9 @@ qxl_free (struct qxl_mem *mem, void *d)
 #if 0
 	    printf ("  free: no merge with before\n");
 #endif
+
+	    if (b == (void *)0xffffffffffffffff)
+		abort();
 	    
 	    before->u.unused.next = b;
 	}
@@ -290,6 +313,9 @@ qxl_free (struct qxl_mem *mem, void *d)
     
     if (after)
     {
+	if (after == (void *)0xffffffffffffffff)
+	    abort();
+
 #if 0
 	printf ("  free: after: %p\n", after->u.used.data);
 #endif
@@ -320,4 +346,5 @@ qxl_free (struct qxl_mem *mem, void *d)
 #if 0
     qxl_mem_dump_stats (mem, "after free");
 #endif
+    sanity_check (mem);
 }

@@ -98,14 +98,14 @@ remove_image_info (image_info_t *info)
 struct qxl_image *
 qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
-		  int stride)
+		  int stride, int Bpp)
 {
     unsigned int hash;
     image_info_t *info;
 
-    data += y * stride + x * qxl->bytes_per_pixel;
+    data += y * stride + x * Bpp;
 
-    hash = hash_and_copy (data, stride, NULL, -1, qxl->bytes_per_pixel, width, height);
+    hash = hash_and_copy (data, stride, NULL, -1, Bpp, width, height);
 
     info = lookup_image_info (hash, width, height);
     if (info)
@@ -149,7 +149,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
     {
 	struct qxl_image *image;
 	struct qxl_data_chunk *chunk;
-	int dest_stride = width * qxl->bytes_per_pixel;
+	int dest_stride = width * Bpp;
 	image_info_t *info;
 
 #if 0
@@ -167,7 +167,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	
 	hash_and_copy (data, stride,
 		       chunk->data, dest_stride,
-		       qxl->bytes_per_pixel, width, height);
+		       Bpp, width, height);
 
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
@@ -179,19 +179,25 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	image->descriptor.width = width;
 	image->descriptor.height = height;
 
-	if (qxl->bytes_per_pixel == 2)
+	if (Bpp == 2)
 	{
 	    image->u.bitmap.format = QXL_BITMAP_FMT_16BIT;
 	}
-	else
+	else if (Bpp == 1)
+	{
+	    image->u.bitmap.format = QXL_BITMAP_FMT_8BIT;
+	}
+	else if (Bpp == 4)
 	{
 	    image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
 	}
+	else
+	  abort();
 
 	image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
 	image->u.bitmap.x = width;
 	image->u.bitmap.y = height;
-	image->u.bitmap.stride = width * qxl->bytes_per_pixel;
+	image->u.bitmap.stride = width * Bpp;
 	image->u.bitmap.palette = 0;
 	image->u.bitmap.data = physical_address (qxl, chunk, qxl->main_mem_slot);
 

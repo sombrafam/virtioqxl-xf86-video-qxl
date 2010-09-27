@@ -838,7 +838,8 @@ struct qxl_image *qxl_image_create     (qxl_screen_t           *qxl,
 					int                     y,
 					int                     width,
 					int                     height,
-					int                     stride);
+					int                     stride,
+					int                     Bpp);
 void              qxl_image_destroy    (qxl_screen_t           *qxl,
 					struct qxl_image       *image);
 void		  qxl_drop_image_cache (qxl_screen_t	       *qxl);
