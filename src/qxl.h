@@ -169,6 +169,10 @@ typedef enum {
     QXL_IMAGE_TYPE_LZ_RGB,
     QXL_IMAGE_TYPE_GLZ_RGB,
     QXL_IMAGE_TYPE_FROM_CACHE,
+    QXL_IMAGE_TYPE_SURFACE,
+    QXL_IMAGE_TYPE_JPEG,
+    QXL_IMAGE_TYPE_FROM_CACHE_LOSSLESS,
+    QXL_IMAGE_TYPE_JPEG_ALPHA
 } qxl_image_type;
 
 typedef enum {
@@ -238,6 +242,7 @@ struct qxl_image {
     union
     {
 	struct qxl_bitmap bitmap;
+        uint32_t surface_id;
     } u;
 };
 

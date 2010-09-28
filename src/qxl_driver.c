@@ -87,7 +87,15 @@ garbage_collect (qxl_screen_t *qxl)
 		struct qxl_image *image = virtual_address (
 		    qxl, u64_to_pointer (drawable->u.copy.src_bitmap), qxl->main_mem_slot);
 		
-		qxl_image_destroy (qxl, image);
+		if (image->descriptor.type == QXL_IMAGE_TYPE_SURFACE)
+		{
+		    qxl_surface_unref (image->u.surface_id);
+		    qxl_free (qxl->mem, image);
+		}
+		else
+		{
+		    qxl_image_destroy (qxl, image);
+		}
 	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {

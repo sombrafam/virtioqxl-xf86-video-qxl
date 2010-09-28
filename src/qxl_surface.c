@@ -17,6 +17,7 @@ struct qxl_surface_t
     qxl_surface_t *	next;
     int			in_use;
     int			Bpp;
+    int			ref_count;
 
     union
     {
@@ -82,6 +83,7 @@ surface_new (void)
 
     result->next = NULL;
     result->in_use = TRUE;
+    result->ref_count = 1;
     
     return result;
 }
@@ -197,7 +199,7 @@ qxl_surface_create (qxl_screen_t *qxl,
 
     if (++count < 200)
       return NULL;
-    
+
 #if 0
     ErrorF ("   qxl_surface: attempting to allocate %d x %d @ %d\n", width, height, bpp);
 #endif
@@ -236,6 +238,7 @@ retry:
 #if 0
     ErrorF ("    Surface allocated: %u\n", surface->id);
 #endif
+    ErrorF ("Allocated %d\n", surface->id);
     
     if (width == 0 || height == 0)
     {
@@ -334,28 +337,37 @@ qxl_surface_destroy (qxl_surface_t *surface)
     ErrorF ("About to free %d\n", surface->id);
 #endif
 
-    if (surface->dev_image)
-	pixman_image_unref (surface->dev_image);
-    if (surface->host_image)
-	pixman_image_unref (surface->host_image);
-
-    if (surface->id != 0)
+    if (--surface->ref_count == 0)
     {
-	struct qxl_surface_cmd *cmd;
+	if (surface->dev_image)
+	    pixman_image_unref (surface->dev_image);
+	if (surface->host_image)
+	    pixman_image_unref (surface->host_image);
+	
+	if (surface->id != 0)
+	{
+	    struct qxl_surface_cmd *cmd;
 #if 0
-	ErrorF ("%d free address %lx from %p\n", surface->id, surface->address, surface->qxl->surf_mem);
+	    ErrorF ("%d free address %lx from %p\n", surface->id, surface->address, surface->qxl->surf_mem);
 #endif
-	cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
-
+	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
+	    
 #if 0
-	ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
+	    ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
 #endif
-#if 0
-	ErrorF ("destroy %d\n", cmd->surface_id);
-#endif
-    
-	push_surface_cmd (qxl, cmd);
+	    ErrorF ("destroy %d\n", cmd->surface_id);
+	    
+	    push_surface_cmd (qxl, cmd);
+	}
     }
+}
+
+void
+qxl_surface_unref (uint32_t id)
+{
+    qxl_surface_t *surface = all_surfaces + id;
+
+    qxl_surface_destroy (surface);
 }
 
 void
@@ -363,9 +375,7 @@ qxl_surface_recycle (uint32_t id)
 {
     qxl_surface_t *surface = all_surfaces + id;
 
-#if 0
     ErrorF ("recycle %d\n", id);
-#endif
     
     qxl_free (surface->qxl->surf_mem, surface->address);
     surface_free (surface);
@@ -746,7 +756,7 @@ Bool
 qxl_surface_prepare_solid (qxl_surface_t *destination,
 			   Pixel	  fg)
 {
-    destination->u.solid_pixel = fg ^ (rand() >> 16);
+    destination->u.solid_pixel = fg; //  ^ (rand() >> 16);
 
     return TRUE;
 }
@@ -775,9 +785,6 @@ Bool
 qxl_surface_prepare_copy (qxl_surface_t *dest,
 			  qxl_surface_t *source)
 {
-    if (source->id != 0)
-	return FALSE;
-
     dest->u.copy_src = source;
     return TRUE;
 }
@@ -797,13 +804,44 @@ qxl_surface_copy (qxl_surface_t *dest,
     qrect.left = dest_x1;
     qrect.right = dest_x1 + width;
     
+    if (dest->id == dest->u.copy_src->id)
+    {
 /* 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n", */
 /* 		    b->x1, b->y1, b->x2, b->y2, */
 /* 		    dx, dy, dst_xoff, dst_yoff); */
+	
+	drawable = make_drawable (qxl, dest->id, QXL_COPY_BITS, &qrect);
+	drawable->u.copy_bits.src_pos.x = src_x1;
+	drawable->u.copy_bits.src_pos.y = src_y1;
+    }
+    else
+    {
+	struct qxl_image *image = qxl_allocnf (qxl, sizeof *image);
+
+	ErrorF ("Copy  %d to %d\n", dest->u.copy_src->id, dest->id);
+
+	dest->u.copy_src->ref_count++;
     
-    drawable = make_drawable (qxl, dest->id, QXL_COPY_BITS, &qrect);
-    drawable->u.copy_bits.src_pos.x = src_x1;
-    drawable->u.copy_bits.src_pos.y = src_y1;
-    
+	image->descriptor.id = 0;
+	image->descriptor.type = QXL_IMAGE_TYPE_SURFACE;
+	image->descriptor.width = 0;
+	image->descriptor.height = 0;
+	image->u.surface_id = dest->u.copy_src->id;
+
+	drawable = make_drawable (qxl, dest->id, QXL_DRAW_COPY, &qrect);
+
+	drawable->u.copy.src_bitmap = physical_address (qxl, image, qxl->main_mem_slot);
+	drawable->u.copy.src_area.left = src_x1;
+	drawable->u.copy.src_area.top = src_y1;
+	drawable->u.copy.src_area.right = src_x1 + width;
+	drawable->u.copy.src_area.bottom = src_y1 + height;
+	drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
+	drawable->u.copy.scale_mode = 0;
+	drawable->u.copy.mask.flags = 0;
+	drawable->u.copy.mask.pos.x = 0;
+	drawable->u.copy.mask.pos.y = 0;
+	drawable->u.copy.mask.bitmap = 0;
+    }
+
     push_drawable (qxl, drawable);
 }
