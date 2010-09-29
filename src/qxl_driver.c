@@ -172,6 +172,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	}
 	else if (++n_attempts == 1000)
 	{
+	    ErrorF ("Out of memory allocating %ld bytes\n", size);
 	    qxl_mem_dump_stats (qxl->mem, "Out of mem - stats\n");
 	    
 	    fprintf (stderr, "Out of memory\n");

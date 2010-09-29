@@ -212,10 +212,16 @@ qxl_surface_create (qxl_screen_t *qxl,
 
     if (bpp == 8)
       {
-	ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
+	static int warned = 10;
+	if (warned > 0)
+	{
+	    warned--;
+	    ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
+	}
+	
 	return NULL;
       }
-
+    
     if (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 24)
     {
 	ErrorF ("   Unknown bpp\n");
@@ -237,8 +243,8 @@ retry:
 
 #if 0
     ErrorF ("    Surface allocated: %u\n", surface->id);
-#endif
     ErrorF ("Allocated %d\n", surface->id);
+#endif
     
     if (width == 0 || height == 0)
     {
@@ -287,7 +293,8 @@ retry:
 
     if (!surface->address)
     {
-	ErrorF ("   Not enough vmem allocating %u\n", surface->id);
+	ErrorF ("   Not enough vmem allocating %u  (need %lu)\n", 
+		surface->id, stride * height + stride);
 
 	surface_free (surface);
 	return NULL;
@@ -300,7 +307,9 @@ retry:
     cmd->u.surface_create.height = height;
     cmd->u.surface_create.stride = - stride;
 
+#if 0
     ErrorF ("stride: %d\n", stride);
+#endif
 
     cmd->u.surface_create.physical = 
       physical_address (qxl, surface->address, qxl->vram_mem_slot);
@@ -354,8 +363,8 @@ qxl_surface_destroy (qxl_surface_t *surface)
 	    
 #if 0
 	    ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
-#endif
 	    ErrorF ("destroy %d\n", cmd->surface_id);
+#endif
 	    
 	    push_surface_cmd (qxl, cmd);
 	}
@@ -375,7 +384,9 @@ qxl_surface_recycle (uint32_t id)
 {
     qxl_surface_t *surface = all_surfaces + id;
 
+#if 0
     ErrorF ("recycle %d\n", id);
+#endif
     
     qxl_free (surface->qxl->surf_mem, surface->address);
     surface_free (surface);
@@ -818,7 +829,9 @@ qxl_surface_copy (qxl_surface_t *dest,
     {
 	struct qxl_image *image = qxl_allocnf (qxl, sizeof *image);
 
+#if 0
 	ErrorF ("Copy  %d to %d\n", dest->u.copy_src->id, dest->id);
+#endif
 
 	dest->u.copy_src->ref_count++;
     
