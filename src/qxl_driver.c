@@ -105,10 +105,12 @@ garbage_collect (qxl_screen_t *qxl)
 	    id = info->next;
 	    
 	    qxl_free (qxl->mem, info);
+
+	    ++i;
 	}
     }
     
-    return i > 0;
+    return i;
 }
 
 static void
@@ -144,20 +146,18 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
     static int nth_oom = 1;
 #endif
     
-    garbage_collect (qxl);
-    
     while (!(result = qxl_alloc (qxl->mem, size)))
     {
-	struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
-						     qxl->rom->ram_header_offset);
-	
+	struct qxl_ram_header *ram_header = (void *)(
+	    (unsigned long)qxl->ram + qxl->rom->ram_header_offset);
+    
 	/* Rather than go out of memory, we simply tell the
 	 * device to dump everything
 	 */
 	ram_header->update_area.top = 0;
-	ram_header->update_area.bottom = 1280;
+	ram_header->update_area.bottom = qxl->virtual_y;
 	ram_header->update_area.left = 0;
-	ram_header->update_area.right = 800;
+	ram_header->update_area.right = qxl->virtual_x;
 	ram_header->update_surface = 0;		/* Only primary for now */
 	
 	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);

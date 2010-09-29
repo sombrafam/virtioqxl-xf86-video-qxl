@@ -45,6 +45,22 @@ qxl_surface_free_all (qxl_screen_t *qxl)
 #endif
 
 void
+qxl_surface_flatten_all (qxl_screen_t *qxl)
+{
+    int i;
+
+#if 0
+    for (i = 0; i < qxl->rom->n_surface; ++i)
+    {
+	qxl_surface_t *surface = &(all_surfaces[i]);
+
+	
+    }
+#endif
+
+}
+
+void
 qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
 {
     int i;
@@ -196,6 +212,7 @@ qxl_surface_create (qxl_screen_t *qxl,
     int stride;
     uint32_t *dev_addr;
     static int count;
+    int n_attempts = 0;
 
     if (++count < 200)
       return NULL;
@@ -285,20 +302,25 @@ retry:
     /* the final + stride is to work around a bug where the device apparently 
      * scribbles after the end of the image
      */
+retry2:
     surface->address = qxl_alloc (qxl->surf_mem, stride * height + stride);
+
+    if (!surface->address)
+    {
+	ErrorF ("- %dth attempt\n", n_attempts);
+
+	if (qxl_handle_oom (qxl) && ++n_attempts < 30000)
+	    goto retry2;
+
+	ErrorF ("Out of video memory: Could not allocate %lu bytes\n", stride * height + stride);
+	
+	return NULL;
+    }
+
     surface->end = surface->address + stride * height;
 #if 0
     ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
 #endif
-
-    if (!surface->address)
-    {
-	ErrorF ("   Not enough vmem allocating %u  (need %lu)\n", 
-		surface->id, stride * height + stride);
-
-	surface_free (surface);
-	return NULL;
-    }
     
     cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_CREATE);
 
@@ -384,9 +406,7 @@ qxl_surface_recycle (uint32_t id)
 {
     qxl_surface_t *surface = all_surfaces + id;
 
-#if 0
     ErrorF ("recycle %d\n", id);
-#endif
     
     qxl_free (surface->qxl->surf_mem, surface->address);
     surface_free (surface);
@@ -450,8 +470,6 @@ download_box (qxl_screen_t *qxl, uint8_t *host,
     }
 }
 #endif
-    void sanity_check (struct qxl_mem *mem);
-
 
 static void
 download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
@@ -462,8 +480,6 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 #if 0
     ErrorF ("Downloading %d %d %d %d\n", x1, y1, x2 - x1, y2 - y1);
 #endif
-    sanity_check (surface->qxl->surf_mem);
-
     before = *((uint32_t *)surface->address - 1);
     
     ram_header->update_area.top = y1;
@@ -478,8 +494,6 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 
     if (surface->id != 0 && before != after)
       abort();
-
-    sanity_check (surface->qxl->surf_mem);
 
     pixman_color_t p = { 0xffff, 0x0000, 0xffff, 0xffff };
     pixman_image_t *pink = pixman_image_create_solid_fill (&p);

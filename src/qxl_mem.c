@@ -1,3 +1,66 @@
+#include "qxl.h"
+#include "mspace.h"
+
+struct qxl_mem
+{
+    mspace	space;
+    void *	base;
+    unsigned long n_bytes;
+};
+
+struct qxl_mem *
+qxl_mem_create       (void                   *base,
+		      unsigned long           n_bytes)
+{
+    struct qxl_mem *mem;
+
+    mem = calloc (sizeof (*mem), 1);
+    if (!mem)
+	goto out;
+
+    ErrorF ("memory space from %p to %p\n", base, base + n_bytes);
+
+    mem->space = create_mspace_with_base (base, n_bytes, 0, NULL);
+    
+    mem->base = base;
+    mem->n_bytes = n_bytes;
+
+out:
+    return mem;
+
+}
+
+void
+qxl_mem_dump_stats   (struct qxl_mem         *mem,
+		      const char             *header)
+{
+    ErrorF ("%s\n", header);
+    
+    mspace_malloc_stats (mem->space);
+}
+
+void *
+qxl_alloc            (struct qxl_mem         *mem,
+		      unsigned long           n_bytes)
+{
+    return mspace_malloc (mem->space, n_bytes);
+}
+
+void
+qxl_free             (struct qxl_mem         *mem,
+		      void                   *d)
+{
+    mspace_free (mem->space, d);
+}
+
+void
+qxl_mem_free_all     (struct qxl_mem         *mem)
+{
+    mem->space = create_mspace_with_base (mem->base, mem->n_bytes, 0, NULL);
+}
+
+#if 0
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -348,3 +411,6 @@ qxl_free (struct qxl_mem *mem, void *d)
 #endif
     sanity_check (mem);
 }
+
+
+#endif
