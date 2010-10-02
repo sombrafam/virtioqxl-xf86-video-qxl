@@ -95,11 +95,11 @@ surface_new (void)
     {
 	result = free_surfaces;
 	free_surfaces = free_surfaces->next;
-    }
 
-    result->next = NULL;
-    result->in_use = TRUE;
-    result->ref_count = 1;
+	result->next = NULL;
+	result->in_use = TRUE;
+	result->ref_count = 1;
+    }
     
     return result;
 }
@@ -336,9 +336,7 @@ retry2:
     cmd->u.surface_create.physical = 
       physical_address (qxl, surface->address, qxl->vram_mem_slot);
 
-#if 0
     ErrorF ("create %d\n", cmd->surface_id);
-#endif
     
     push_surface_cmd (qxl, cmd);
 
@@ -383,10 +381,8 @@ qxl_surface_destroy (qxl_surface_t *surface)
 #endif
 	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
 	    
-#if 0
 	    ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
 	    ErrorF ("destroy %d\n", cmd->surface_id);
-#endif
 	    
 	    push_surface_cmd (qxl, cmd);
 	}
@@ -800,6 +796,8 @@ qxl_surface_solid (qxl_surface_t *destination,
     qrect.bottom = y2;
     qrect.left = x1;
     qrect.right = x2;
+
+    ErrorF ("Fill: %d\n", destination->id);
     
     submit_fill (qxl, destination->id, &qrect, destination->u.solid_pixel);
 }
