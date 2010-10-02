@@ -67,7 +67,13 @@ qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
 
     if (!all_surfaces)
 	all_surfaces = calloc (n_surfaces, sizeof (qxl_surface_t));
+    else
+	memset (all_surfaces, 0, n_surfaces * sizeof (qxl_surface_t));
 
+    free_surfaces = NULL;
+    
+    ErrorF ("surface init\n");
+    
     for (i = 0; i < n_surfaces; ++i)
     {
 	all_surfaces[i].id = i;
@@ -99,6 +105,15 @@ surface_new (void)
 	result->next = NULL;
 	result->in_use = TRUE;
 	result->ref_count = 1;
+
+	qxl_surface_t *s;
+	for (s = free_surfaces; s; s = s->next)
+	{
+	    if (s->id == result->id)
+		ErrorF ("huh: %d to be returned, but %d is in list\n", s->id, result->id);
+
+	    assert (s->id != result->id);
+	}
     }
     
     return result;
@@ -107,6 +122,8 @@ surface_new (void)
 static void
 surface_free (qxl_surface_t *surface)
 {
+    ErrorF ("  Adding %d to free list\n", surface->id);
+    
     surface->next = free_surfaces;
     free_surfaces = surface;
 }
@@ -317,6 +334,10 @@ retry2:
 	return NULL;
     }
 
+#if 0
+    ErrorF ("Allocated %p\n", surface->address);
+#endif
+    
     surface->end = surface->address + stride * height;
 #if 0
     ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
@@ -336,8 +357,10 @@ retry2:
     cmd->u.surface_create.physical = 
       physical_address (qxl, surface->address, qxl->vram_mem_slot);
 
+#if 0
     ErrorF ("create %d\n", cmd->surface_id);
-    
+#endif
+
     push_surface_cmd (qxl, cmd);
 
     dev_addr = (uint32_t *)((uint8_t *)surface->address + stride * (height - 1));
@@ -381,8 +404,10 @@ qxl_surface_destroy (qxl_surface_t *surface)
 #endif
 	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
 	    
+#if 0
 	    ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
 	    ErrorF ("destroy %d\n", cmd->surface_id);
+#endif
 	    
 	    push_surface_cmd (qxl, cmd);
 	}
@@ -403,7 +428,8 @@ qxl_surface_recycle (uint32_t id)
     qxl_surface_t *surface = all_surfaces + id;
 
     ErrorF ("recycle %d\n", id);
-    
+
+    ErrorF ("freeing %p\n", surface->address);
     qxl_free (surface->qxl->surf_mem, surface->address);
     surface_free (surface);
 }
@@ -797,8 +823,6 @@ qxl_surface_solid (qxl_surface_t *destination,
     qrect.left = x1;
     qrect.right = x2;
 
-    ErrorF ("Fill: %d\n", destination->id);
-    
     submit_fill (qxl, destination->id, &qrect, destination->u.solid_pixel);
 }
 

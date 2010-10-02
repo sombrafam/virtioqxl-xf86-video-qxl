@@ -104,6 +104,8 @@ garbage_collect (qxl_screen_t *qxl)
 	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
+		ErrorF ("handling destroy command %p\n", surface_cmd);
+		
 		qxl_surface_recycle (surface_cmd->surface_id);
 	    }
 	    
