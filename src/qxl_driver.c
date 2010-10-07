@@ -1516,6 +1516,8 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     qxl_screen_t *qxl = NULL;
     ClockRangePtr clockRanges = NULL;
     int *linePitches = NULL;
+    DisplayModePtr mode;
+    unsigned int max_x = 0, max_y = 0;
     
     CHECK_POINT();
     
@@ -1572,20 +1574,34 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
 	pScrn->monitor->nVrefresh = 1;
     }
     
-    if (pScrn->display->virtualX == 0 && pScrn->display->virtualY == 0) {
-    	pScrn->display->virtualX = 1024;
-    	pScrn->display->virtualY = 768;
-    }
-    
     /* Add any modes not in xorg's default mode list */
     for (i = 0; i < qxl->num_modes; i++)
-        if (qxl->modes[i].orientation == 0)
+        if (qxl->modes[i].orientation == 0) {
             qxl_add_mode(pScrn, qxl->modes[i].x_res, qxl->modes[i].y_res,
                          M_T_DRIVER);
+            if (qxl->modes[i].x_res > max_x)
+                max_x = qxl->modes[i].x_res;
+            if (qxl->modes[i].y_res > max_y)
+                max_y = qxl->modes[i].y_res;
+        }
+
+    if (pScrn->display->virtualX == 0 && pScrn->display->virtualY == 0) {
+        /* It is possible for the largest x + largest y size combined leading
+           to a virtual size which will not fit into the framebuffer when this
+           happens we prefer max width and make height as large as possible */
+        if (max_x * max_y * (pScrn->bitsPerPixel / 8) >
+                qxl->rom->surface0_area_size)
+            pScrn->display->virtualY = qxl->rom->surface0_area_size /
+                                       (max_x * (pScrn->bitsPerPixel / 8));
+        else
+            pScrn->display->virtualY = max_y;
+
+    	pScrn->display->virtualX = max_x;
+    }
 
     if (0 >= xf86ValidateModes(pScrn, pScrn->monitor->Modes,
 			       pScrn->display->modes, clockRanges, linePitches,
-			       128, 2048, 128 * 4, 128, 2048,
+			       128, max_x, 128 * 4, 128, max_y,
 			       pScrn->display->virtualX,
 			       pScrn->display->virtualY,
 			       128 * 1024 * 1024, LOOKUP_BEST_REFRESH))
@@ -1595,6 +1611,14 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     xf86PruneDriverModes(pScrn);
     pScrn->currentMode = pScrn->modes;
+    /* If no modes are specified in xorg.conf, default to 1024x768 */
+    if (pScrn->display->modes == NULL || pScrn->display->modes[0] == NULL)
+        for (mode = pScrn->modes; mode; mode = mode->next)
+            if (mode->HDisplay == 1024 && mode->VDisplay == 768) {
+                pScrn->currentMode = mode;
+                break;
+            }
+
     xf86PrintModes(pScrn);
     xf86SetDpi(pScrn, 0, 0);
     
