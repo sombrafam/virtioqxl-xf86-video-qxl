@@ -1481,10 +1481,38 @@ qxl_valid_mode(int scrn, DisplayModePtr p, Bool flag, int pass)
     return MODE_OK;
 }
 
+static void qxl_add_mode(ScrnInfoPtr pScrn, int width, int height, int type)
+{
+    DisplayModePtr mode;
+
+    /* Skip already present modes */
+    for (mode = pScrn->monitor->Modes; mode; mode = mode->next)
+        if (mode->HDisplay == width && mode->VDisplay == height)
+            return;
+
+    mode = xnfcalloc(1, sizeof(DisplayModeRec));
+
+    mode->status = MODE_OK;
+    mode->type = type;
+    mode->HDisplay   = width;
+    mode->HSyncStart = (width * 105 / 100 + 7) & ~7;
+    mode->HSyncEnd   = (width * 115 / 100 + 7) & ~7;
+    mode->HTotal     = (width * 130 / 100 + 7) & ~7;
+    mode->VDisplay   = height;
+    mode->VSyncStart = height + 1;
+    mode->VSyncEnd   = height + 4;
+    mode->VTotal     = height * 1035 / 1000;
+    mode->Clock = mode->HTotal * mode->VTotal * 60 / 1000;
+    mode->Flags = V_NHSYNC | V_PVSYNC;
+
+    xf86SetModeDefaultName(mode);
+    xf86ModesAdd(pScrn->monitor->Modes, mode);
+}
+
 static Bool
 qxl_pre_init(ScrnInfoPtr pScrn, int flags)
 {
-    int scrnIndex = pScrn->scrnIndex;
+    int i, scrnIndex = pScrn->scrnIndex;
     qxl_screen_t *qxl = NULL;
     ClockRangePtr clockRanges = NULL;
     int *linePitches = NULL;
@@ -1526,7 +1554,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     clockRanges = xnfcalloc(sizeof(ClockRange), 1);
     clockRanges->next = NULL;
     clockRanges->minClock = 10000;
-    clockRanges->maxClock = 165000;
+    clockRanges->maxClock = 400000;
     clockRanges->clockIndex = -1;
     clockRanges->interlaceAllowed = clockRanges->doubleScanAllowed = 0;
     clockRanges->ClockMulFactor = clockRanges->ClockDivFactor = 1;
@@ -1534,13 +1562,13 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     /* override QXL monitor stuff */
     if (pScrn->monitor->nHsync <= 0) {
-	pScrn->monitor->hsync[0].lo = 31.5;
-	pScrn->monitor->hsync[0].hi = 80.0;
+	pScrn->monitor->hsync[0].lo =  29.0;
+	pScrn->monitor->hsync[0].hi = 160.0;
 	pScrn->monitor->nHsync = 1;
     }
     if (pScrn->monitor->nVrefresh <= 0) {
 	pScrn->monitor->vrefresh[0].lo = 50;
-	pScrn->monitor->vrefresh[0].hi = 70;
+	pScrn->monitor->vrefresh[0].hi = 75;
 	pScrn->monitor->nVrefresh = 1;
     }
     
@@ -1549,6 +1577,12 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     	pScrn->display->virtualY = 768;
     }
     
+    /* Add any modes not in xorg's default mode list */
+    for (i = 0; i < qxl->num_modes; i++)
+        if (qxl->modes[i].orientation == 0)
+            qxl_add_mode(pScrn, qxl->modes[i].x_res, qxl->modes[i].y_res,
+                         M_T_DRIVER);
+
     if (0 >= xf86ValidateModes(pScrn, pScrn->monitor->Modes,
 			       pScrn->display->modes, clockRanges, linePitches,
 			       128, 2048, 128 * 4, 128, 2048,
