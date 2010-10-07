@@ -36,9 +36,6 @@
 #include "qxl.h"
 #include "assert.h"
 
-#define qxl_save_state(x) do { (void)x; } while (0)
-#define qxl_restore_state(x) do { (void)x; } while (0)
-
 #if 0
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
 #endif
@@ -292,6 +289,22 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
     return TRUE;
 }
 
+static void
+qxl_save_state(ScrnInfoPtr pScrn)
+{
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+
+    vgaHWSaveFonts(pScrn, &qxl->vgaRegs);
+}
+
+static void
+qxl_restore_state(ScrnInfoPtr pScrn)
+{
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+
+    vgaHWRestoreFonts(pScrn, &qxl->vgaRegs);
+}
+
 static Bool
 qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
 {
@@ -299,8 +312,10 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     qxl_screen_t *qxl = pScrn->driverPrivate;
     Bool result;
     
-    if (pScrn->vtSema)
+    if (pScrn->vtSema) {
+        qxl_restore_state(pScrn);
 	qxl_unmap_memory(qxl, scrnIndex);
+    }
     pScrn->vtSema = FALSE;
 
     ErrorF ("Freeing %p\n", qxl->fb);
@@ -1191,7 +1206,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     printf ("ram_header at %d\n", qxl->rom->ram_header_offset);
     printf ("surf0 size: %d\n", qxl->rom->surface0_area_size);
     
-    qxl_save_state(qxl);
+    qxl_save_state(pScrn);
     qxl_blank_screen(pScreen, SCREEN_SAVER_ON);
     
     miClearVisualTypes();
@@ -1309,20 +1324,19 @@ static Bool
 qxl_enter_vt(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
     
-    qxl_save_state(qxl);
-    
+    qxl_save_state(pScrn);
     qxl_switch_mode(scrnIndex, pScrn->currentMode, 0);
+
     return TRUE;
 }
 
 static void
 qxl_leave_vt(int scrnIndex, int flags)
 {
-    qxl_screen_t *qxl = xf86Screens[scrnIndex]->driverPrivate;
+    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     
-    qxl_restore_state(qxl);
+    qxl_restore_state(pScrn);
 }
 
 static Bool
@@ -1623,13 +1637,18 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     xf86SetDpi(pScrn, 0, 0);
     
     if (!xf86LoadSubModule(pScrn, "fb") ||
-	!xf86LoadSubModule(pScrn, "ramdac"))
+	!xf86LoadSubModule(pScrn, "ramdac") ||
+	!xf86LoadSubModule(pScrn, "vgahw"))
     {
 	goto out;
     }
     
     print_modes (qxl, scrnIndex);
     
+    /* VGA hardware initialisation */
+    if (!vgaHWGetHWRec(pScrn))
+        return FALSE;
+
     /* hate */
     qxl_unmap_memory(qxl, scrnIndex);
     

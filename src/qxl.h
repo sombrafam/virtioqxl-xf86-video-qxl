@@ -40,6 +40,7 @@
 #endif
 #include "fb.h"
 #include "uxa/uxa.h"
+#include "vgaHW.h"
 
 #define hidden _X_HIDDEN
 
@@ -664,6 +665,7 @@ struct _qxl_screen_t
     pciVideoPtr			pci;
     PCITAG			pci_tag;
 #endif
+    vgaRegRec                   vgaRegs;
 
     uxa_driver_t *		uxa;
     
