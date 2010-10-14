@@ -45,22 +45,6 @@ qxl_surface_free_all (qxl_screen_t *qxl)
 #endif
 
 void
-qxl_surface_flatten_all (qxl_screen_t *qxl)
-{
-    int i;
-
-#if 0
-    for (i = 0; i < qxl->rom->n_surface; ++i)
-    {
-	qxl_surface_t *surface = &(all_surfaces[i]);
-
-	
-    }
-#endif
-
-}
-
-void
 qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
 {
     int i;
@@ -72,7 +56,9 @@ qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
 
     free_surfaces = NULL;
     
+#if 0
     ErrorF ("surface init\n");
+#endif
     
     for (i = 0; i < n_surfaces; ++i)
     {
@@ -110,19 +96,22 @@ surface_new (void)
 	for (s = free_surfaces; s; s = s->next)
 	{
 	    if (s->id == result->id)
-		ErrorF ("huh: %d to be returned, but %d is in list\n", s->id, result->id);
+		ErrorF ("huh: %d to be returned, but %d is in list\n",
+			s->id, result->id);
 
 	    assert (s->id != result->id);
 	}
     }
-    
+
     return result;
 }
 
 static void
 surface_free (qxl_surface_t *surface)
 {
+#if 0
     ErrorF ("  Adding %d to free list\n", surface->id);
+#endif
     
     surface->next = free_surfaces;
     free_surfaces = surface;
@@ -181,6 +170,10 @@ qxl_surface_create_primary (qxl_screen_t	*qxl,
     surface->host_image = host_image;
     surface->qxl = qxl;
     surface->Bpp = PIXMAN_FORMAT_BPP (format) / 8;
+
+#if 0
+    ErrorF ("primary %p\n", surface->address);
+#endif
     
     REGION_INIT (NULL, &(surface->access_region), (BoxPtr)NULL, 0);
     
@@ -214,6 +207,104 @@ push_surface_cmd (qxl_screen_t *qxl, struct qxl_surface_cmd *cmd)
 	
 	qxl_ring_push (qxl->command_ring, &command);
     }
+}
+
+enum ROPDescriptor
+{
+    ROPD_INVERS_SRC = (1 << 0),
+    ROPD_INVERS_BRUSH = (1 << 1),
+    ROPD_INVERS_DEST = (1 << 2),
+    ROPD_OP_PUT = (1 << 3),
+    ROPD_OP_OR = (1 << 4),
+    ROPD_OP_AND = (1 << 5),
+    ROPD_OP_XOR = (1 << 6),
+    ROPD_OP_BLACKNESS = (1 << 7),
+    ROPD_OP_WHITENESS = (1 << 8),
+    ROPD_OP_INVERS = (1 << 9),
+    ROPD_INVERS_RES = (1 <<10),
+};
+
+static struct qxl_drawable *
+make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
+	       const struct qxl_rect *rect
+	       /* , pRegion clip */)
+{
+    struct qxl_drawable *drawable;
+    int i;
+    
+    drawable = qxl_allocnf (qxl, sizeof *drawable);
+    
+    drawable->release_info.id = pointer_to_u64 (drawable);
+    
+    drawable->type = type;
+    
+    drawable->surface_id = surface;		/* Only primary for now */
+    drawable->effect = QXL_EFFECT_OPAQUE;
+    drawable->self_bitmap = 0;
+    drawable->self_bitmap_area.top = 0;
+    drawable->self_bitmap_area.left = 0;
+    drawable->self_bitmap_area.bottom = 0;
+    drawable->self_bitmap_area.right = 0;
+    /* FIXME: add clipping */
+    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+    
+    /*
+     * surfaces_dest[i] should apparently be filled out with the
+     * surfaces that we depend on, and surface_rects should be
+     * filled with the rectangles of those surfaces that we
+     * are going to use.
+     */
+    for (i = 0; i < 3; ++i)
+	drawable->surfaces_dest[i] = -1;
+    
+    if (rect)
+	drawable->bbox = *rect;
+    
+    drawable->mm_time = qxl->rom->mm_clock;
+    
+    return drawable;
+}
+
+static void
+push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
+{
+    struct qxl_command cmd;
+    
+    /* When someone runs "init 3", the device will be 
+     * switched into VGA mode and there is nothing we
+     * can do about it. We get no notification.
+     * 
+     * However, if commands are submitted when the device
+     * is in VGA mode, they will be queued up, and then
+     * the next time a mode set set, an assertion in the
+     * device will take down the entire virtual machine.
+     */
+    if (!in_vga_mode (qxl))
+    {
+	cmd.type = QXL_CMD_DRAW;
+	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
+	
+	qxl_ring_push (qxl->command_ring, &cmd);
+    }
+}
+
+static void
+submit_fill (qxl_screen_t *qxl, int id,
+	     const struct qxl_rect *rect, uint32_t color)
+{
+    struct qxl_drawable *drawable;
+    
+    drawable = make_drawable (qxl, id, QXL_DRAW_FILL, rect);
+    
+    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
+    drawable->u.fill.brush.u.color = color;
+    drawable->u.fill.rop_descriptor = ROPD_OP_PUT;
+    drawable->u.fill.mask.flags = 0;
+    drawable->u.fill.mask.pos.x = 0;
+    drawable->u.fill.mask.pos.y = 0;
+    drawable->u.fill.mask.bitmap = 0;
+    
+    push_drawable (qxl, drawable);
 }
 
 qxl_surface_t *
@@ -275,6 +366,13 @@ retry:
 	    goto retry;
     }
 
+    struct qxl_rect rect;
+
+    rect.left = 0;
+    rect.right = width;
+    rect.top = 0;
+    rect.bottom = height;
+    
 #if 0
     ErrorF ("    Surface allocated: %u\n", surface->id);
     ErrorF ("Allocated %d\n", surface->id);
@@ -363,6 +461,14 @@ retry2:
 
     push_surface_cmd (qxl, cmd);
 
+#if 0
+    static uint32_t color = 0x00ff00ff;
+
+    color = (color << 8) | (color >> 24);
+    
+    submit_fill (qxl, surface->id, &rect, color);
+#endif
+    
     dev_addr = (uint32_t *)((uint8_t *)surface->address + stride * (height - 1));
 
     surface->dev_image = pixman_image_create_bits (
@@ -427,9 +533,13 @@ qxl_surface_recycle (uint32_t id)
 {
     qxl_surface_t *surface = all_surfaces + id;
 
+#if 0
     ErrorF ("recycle %d\n", id);
+#endif
 
+#if 0
     ErrorF ("freeing %p\n", surface->address);
+#endif
     qxl_free (surface->qxl->surf_mem, surface->address);
     surface_free (surface);
 }
@@ -443,56 +553,6 @@ qxl_surface_flush (qxl_surface_t *surface)
 
 
 /* access */
-#if 0
-static void
-download_box (qxl_screen_t *qxl, uint8_t *host,
-	      int x1, int y1, int x2, int y2)
-{
-    struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram +
-						 qxl->rom->ram_header_offset);
-    int stride = - qxl->current_mode->stride;
-    int Bpp = qxl->current_mode->bits / 8;
-    uint8_t *host_line;
-    uint8_t *dev_line;
-    int height = y2 - y1;
-    
-#if 0
-    ErrorF ("Downloading %d %d %d %d\n", x1, y1, x2, y2);
-#endif
-    
-    ram_header->update_area.top = y1;
-    ram_header->update_area.bottom = y2;
-    ram_header->update_area.left = x1;
-    ram_header->update_area.right = x2;
-    ram_header->update_surface = 0;		/* Only primary for now */
-    
-    outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
-    
-    dev_line = ((uint8_t *)qxl->ram) +
-	(qxl->current_mode->y_res - 1) * (-stride) +	/* top of frame buffer */
-	y1 * stride +					/* first line */
-	x1 * Bpp;
-    host_line = host + y1 * stride + x1 * Bpp;
-    
-#if 0
-    ErrorF ("stride: %d\n", stride);
-#endif
-    
-    while (height--)
-    {
-	uint8_t *h = host_line;
-	uint8_t *d = dev_line;
-	int w = (x2 - x1) * Bpp;
-	
-	host_line += stride;
-	dev_line += stride;
-	
-	while (w--)
-	    *h++ = *d++;
-    }
-}
-#endif
-
 static void
 download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
@@ -500,28 +560,50 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     uint32_t before, after;
 
 #if 0
-    ErrorF ("Downloading %d %d %d %d\n", x1, y1, x2 - x1, y2 - y1);
-#endif
+    ErrorF ("Downloading %d:  %d %d %d %d %p\n", surface->id, x1, y1, x2 - x1, y2 - y1, surface->address);
+
     before = *((uint32_t *)surface->address - 1);
+#endif
     
     ram_header->update_area.top = y1;
     ram_header->update_area.bottom = y2;
     ram_header->update_area.left = x1;
     ram_header->update_area.right = x2;
+    
     ram_header->update_surface = surface->id;
 
     outb (surface->qxl->io_base + QXL_IO_UPDATE_AREA, 0);
-    
-    after = *((uint32_t *)surface->address - 1);
 
+    while (qxl_handle_oom (surface->qxl))
+	;
+    
+#if 0
+    after = *((uint32_t *)surface->address - 1);
+#endif
+
+#if 0
     if (surface->id != 0 && before != after)
       abort();
+#endif
 
-    pixman_color_t p = { 0xffff, 0x0000, 0xffff, 0xffff };
+    struct qxl_rect qrect;
+
+    qrect.left = x1;
+    qrect.right = x2;
+    qrect.top = y1;
+    qrect.bottom = y2;
+
+#if 0
+    uint32_t pix = 0xff8033ff;
+    
+    submit_fill (surface->qxl, surface->id, &qrect, pix);
+    
+    pixman_color_t p = { 0xd999, 0xa999, 0x3333, 0xffff };
     pixman_image_t *pink = pixman_image_create_solid_fill (&p);
 
     pixman_image_composite (PIXMAN_OP_SRC, pink, NULL, surface->host_image,
 			    0, 0, 0, 0, x1, y1, x2 - x1, y2 - y1);
+#endif
 
     pixman_image_composite (PIXMAN_OP_SRC,
      			    surface->dev_image,
@@ -617,99 +699,6 @@ translate_rect (struct qxl_rect *rect)
     rect->left = rect->top = 0;
 }
 
-static struct qxl_drawable *
-make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
-	       const struct qxl_rect *rect
-	       /* , pRegion clip */)
-{
-    struct qxl_drawable *drawable;
-    int i;
-    
-    drawable = qxl_allocnf (qxl, sizeof *drawable);
-    
-    drawable->release_info.id = pointer_to_u64 (drawable);
-    
-    drawable->type = type;
-    
-    drawable->surface_id = surface;		/* Only primary for now */
-    drawable->effect = QXL_EFFECT_OPAQUE;
-    drawable->self_bitmap = 0;
-    drawable->self_bitmap_area.top = 0;
-    drawable->self_bitmap_area.left = 0;
-    drawable->self_bitmap_area.bottom = 0;
-    drawable->self_bitmap_area.right = 0;
-    /* FIXME: add clipping */
-    drawable->clip.type = QXL_CLIP_TYPE_NONE;
-    
-    /* FIXME: What are you supposed to put in surfaces_dest and surfaces_rects? */
-    for (i = 0; i < 3; ++i)
-	drawable->surfaces_dest[i] = -1;
-    
-    if (rect)
-	drawable->bbox = *rect;
-    
-    drawable->mm_time = qxl->rom->mm_clock;
-    
-    return drawable;
-}
-
-static void
-push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
-{
-    struct qxl_command cmd;
-    
-    /* When someone runs "init 3", the device will be 
-     * switched into VGA mode and there is nothing we
-     * can do about it. We get no notification.
-     * 
-     * However, if commands are submitted when the device
-     * is in VGA mode, they will be queued up, and then
-     * the next time a mode set set, an assertion in the
-     * device will take down the entire virtual machine.
-     */
-    if (!in_vga_mode (qxl))
-    {
-	cmd.type = QXL_CMD_DRAW;
-	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
-	
-	qxl_ring_push (qxl->command_ring, &cmd);
-    }
-}
-
-enum ROPDescriptor
-{
-    ROPD_INVERS_SRC = (1 << 0),
-    ROPD_INVERS_BRUSH = (1 << 1),
-    ROPD_INVERS_DEST = (1 << 2),
-    ROPD_OP_PUT = (1 << 3),
-    ROPD_OP_OR = (1 << 4),
-    ROPD_OP_AND = (1 << 5),
-    ROPD_OP_XOR = (1 << 6),
-    ROPD_OP_BLACKNESS = (1 << 7),
-    ROPD_OP_WHITENESS = (1 << 8),
-    ROPD_OP_INVERS = (1 << 9),
-    ROPD_INVERS_RES = (1 <<10),
-};
-
-static void
-submit_fill (qxl_screen_t *qxl, int id,
-	     const struct qxl_rect *rect, uint32_t color)
-{
-    struct qxl_drawable *drawable;
-    
-    drawable = make_drawable (qxl, id, QXL_DRAW_FILL, rect);
-    
-    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
-    drawable->u.fill.brush.u.color = color;
-    drawable->u.fill.rop_descriptor = ROPD_OP_PUT;
-    drawable->u.fill.mask.flags = 0;
-    drawable->u.fill.mask.pos.x = 0;
-    drawable->u.fill.mask.pos.y = 0;
-    drawable->u.fill.mask.bitmap = 0;
-    
-    push_drawable (qxl, drawable);
-}
-
 static void
 upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
@@ -725,15 +714,6 @@ upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     rect.top = y1;
     rect.bottom = y2;
     
-#if 0
-#endif
-    
-    /* if (surface->id != 0) */
-    /* {  */
-    /* 	/\* Paint a green flash after uploading *\/ */
-    /* 	submit_fill (qxl, surface->id, &rect, rand()); */
-    /* } */
-
     drawable = make_drawable (qxl, surface->id, QXL_DRAW_COPY, &rect);
     drawable->u.copy.src_area = rect;
     translate_rect (&drawable->u.copy.src_area);
@@ -754,12 +734,6 @@ upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 	physical_address (qxl, image, qxl->main_mem_slot);
     
     push_drawable (qxl, drawable);
-
-    /* if (surface->id != 0) */
-    /* {  */
-    /* 	/\* Paint a green flash after uploading *\/ */
-    /* 	submit_fill (qxl, surface->id, &rect, rand()); */
-    /* } */
 }
 
 void
@@ -798,11 +772,43 @@ qxl_surface_finish_access (qxl_surface_t *surface, PixmapPtr pixmap)
 }
 
 
+static void
+print_region (const char *header, RegionPtr pRegion)
+{
+    int nbox = REGION_NUM_RECTS (pRegion);
+    BoxPtr pbox = REGION_RECTS (pRegion);
+    
+    ErrorF ("%s", header);
+
+    if (nbox == 0)
+	ErrorF (" (empty)\n");
+    else
+	ErrorF ("\n");
+    
+    while (nbox--)
+    {
+	ErrorF ("   %d %d %d %d (size: %d %d)\n",
+		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
+		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
+	
+	pbox++;
+    }
+}
+
 /* solid */
 Bool
 qxl_surface_prepare_solid (qxl_surface_t *destination,
 			   Pixel	  fg)
 {
+    if (!REGION_NIL (&(destination->access_region)))
+    {
+	ErrorF (" solid not in vmem\n");
+    }
+
+#if 0
+    print_region ("prepare solid", &(destination->access_region));
+#endif
+    
     destination->u.solid_pixel = fg; //  ^ (rand() >> 16);
 
     return TRUE;
@@ -817,22 +823,50 @@ qxl_surface_solid (qxl_surface_t *destination,
 {
     qxl_screen_t *qxl = destination->qxl;
     struct qxl_rect qrect;
+    uint32_t p;
 
     qrect.top = y1;
     qrect.bottom = y2;
     qrect.left = x1;
     qrect.right = x2;
 
-    submit_fill (qxl, destination->id, &qrect, destination->u.solid_pixel);
+#if 0
+    if (destination->u.solid_pixel == 0x0000)
+	p = 0xffccffcc;
+    else
+#endif
+	p = destination->u.solid_pixel;
+    
+    submit_fill (qxl, destination->id, &qrect, p);
 }
-
 
 /* copy */
 Bool
 qxl_surface_prepare_copy (qxl_surface_t *dest,
 			  qxl_surface_t *source)
 {
+    if (!REGION_NIL (&(dest->access_region))	||
+	!REGION_NIL (&(source->access_region)))
+    {
+#if 0
+	ErrorF (" copy not in vmvm\n");
+#endif
+	
+	return FALSE;
+    }
+
+#if 0
+    if (dest->id != source->id)
+	return FALSE;
+#endif
+
+#if 0
+    print_region ("prepare copy src", &(source->access_region));
+    print_region ("prepare copy dest", &(dest->access_region));
+#endif
+    
     dest->u.copy_src = source;
+
     return TRUE;
 }
 
@@ -846,6 +880,11 @@ qxl_surface_copy (qxl_surface_t *dest,
     struct qxl_drawable *drawable;
     struct qxl_rect qrect;
 
+#if 0
+    print_region (" copy src", &(dest->u.copy_src->access_region));
+    print_region (" copy dest", &(dest->access_region));
+#endif
+    
     qrect.top = dest_y1;
     qrect.bottom = dest_y1 + height;
     qrect.left = dest_x1;
@@ -857,6 +896,8 @@ qxl_surface_copy (qxl_surface_t *dest,
 /* 		    b->x1, b->y1, b->x2, b->y2, */
 /* 		    dx, dy, dst_xoff, dst_yoff); */
 	
+	struct qxl_ram_header *ram_header = get_ram_header (dest->qxl);
+
 	drawable = make_drawable (qxl, dest->id, QXL_COPY_BITS, &qrect);
 	drawable->u.copy_bits.src_pos.x = src_x1;
 	drawable->u.copy_bits.src_pos.y = src_y1;
@@ -865,12 +906,8 @@ qxl_surface_copy (qxl_surface_t *dest,
     {
 	struct qxl_image *image = qxl_allocnf (qxl, sizeof *image);
 
-#if 0
-	ErrorF ("Copy  %d to %d\n", dest->u.copy_src->id, dest->id);
-#endif
-
 	dest->u.copy_src->ref_count++;
-    
+
 	image->descriptor.id = 0;
 	image->descriptor.type = QXL_IMAGE_TYPE_SURFACE;
 	image->descriptor.width = 0;
@@ -879,6 +916,13 @@ qxl_surface_copy (qxl_surface_t *dest,
 
 	drawable = make_drawable (qxl, dest->id, QXL_DRAW_COPY, &qrect);
 
+#if 0
+	ErrorF ("Drawing %d to %d [area %d %d %d %d] (command is %p)\n",
+		dest->u.copy_src->id, dest->id,
+		qrect.left, qrect.top, qrect.right, qrect.bottom,
+		drawable);
+#endif
+	
 	drawable->u.copy.src_bitmap = physical_address (qxl, image, qxl->main_mem_slot);
 	drawable->u.copy.src_area.left = src_x1;
 	drawable->u.copy.src_area.top = src_y1;
@@ -890,6 +934,14 @@ qxl_surface_copy (qxl_surface_t *dest,
 	drawable->u.copy.mask.pos.x = 0;
 	drawable->u.copy.mask.pos.y = 0;
 	drawable->u.copy.mask.bitmap = 0;
+
+	drawable->surfaces_dest[0] = dest->u.copy_src->id;
+	drawable->surfaces_rects[0] = drawable->u.copy.src_area;
+	
+	assert (src_x1 >= 0);
+	assert (src_y1 >= 0);
+	assert (width <= pixman_image_get_width (dest->u.copy_src->host_image));
+	assert (height <= pixman_image_get_height (dest->u.copy_src->host_image));
     }
 
     push_drawable (qxl, drawable);

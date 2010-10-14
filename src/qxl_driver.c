@@ -97,14 +97,11 @@ garbage_collect (qxl_screen_t *qxl)
 		    qxl_image_destroy (qxl, image);
 		}
 	    }
-	    else if (is_drawable && drawable->type == QXL_DRAW_FILL)
-	    {
-		if (drawable->surface_id)
-		    ErrorF (" done fill for %d freed\n", drawable->surface_id);
-	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
+#if 0
 		ErrorF ("handling destroy command %p\n", surface_cmd);
+#endif
 		
 		qxl_surface_recycle (surface_cmd->surface_id);
 	    }

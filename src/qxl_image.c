@@ -205,6 +205,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	ErrorF ("%p has size %d %d\n", image, width, height);
 #endif
 	
+#if 0
 	/* Add to hash table */
 	if ((info = insert_image_info (hash)))
 	{
@@ -218,6 +219,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	    ErrorF ("added with hash %u\n", hash);
 #endif
 	}
+#endif
 
 	return image;
     }
