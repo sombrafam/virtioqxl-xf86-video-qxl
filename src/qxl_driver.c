@@ -132,7 +132,13 @@ qxl_handle_oom (qxl_screen_t *qxl)
 {
     outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
     
-    // qxl_usleep (10000);
+#if 0
+    ErrorF (".");
+    qxl_usleep (10000);
+#endif
+
+    if (!(qxl_garbage_collect (qxl)))
+	qxl_usleep (10000);
 
     return qxl_garbage_collect (qxl);
 }
@@ -145,6 +151,8 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 #if 0
     static int nth_oom = 1;
 #endif
+
+    qxl_garbage_collect (qxl);
     
     while (!(result = qxl_alloc (qxl->mem, size)))
     {

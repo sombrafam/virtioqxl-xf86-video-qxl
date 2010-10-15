@@ -185,6 +185,8 @@ make_surface_cmd (qxl_screen_t *qxl, uint32_t id, qxl_surface_cmd_type type)
 {
     struct qxl_surface_cmd *cmd;
 
+    qxl_garbage_collect (qxl);
+    
     cmd = qxl_allocnf (qxl, sizeof *cmd);
 
     cmd->release_info.id = pointer_to_u64 (cmd) | 2;
@@ -322,7 +324,7 @@ qxl_surface_create (qxl_screen_t *qxl,
     static int count;
     int n_attempts = 0;
 
-    if (++count < 200)
+    if (++count < 10)
       return NULL;
 
 #if 0
@@ -417,24 +419,37 @@ retry:
     /* the final + stride is to work around a bug where the device apparently 
      * scribbles after the end of the image
      */
+    qxl_garbage_collect (qxl);
 retry2:
     surface->address = qxl_alloc (qxl->surf_mem, stride * height + stride);
 
     if (!surface->address)
     {
-	ErrorF ("- %dth attempt\n", n_attempts);
+	ErrorF ("- %dth attempt\n", n_attempts++);
 
 	if (qxl_garbage_collect (qxl))
 	    goto retry2;
 
-	if (qxl_handle_oom (qxl) && ++n_attempts < 30000)
+	ErrorF ("- OOM\n");
+	
+	if (qxl_handle_oom (qxl))
+	{
+	    while (qxl_garbage_collect (qxl))
+		;
 	    goto retry2;
+	}
 
-	ErrorF ("Out of video memory: Could not allocate %lu bytes\n", stride * height + stride);
+	ErrorF ("Out of video memory: Could not allocate %lu bytes\n",
+		stride * height + stride);
 	
 	return NULL;
     }
 
+#if 0
+    ErrorF ("Allocated %lu bytes for %p\n",
+	    stride * height + stride, surface->address);
+#endif
+    
 #if 0
     ErrorF ("Allocated %p\n", surface->address);
 #endif
