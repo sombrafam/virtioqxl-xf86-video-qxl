@@ -362,7 +362,7 @@ qxl_reset (qxl_screen_t *qxl)
     slot = &qxl->mem_slots[qxl->main_mem_slot];
     slot->start_phys_addr = (unsigned long)qxl->ram_physical;
     slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
-    slot->start_virt_addr = (uint64_t)qxl->ram;
+    slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->ram;
     slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
     
     ram_header->mem_slot_start = slot->start_phys_addr;
@@ -370,7 +370,7 @@ qxl_reset (qxl_screen_t *qxl)
     
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
-    ErrorF ("Created main memslot from %lx to %lx\n", slot->start_phys_addr, slot->end_phys_addr);
+    ErrorF ("Created main memslot from %llx to %llx\n", slot->start_phys_addr, slot->end_phys_addr);
 
     slot->generation = qxl->rom->slot_generation;
     
@@ -384,15 +384,15 @@ qxl_reset (qxl_screen_t *qxl)
     slot = &qxl->mem_slots[qxl->vram_mem_slot];
     slot->start_phys_addr = (unsigned long)qxl->vram_physical;
     slot->end_phys_addr = (unsigned long)qxl->vram_physical + (unsigned long)qxl->vram_size;
-    slot->start_virt_addr = (uint64_t)qxl->vram;
-    slot->end_virt_addr = (uint64_t)qxl->vram + (uint64_t)qxl->vram_size;
+    slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->vram;
+    slot->end_virt_addr = (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size;
 
     ram_header->mem_slot_start = slot->start_phys_addr;
     ram_header->mem_slot_end = slot->end_phys_addr;
 
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
 
-    ErrorF ("Created vram memslot from %lx to %lx\n", slot->start_phys_addr, slot->end_phys_addr);
+    ErrorF ("Created vram memslot from %llx to %llx\n", slot->start_phys_addr, slot->end_phys_addr);
 
     slot->generation = qxl->rom->slot_generation;
     
