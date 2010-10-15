@@ -480,7 +480,7 @@ push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
      * the next time a mode set set, an assertion in the
      * device will take down the entire virtual machine.
      */
-    if (!in_vga_mode (qxl))
+    if (qxl->pScrn->vtSema)
     {
 	cmd.type = QXL_CMD_DRAW;
 	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
@@ -620,25 +620,6 @@ paint_shadow (qxl_screen_t *qxl)
     qrect.right = 1600;
     
     submit_copy (qxl, &qrect);
-}
-
-static void
-qxl_sanity_check (qxl_screen_t *qxl)
-{
-    /* read the mode back from the rom */
-    if (!qxl->rom || !qxl->pScrn)
-	return;
-    
-    if (in_vga_mode (qxl))
-    {
- 	ErrorF("QXL device jumped back to VGA mode - resetting mode\n");
- 	qxl_switch_mode(qxl->pScrn->scrnIndex, qxl->pScrn->currentMode, 0);
-    }
-}
-
-static void
-qxl_wakeup_handler (pointer data, int i, pointer LastSelectMask)
-{
 }
 
 static Bool

@@ -699,16 +699,6 @@ struct _qxl_screen_t
     } u;
 };
 
-static inline Bool
-in_vga_mode (qxl_screen_t *qxl)
-{
-    /* FIXME: The ability to detect whether we are in VGA
-     * mode has been remvoed in newer devices.
-     */
-    
-    return FALSE;
-}
-
 static uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 {

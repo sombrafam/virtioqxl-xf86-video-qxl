@@ -202,7 +202,7 @@ push_surface_cmd (qxl_screen_t *qxl, struct qxl_surface_cmd *cmd)
 {
     struct qxl_command command;
 
-    if (!in_vga_mode (qxl))
+    if (qxl->pScrn->vtSema)
     {
 	command.type = QXL_CMD_SURFACE;
 	command.data = physical_address (qxl, cmd, qxl->main_mem_slot);
@@ -281,7 +281,7 @@ push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
      * the next time a mode set set, an assertion in the
      * device will take down the entire virtual machine.
      */
-    if (!in_vga_mode (qxl))
+    if (qxl->pScrn->vtSema)
     {
 	cmd.type = QXL_CMD_DRAW;
 	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
@@ -636,8 +636,12 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
     int n_boxes;
     BoxPtr boxes;
     ScreenPtr pScreen = pixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     RegionRec new;
     int stride, height;
+
+    if (!pScrn->vtSema)
+        return FALSE;
 
     REGION_INIT (NULL, &new, (BoxPtr)NULL, 0);
     REGION_SUBTRACT (NULL, &new, region, &surface->access_region);

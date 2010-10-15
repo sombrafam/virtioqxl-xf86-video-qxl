@@ -30,7 +30,7 @@ push_cursor (qxl_screen_t *qxl, struct qxl_cursor_cmd *cursor)
     struct qxl_command cmd;
 
     /* See comment on push_command() in qxl_driver.c */
-    if (!in_vga_mode (qxl))
+    if (qxl->pScrn->vtSema)
     {
         cmd.type = QXL_CMD_CURSOR;
         cmd.data = physical_address (qxl, cursor, qxl->main_mem_slot);
