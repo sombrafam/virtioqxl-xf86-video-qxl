@@ -1149,7 +1149,7 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
     {
 	xf86DrvMsg(scrn->scrnIndex, X_ERROR,
 		   "UXA initialization failed\n");
-	xfree(qxl->uxa);
+	free(qxl->uxa);
 	return FALSE;
     }
     
