@@ -1024,6 +1024,18 @@ qxl_done_copy (PixmapPtr dest)
 {
 }
 
+static Bool
+qxl_put_image (PixmapPtr *pDst, int x, int y, int w, int h,
+	       char *src, int src_pitch)
+{
+    qxl_surface_t *surface = get_surface (pDst);
+
+    if (surface)
+	return qxl_surface_put_image (surface, x, y, w, h, src, src_pitch);
+
+    return FALSE;
+}
+
 static void
 qxl_set_screen_pixmap (PixmapPtr pixmap)
 {
@@ -1125,7 +1137,7 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
     qxl->uxa->done_composite = unaccel;
     
     /* PutImage */
-    qxl->uxa->put_image = unaccel;
+    qxl->uxa->put_image = qxl_put_image;
     
     /* Prepare access */
     qxl->uxa->prepare_access = qxl_prepare_access;

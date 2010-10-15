@@ -971,3 +971,43 @@ qxl_surface_copy (qxl_surface_t *dest,
 
     push_drawable (qxl, drawable);
 }
+
+Bool
+qxl_surface_put_image (qxl_surface_t *dest,
+		       int x, int y, int width, int height,
+		       const char *src, int src_pitch)
+{
+    struct qxl_drawable *drawable;
+    qxl_screen_t *qxl = dest->qxl;
+    struct qxl_rect rect;
+    struct qxl_image *image;
+    
+    rect.left = x;
+    rect.right = x + width;
+    rect.top = y;
+    rect.bottom = y + height;
+
+    drawable = make_drawable (qxl, dest->id, QXL_DRAW_COPY, &rect);
+
+    drawable->u.copy.src_area.top = 0;
+    drawable->u.copy.src_area.bottom = height;
+    drawable->u.copy.src_area.left = 0;
+    drawable->u.copy.src_area.right = width;
+
+    drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
+    drawable->u.copy.scale_mode = 0;
+    drawable->u.copy.mask.flags = 0;
+    drawable->u.copy.mask.pos.x = 0;
+    drawable->u.copy.mask.pos.y = 0;
+    drawable->u.copy.mask.bitmap = 0;
+
+    image = qxl_image_create (
+	qxl, (const uint8_t *)src, 0, 0, width, height, src_pitch,
+	dest->Bpp);
+    drawable->u.copy.src_bitmap =
+	physical_address (qxl, image, qxl->main_mem_slot);
+    
+    push_drawable (qxl, drawable);
+
+    return TRUE;
+}

@@ -814,6 +814,10 @@ void		    qxl_surface_copy	     (qxl_surface_t *dest,
 					      int  src_x1, int src_y1,
 					      int  dest_x1, int dest_y1,
 					      int width, int height);
+Bool		    qxl_surface_put_image    (qxl_surface_t *dest,
+					      int x, int y, int width, int height,
+					      const char *src, int src_pitch);
+					      
 
 extern DevPrivateKeyRec uxa_pixmap_index;
 
