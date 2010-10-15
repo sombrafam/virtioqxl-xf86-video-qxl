@@ -424,6 +424,9 @@ retry2:
     {
 	ErrorF ("- %dth attempt\n", n_attempts);
 
+	if (qxl_garbage_collect (qxl))
+	    goto retry2;
+
 	if (qxl_handle_oom (qxl) && ++n_attempts < 30000)
 	    goto retry2;
 
@@ -574,9 +577,6 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 
     outb (surface->qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
-    while (qxl_handle_oom (surface->qxl))
-	;
-    
 #if 0
     after = *((uint32_t *)surface->address - 1);
 #endif
@@ -884,6 +884,10 @@ qxl_surface_copy (qxl_surface_t *dest,
     print_region (" copy src", &(dest->u.copy_src->access_region));
     print_region (" copy dest", &(dest->access_region));
 #endif
+
+#if 0
+    ErrorF ("copy from %d to %d\n", dest->u.copy_src->id, dest->id);
+#endif
     
     qrect.top = dest_y1;
     qrect.bottom = dest_y1 + height;
@@ -937,6 +941,12 @@ qxl_surface_copy (qxl_surface_t *dest,
 
 	drawable->surfaces_dest[0] = dest->u.copy_src->id;
 	drawable->surfaces_rects[0] = drawable->u.copy.src_area;
+ 	
+#if 0
+	submit_fill (qxl, dest->id, &qrect, 0xffff00ff);
+
+	usleep (70000);
+#endif
 	
 	assert (src_x1 >= 0);
 	assert (src_y1 >= 0);

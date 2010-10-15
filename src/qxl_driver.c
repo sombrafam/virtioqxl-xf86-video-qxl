@@ -44,8 +44,8 @@
 #endif
 #define CHECK_POINT()
 
-static int
-garbage_collect (qxl_screen_t *qxl)
+int
+qxl_garbage_collect (qxl_screen_t *qxl)
 {
     uint64_t id;
     int i = 0;
@@ -99,10 +99,6 @@ garbage_collect (qxl_screen_t *qxl)
 	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
-#if 0
-		ErrorF ("handling destroy command %p\n", surface_cmd);
-#endif
-		
 		qxl_surface_recycle (surface_cmd->surface_id);
 	    }
 	    
@@ -138,7 +134,7 @@ qxl_handle_oom (qxl_screen_t *qxl)
     
     // qxl_usleep (10000);
 
-    return garbage_collect (qxl);
+    return qxl_garbage_collect (qxl);
 }
 
 void *
@@ -169,18 +165,21 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 #if 0
  	ErrorF ("eliminated memory (%d)\n", nth_oom++);
 #endif
-	
-	if (qxl_handle_oom (qxl))
+
+	if (!qxl_garbage_collect (qxl))
 	{
-	    n_attempts = 0;
-	}
-	else if (++n_attempts == 1000)
-	{
-	    ErrorF ("Out of memory allocating %ld bytes\n", size);
-	    qxl_mem_dump_stats (qxl->mem, "Out of mem - stats\n");
-	    
-	    fprintf (stderr, "Out of memory\n");
-	    exit (1);
+	    if (qxl_handle_oom (qxl))
+	    {
+		n_attempts = 0;
+	    }
+	    else if (++n_attempts == 1000)
+	    {
+		ErrorF ("Out of memory allocating %ld bytes\n", size);
+		qxl_mem_dump_stats (qxl->mem, "Out of mem - stats\n");
+		
+		fprintf (stderr, "Out of memory\n");
+		exit (1);
+	    }
 	}
     }
     
@@ -986,7 +985,7 @@ qxl_check_copy (PixmapPtr source, PixmapPtr dest,
     
     if (!get_surface (source) || !get_surface (dest))
 	return FALSE;
-    
+
     return TRUE;
 }
 
@@ -1138,8 +1137,6 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 	return FALSE;
     }
     
-
-    
 #if 0
     uxa_set_fallback_debug(screen, FALSE);
 #endif
@@ -1247,17 +1244,20 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     pScreen->SaveScreen = qxl_blank_screen;
 
-    /* Note: this must be done before setup_uxa(), because it 
-     * calls DamageSetup() which registers a pixmap private. 
-     * 
-     * That will trigger an assert if _dixInitPrivates has
-     * been called, which setup_uxa() eventually does.
-     */
+    setup_uxa (qxl, pScreen);
+
+    DamageSetup(pScreen);
+    
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
     if (!miCreateDefColormap(pScreen))
       goto out;
-    
-    setup_uxa (qxl, pScreen);
+
+    /* Note: this must be done after DamageSetup() because it calls
+     * _dixInitPrivates. And if that has been called, DamageSetup()
+     * will assert.
+     */
+    if (!uxa_resources_init (pScreen))
+	return FALSE;
     
     qxl->create_screen_resources = pScreen->CreateScreenResources;
     pScreen->CreateScreenResources = qxl_create_screen_resources;

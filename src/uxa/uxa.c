@@ -54,11 +54,10 @@ DevPrivateKeyRec uxa_screen_index;
  */
 PixmapPtr uxa_get_drawable_pixmap(DrawablePtr pDrawable)
 {
-	if (pDrawable->type == DRAWABLE_WINDOW)
-		return pDrawable->pScreen->
-		    GetWindowPixmap((WindowPtr) pDrawable);
-	else
-		return (PixmapPtr) pDrawable;
+    if (pDrawable->type == DRAWABLE_WINDOW)
+	return pDrawable->pScreen->GetWindowPixmap((WindowPtr) pDrawable);
+    else
+	return (PixmapPtr) pDrawable;
 }
 
 /**
@@ -573,9 +572,6 @@ Bool uxa_driver_init(ScreenPtr screen, uxa_driver_t * uxa_driver)
 	}
 #endif
 
-	if (!uxa_glyphs_init(screen))
-		return FALSE;
-
 	LogMessage(X_INFO,
 		   "UXA(%d): Driver registered support for the following"
 		   " operations:\n", screen->myNum);
@@ -604,4 +600,12 @@ Bool uxa_driver_init(ScreenPtr screen, uxa_driver_t * uxa_driver)
 void uxa_driver_fini(ScreenPtr pScreen)
 {
 	/*right now does nothing */
+}
+
+Bool uxa_resources_init(ScreenPtr screen)
+{
+    if (!uxa_glyphs_init(screen))
+	return FALSE;
+
+    return TRUE;
 }

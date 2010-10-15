@@ -150,7 +150,6 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	struct qxl_image *image;
 	struct qxl_data_chunk *chunk;
 	int dest_stride = width * Bpp;
-	image_info_t *info;
 
 #if 0
 	ErrorF ("Must create new image of size %d %d\n", width, height);
