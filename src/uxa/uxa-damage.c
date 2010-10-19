@@ -92,10 +92,12 @@ trim_region (RegionPtr   pRegion,
 	     int         subWindowMode)
 {
     RegionRec       pixClip;
+    int		    draw_x = 0;
+    int		    draw_y = 0;
 #ifdef COMPOSITE
     int             screen_x = 0, screen_y = 0;
 #endif
-    
+
     /* short circuit for empty regions */
     if (!REGION_NOTEMPTY(pScreen, pRegion))
         return;
@@ -135,9 +137,6 @@ trim_region (RegionPtr   pRegion,
          * any drawable-based clipping. */
     }
 
-    int draw_x = 0;
-    int draw_y = 0;
-    
     /* Clip against border or pixmap bounds */
     if (pDrawable->type == DRAWABLE_WINDOW)
     {

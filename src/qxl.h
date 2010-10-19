@@ -699,18 +699,15 @@ struct _qxl_screen_t
     } u;
 };
 
-static uint64_t
+static inline uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 {
     qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
 
     return p_slot->high_bits | ((unsigned long)virtual - p_slot->start_virt_addr);
-#if 0
-    return (uint64_t) ((unsigned long)virtual + (((unsigned long)qxl->ram_physical - (unsigned long)qxl->ram)));
-#endif
 }
 
-static void *
+static inline void *
 virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
 {
     qxl_memslot_t *p_slot = &(qxl->mem_slots[slot_id]);
@@ -720,11 +717,6 @@ virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
     virt += p_slot->start_virt_addr;
 
     return (void *)virt;
-#if 0
-    return (void *) ((unsigned long)physical +
-		     ((unsigned long)qxl->ram -
-		      (unsigned long)qxl->ram_physical));
-#endif
 }
 
 static inline void *
@@ -809,6 +801,7 @@ void		    qxl_surface_copy	     (qxl_surface_t *dest,
 Bool		    qxl_surface_put_image    (qxl_surface_t *dest,
 					      int x, int y, int width, int height,
 					      const char *src, int src_pitch);
+void		    qxl_surface_unref        (uint32_t surface_id);
 					      
 
 extern DevPrivateKeyRec uxa_pixmap_index;

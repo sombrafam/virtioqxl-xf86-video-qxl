@@ -85,6 +85,8 @@ surface_new (void)
 
     if (free_surfaces)
     {
+	qxl_surface_t *s;
+
 	result = free_surfaces;
 	free_surfaces = free_surfaces->next;
 
@@ -92,7 +94,6 @@ surface_new (void)
 	result->in_use = TRUE;
 	result->ref_count = 1;
 
-	qxl_surface_t *s;
 	for (s = free_surfaces; s; s = s->next)
 	{
 	    if (s->id == result->id)
@@ -367,13 +368,6 @@ retry:
 	else
 	    goto retry;
     }
-
-    struct qxl_rect rect;
-
-    rect.left = 0;
-    rect.right = width;
-    rect.top = 0;
-    rect.bottom = height;
     
 #if 0
     ErrorF ("    Surface allocated: %u\n", surface->id);
@@ -439,7 +433,7 @@ retry2:
 	    goto retry2;
 	}
 
-	ErrorF ("Out of video memory: Could not allocate %lu bytes\n",
+	ErrorF ("Out of video memory: Could not allocate %d bytes\n",
 		stride * height + stride);
 	
 	return NULL;
@@ -454,7 +448,7 @@ retry2:
     ErrorF ("Allocated %p\n", surface->address);
 #endif
     
-    surface->end = surface->address + stride * height;
+    surface->end = (char *)surface->address + stride * height;
 #if 0
     ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
 #endif
@@ -575,7 +569,6 @@ static void
 download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
     struct qxl_ram_header *ram_header = get_ram_header (surface->qxl);
-    uint32_t before, after;
 
 #if 0
     ErrorF ("Downloading %d:  %d %d %d %d %p\n", surface->id, x1, y1, x2 - x1, y2 - y1, surface->address);
@@ -600,13 +593,6 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     if (surface->id != 0 && before != after)
       abort();
 #endif
-
-    struct qxl_rect qrect;
-
-    qrect.left = x1;
-    qrect.right = x2;
-    qrect.top = y1;
-    qrect.bottom = y2;
 
 #if 0
     uint32_t pix = 0xff8033ff;
@@ -915,13 +901,8 @@ qxl_surface_copy (qxl_surface_t *dest,
     
     if (dest->id == dest->u.copy_src->id)
     {
-/* 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n", */
-/* 		    b->x1, b->y1, b->x2, b->y2, */
-/* 		    dx, dy, dst_xoff, dst_yoff); */
-	
-	struct qxl_ram_header *ram_header = get_ram_header (dest->qxl);
-
 	drawable = make_drawable (qxl, dest->id, QXL_COPY_BITS, &qrect);
+
 	drawable->u.copy_bits.src_pos.x = src_x1;
 	drawable->u.copy_bits.src_pos.y = src_y1;
     }

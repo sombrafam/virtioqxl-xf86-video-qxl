@@ -370,8 +370,6 @@ qxl_reset (qxl_screen_t *qxl)
     
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
-    ErrorF ("Created main memslot from %llx to %llx\n", slot->start_phys_addr, slot->end_phys_addr);
-
     slot->generation = qxl->rom->slot_generation;
     
     high_bits = qxl->main_mem_slot << qxl->slot_gen_bits;
@@ -391,8 +389,6 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header->mem_slot_end = slot->end_phys_addr;
 
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
-
-    ErrorF ("Created vram memslot from %llx to %llx\n", slot->start_phys_addr, slot->end_phys_addr);
 
     slot->generation = qxl->rom->slot_generation;
     
@@ -466,71 +462,6 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     return TRUE;
 }
 
-static void
-push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
-{
-    struct qxl_command cmd;
-    
-    /* When someone runs "init 3", the device will be 
-     * switched into VGA mode and there is nothing we
-     * can do about it. We get no notification.
-     * 
-     * However, if commands are submitted when the device
-     * is in VGA mode, they will be queued up, and then
-     * the next time a mode set set, an assertion in the
-     * device will take down the entire virtual machine.
-     */
-    if (qxl->pScrn->vtSema)
-    {
-	cmd.type = QXL_CMD_DRAW;
-	cmd.data = physical_address (qxl, drawable, qxl->main_mem_slot);
-	
-	qxl_ring_push (qxl->command_ring, &cmd);
-    }
-}
-
-static struct qxl_drawable *
-make_drawable (qxl_screen_t *qxl, uint8_t type,
-	       const struct qxl_rect *rect
-	       /* , pRegion clip */)
-{
-    struct qxl_drawable *drawable;
-    int i;
-    
-    CHECK_POINT();
-    
-    drawable = qxl_allocnf (qxl, sizeof *drawable);
-    
-    CHECK_POINT();
-    
-    drawable->release_info.id = pointer_to_u64 (drawable);
-    
-    drawable->type = type;
-    
-    drawable->surface_id = 0;		/* Only primary for now */
-    drawable->effect = QXL_EFFECT_OPAQUE;
-    drawable->self_bitmap = 0;
-    drawable->self_bitmap_area.top = 0;
-    drawable->self_bitmap_area.left = 0;
-    drawable->self_bitmap_area.bottom = 0;
-    drawable->self_bitmap_area.right = 0;
-    /* FIXME: add clipping */
-    drawable->clip.type = QXL_CLIP_TYPE_NONE;
-    
-    /* FIXME: What are you supposed to put in surfaces_dest and surfaces_rects? */
-    for (i = 0; i < 3; ++i)
-	drawable->surfaces_dest[i] = -1;
-    
-    if (rect)
-	drawable->bbox = *rect;
-    
-    drawable->mm_time = qxl->rom->mm_clock;
-    
-    CHECK_POINT();
-    
-    return drawable;
-}
-
 enum ROPDescriptor
 {
     ROPD_INVERS_SRC = (1 << 0),
@@ -545,82 +476,6 @@ enum ROPDescriptor
     ROPD_OP_INVERS = (1 << 9),
     ROPD_INVERS_RES = (1 <<10),
 };
-
-static void
-submit_fill (qxl_screen_t *qxl, const struct qxl_rect *rect, uint32_t color)
-{
-    struct qxl_drawable *drawable;
-    
-    CHECK_POINT();
-    
-    drawable = make_drawable (qxl, QXL_DRAW_FILL, rect);
-    
-    CHECK_POINT();
-    
-    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
-    drawable->u.fill.brush.u.color = color;
-    drawable->u.fill.rop_descriptor = ROPD_OP_PUT;
-    drawable->u.fill.mask.flags = 0;
-    drawable->u.fill.mask.pos.x = 0;
-    drawable->u.fill.mask.pos.y = 0;
-    drawable->u.fill.mask.bitmap = 0;
-    
-    push_drawable (qxl, drawable);
-}
-
-static void
-translate_rect (struct qxl_rect *rect)
-{
-    rect->right -= rect->left;
-    rect->bottom -= rect->top;
-    rect->left = rect->top = 0;
-}
-
-static void
-submit_copy (qxl_screen_t *qxl, const struct qxl_rect *rect)
-{
-    struct qxl_drawable *drawable;
-    ScrnInfoPtr pScrn = qxl->pScrn;
-    
-    if (rect->left == rect->right ||
-	rect->top == rect->bottom)
-    {
-	/* Empty rectangle */
-	return ;
-    }
-    
-    drawable = make_drawable (qxl, QXL_DRAW_COPY, rect);
-    
-    drawable->u.copy.src_bitmap = physical_address (
-	qxl, qxl_image_create (qxl, qxl->fb, rect->left, rect->top,
-			       rect->right - rect->left,
-			       rect->bottom - rect->top,
-			       pScrn->displayWidth * qxl->bytes_per_pixel, qxl->bytes_per_pixel),
-	qxl->main_mem_slot);
-    drawable->u.copy.src_area = *rect;
-    translate_rect (&drawable->u.copy.src_area);
-    drawable->u.copy.rop_descriptor = ROPD_OP_PUT;
-    drawable->u.copy.scale_mode = 0;
-    drawable->u.copy.mask.flags = 0;
-    drawable->u.copy.mask.pos.x = 0;
-    drawable->u.copy.mask.pos.y = 0;
-    drawable->u.copy.mask.bitmap = 0;
-    
-    push_drawable (qxl, drawable);
-}
-
-static void
-paint_shadow (qxl_screen_t *qxl)
-{
-    struct qxl_rect qrect;
-    
-    qrect.top = 0;
-    qrect.bottom = 1200;
-    qrect.left = 0;
-    qrect.right = 1600;
-    
-    submit_copy (qxl, &qrect);
-}
 
 static Bool
 qxl_create_screen_resources(ScreenPtr pScreen)
@@ -646,263 +501,12 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     return TRUE;
 }
 
-static PixmapPtr 
-get_window_pixmap (DrawablePtr pDrawable, int *xoff, int *yoff)
-{
-    ScreenPtr pScreen = pDrawable->pScreen;
-    PixmapPtr result;
-    
-    if (pDrawable->type != DRAWABLE_WINDOW)
-	return NULL;
-    
-    result = pScreen->GetWindowPixmap ((WindowPtr)pDrawable);
-    
-    *xoff = pDrawable->x;
-    *yoff = pDrawable->y;
-    
-    return result;
-}
-
-static void
-qxl_poly_fill_rect (DrawablePtr pDrawable,
-		    GCPtr	     pGC,
-		    int	     nrect,
-		    xRectangle *prect)
-{
-    ScrnInfoPtr pScrn = xf86Screens[pDrawable->pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
-    PixmapPtr pPixmap;
-    int xoff, yoff;
-    
-    if ((pPixmap = get_window_pixmap (pDrawable, &xoff, &yoff))	&&
-	pGC->fillStyle == FillSolid				&&
-	pGC->alu == GXcopy					&&
-	(unsigned int)pGC->planemask == FB_ALLONES)
-    {
-	RegionPtr pReg = RECTS_TO_REGION (pScreen, nrect, prect, CT_UNSORTED);
-	RegionPtr pClip = fbGetCompositeClip (pGC);
-	BoxPtr pBox;
-	int nbox;
-	
-	REGION_TRANSLATE(pScreen, pReg, xoff, yoff);
-	REGION_INTERSECT(pScreen, pReg, pClip, pReg);
-	
-	pBox = REGION_RECTS (pReg);
-	nbox = REGION_NUM_RECTS (pReg);
-	
-	while (nbox--)
-	{
-	    struct qxl_rect qrect;
-	    
-	    qrect.left = pBox->x1;
-	    qrect.right = pBox->x2;
-	    qrect.top = pBox->y1;
-	    qrect.bottom = pBox->y2;
-	    
-	    submit_fill (qxl, &qrect, pGC->fgPixel);
-	    
-	    pBox++;
-	}
-	
-	REGION_DESTROY (pScreen, pReg);
-    }
-    
-    fbPolyFillRect (pDrawable, pGC, nrect, prect);
-}
-
-static void
-qxl_copy_n_to_n (DrawablePtr    pSrcDrawable,
-		 DrawablePtr    pDstDrawable,
-		 GCPtr	        pGC,
-		 BoxPtr	        pbox,
-		 int	        nbox,
-		 int	        dx,
-		 int	        dy,
-		 Bool	        reverse,
-		 Bool	        upsidedown,
-		 Pixel	        bitplane,
-		 void	       *closure)
-{
-    ScreenPtr pScreen = pSrcDrawable->pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
-    int src_xoff, src_yoff;
-    int dst_xoff, dst_yoff;
-    PixmapPtr pSrcPixmap, pDstPixmap;
-    
-    if ((pSrcPixmap = get_window_pixmap (pSrcDrawable, &src_xoff, &src_yoff)) &&
-	(pDstPixmap = get_window_pixmap (pDstDrawable, &dst_xoff, &dst_yoff)))
-    {
-	int n = nbox;
-	BoxPtr b = pbox;
-	
-	assert (pSrcPixmap == pDstPixmap);
-	
-/* 	ErrorF ("Accelerated copy: %d boxes\n", n); */
-	
-	/* At this point we know that any pending damage must
-	 * have been caused by whatever copy operation triggered us.
-	 * 
-	 * Therefore we can clear it.
-	 *
-	 * We couldn't clear it at the toplevel function because 
-	 * the copy might end up being empty, in which case no
-	 * damage would have been generated. Which means the
-	 * pending damage would have been caused by some
-	 * earlier operation.
-	 */
-	if (n)
-	{
-/* 	    ErrorF ("Clearing pending damage\n"); */
-	    
-	    /* We have to do this because the copy will cause the damage
-	     * to be sent to move.
-	     * 
-	     * Instead of just sending the bits, we could also move
-	     * the existing damage around; however that's a bit more 
-	     * complex, and the performance win is unlikely to be
-	     * very big.
-	     */
-	}
-	
-	while (n--)
-	{
-	    struct qxl_drawable *drawable;
-	    struct qxl_rect qrect;
-	    
-	    qrect.top = b->y1;
-	    qrect.bottom = b->y2;
-	    qrect.left = b->x1;
-	    qrect.right = b->x2;
-	    
-/* 	    ErrorF ("   Translate %d %d %d %d by %d %d (offsets %d %d)\n", */
-/* 		    b->x1, b->y1, b->x2, b->y2, */
-/* 		    dx, dy, dst_xoff, dst_yoff); */
-	    
-	    drawable = make_drawable (qxl, QXL_COPY_BITS, &qrect);
-	    drawable->u.copy_bits.src_pos.x = b->x1 + dx;
-	    drawable->u.copy_bits.src_pos.y = b->y1 + dy;
-	    
-	    push_drawable (qxl, drawable);
-	    
-	    b++;
-	}
-    }
-/*     else */
-/* 	ErrorF ("Unaccelerated copy\n"); */
-    
-    fbCopyNtoN (pSrcDrawable, pDstDrawable, pGC, pbox, nbox, dx, dy, reverse, upsidedown, bitplane, closure);
-}
-
-static RegionPtr
-qxl_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable, GCPtr pGC,
-	      int srcx, int srcy, int width, int height, int dstx, int dsty)
-{
-    ErrorF ("Copy Area\n");
-    
-    if (pSrcDrawable->type == DRAWABLE_WINDOW &&
-	pDstDrawable->type == DRAWABLE_WINDOW)
-    {
-	RegionPtr res;
-	
-/* 	ErrorF ("accelerated copy %d %d %d %d %d %d\n",  */
-/* 		srcx, srcy, width, height, dstx, dsty); */
-	
-	res = fbDoCopy (pSrcDrawable, pDstDrawable, pGC,
-			srcx, srcy, width, height, dstx, dsty,
-			qxl_copy_n_to_n, 0, NULL);
-	
-	return res;
-    }
-    else
-    {
-/* 	ErrorF ("Falling back %d %d %d %d %d %d\n",  */
-/* 		srcx, srcy, width, height, dstx, dsty); */
-	
-	return fbCopyArea (pSrcDrawable, pDstDrawable, pGC,
-			   srcx, srcy, width, height, dstx, dsty);
-    }
-}
-
-static void
-qxl_fill_region_solid (DrawablePtr pDrawable, RegionPtr pRegion, Pixel pixel)
-{
-    ScreenPtr pScreen = pDrawable->pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
-    PixmapPtr pPixmap;
-    int xoff, yoff;
-    
-    if ((pPixmap = get_window_pixmap (pDrawable, &xoff, &yoff)))
-    {
-	int nbox = REGION_NUM_RECTS (pRegion);
-	BoxPtr pBox = REGION_RECTS (pRegion);
-	
-	while (nbox--)
-	{
-	    struct qxl_rect qrect;
-	    
-	    qrect.left = pBox->x1;
-	    qrect.right = pBox->x2;
-	    qrect.top = pBox->y1;
-	    qrect.bottom = pBox->y2;
-	    
-	    submit_fill (qxl, &qrect, pixel);
-	    
-	    pBox++;
-	}
-    }
-    
-    fbFillRegionSolid (pDrawable, pRegion, 0,
-		       fbReplicatePixel (pixel, pDrawable->bitsPerPixel));
-}
-
-static int
-qxl_create_gc (GCPtr pGC)
-{
-    static GCOps ops;
-    static int initialized;
-    
-    if (!fbCreateGC (pGC))
-	return FALSE;
-    
-    if (!initialized)
-    {
-	ops = *pGC->ops;
-	ops.PolyFillRect = qxl_poly_fill_rect;
-	ops.CopyArea = qxl_copy_area;
-	
-	initialized = TRUE;
-    }
-    
-    pGC->ops = &ops;
-    return TRUE;
-}
-
 DevPrivateKeyRec uxa_pixmap_index;
 
 static Bool
 unaccel (void)
 {
     return FALSE;
-}
-
-static void
-print_region (const char *header, RegionPtr pRegion)
-{
-    int nbox = REGION_NUM_RECTS (pRegion);
-    BoxPtr pbox = REGION_RECTS (pRegion);
-    
-    ErrorF ("%s \n", header);
-    
-    while (nbox--)
-    {
-	ErrorF ("   %d %d %d %d (size: %d %d)\n",
-		pbox->x1, pbox->y1, pbox->x2, pbox->y2,
-		pbox->x2 - pbox->x1, pbox->y2 - pbox->y1);
-	
-	pbox++;
-    }
 }
 
 static Bool
@@ -1001,7 +605,7 @@ qxl_prepare_copy (PixmapPtr source, PixmapPtr dest,
     return qxl_surface_prepare_copy (get_surface (dest), get_surface (source));
 }
 
-static Bool
+static void
 qxl_copy (PixmapPtr dest,
 	  int src_x1, int src_y1,
 	  int dest_x1, int dest_y1,
@@ -1011,8 +615,6 @@ qxl_copy (PixmapPtr dest,
 		      src_x1, src_y1,
 		      dest_x1, dest_y1,
 		      width, height);
-    
-    return TRUE;
 }
 
 static void
@@ -1021,7 +623,7 @@ qxl_done_copy (PixmapPtr dest)
 }
 
 static Bool
-qxl_put_image (PixmapPtr *pDst, int x, int y, int w, int h,
+qxl_put_image (PixmapPtr pDst, int x, int y, int w, int h,
 	       char *src, int src_pitch)
 {
     qxl_surface_t *surface = get_surface (pDst);
