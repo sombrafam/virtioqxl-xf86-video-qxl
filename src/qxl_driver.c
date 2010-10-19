@@ -86,7 +86,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 		
 		if (image->descriptor.type == QXL_IMAGE_TYPE_SURFACE)
 		{
-		    qxl_surface_unref (image->u.surface_id);
+		    qxl_surface_unref (qxl, image->u.surface_id);
 		    qxl_free (qxl->mem, image);
 		}
 		else
@@ -96,7 +96,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
-		qxl_surface_recycle (surface_cmd->surface_id);
+		qxl_surface_recycle (qxl, surface_cmd->surface_id);
 	    }
 	    
 	    id = info->next;

@@ -691,12 +691,8 @@ struct _qxl_screen_t
 
     uint8_t			vram_mem_slot;
 
-    union
-    {
-	PixmapPtr		copy_source;
-	Pixel			solid_pixel;
-	RegionRec		access_region;
-    } u;
+    qxl_surface_t *		all_surfaces;
+    qxl_surface_t *		free_surfaces;
 };
 
 static inline uint64_t
@@ -769,7 +765,7 @@ void		    qxl_surface_destroy (qxl_surface_t *surface);
 /* Call this when the notification comes back from the device
  * that the surface has been destroyed
  */
-void		    qxl_surface_recycle (uint32_t id);
+void		    qxl_surface_recycle (qxl_screen_t *qxl, uint32_t id);
 
 /* send anything pending to the other side */
 void		    qxl_surface_flush (qxl_surface_t *surface);
@@ -801,7 +797,8 @@ void		    qxl_surface_copy	     (qxl_surface_t *dest,
 Bool		    qxl_surface_put_image    (qxl_surface_t *dest,
 					      int x, int y, int width, int height,
 					      const char *src, int src_pitch);
-void		    qxl_surface_unref        (uint32_t surface_id);
+void		    qxl_surface_unref        (qxl_screen_t *qxl,
+					      uint32_t surface_id);
 					      
 
 extern DevPrivateKeyRec uxa_pixmap_index;

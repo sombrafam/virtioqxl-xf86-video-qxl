@@ -26,9 +26,6 @@ struct qxl_surface_t
     } u;
 };
 
-static qxl_surface_t *all_surfaces;
-static qxl_surface_t *free_surfaces;
-
 #if 0
 void
 qxl_surface_free_all (qxl_screen_t *qxl)
@@ -49,12 +46,12 @@ qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
 {
     int i;
 
-    if (!all_surfaces)
-	all_surfaces = calloc (n_surfaces, sizeof (qxl_surface_t));
+    if (!qxl->all_surfaces)
+	qxl->all_surfaces = calloc (n_surfaces, sizeof (qxl_surface_t));
     else
-	memset (all_surfaces, 0, n_surfaces * sizeof (qxl_surface_t));
+	memset (qxl->all_surfaces, 0, n_surfaces * sizeof (qxl_surface_t));
 
-    free_surfaces = NULL;
+    qxl->free_surfaces = NULL;
     
 #if 0
     ErrorF ("surface init\n");
@@ -62,39 +59,39 @@ qxl_surface_init (qxl_screen_t *qxl, int n_surfaces)
     
     for (i = 0; i < n_surfaces; ++i)
     {
-	all_surfaces[i].id = i;
-	all_surfaces[i].qxl = qxl;
-	all_surfaces[i].dev_image = NULL;
-	all_surfaces[i].host_image = NULL;
+	qxl->all_surfaces[i].id = i;
+	qxl->all_surfaces[i].qxl = qxl;
+	qxl->all_surfaces[i].dev_image = NULL;
+	qxl->all_surfaces[i].host_image = NULL;
 	
-	REGION_INIT (NULL, &(all_surfaces[i].access_region), (BoxPtr)NULL, 0);
+	REGION_INIT (NULL, &(qxl->all_surfaces[i].access_region), (BoxPtr)NULL, 0);
 
 	if (i) /* surface 0 is the primary surface */
 	{
-	    all_surfaces[i].next = free_surfaces;
-	    free_surfaces = &(all_surfaces[i]);
-	    all_surfaces[i].in_use = FALSE;
+	    qxl->all_surfaces[i].next = qxl->free_surfaces;
+	    qxl->free_surfaces = &(qxl->all_surfaces[i]);
+	    qxl->all_surfaces[i].in_use = FALSE;
 	}
     }
 }
 
 static qxl_surface_t *
-surface_new (void)
+surface_new (qxl_screen_t *qxl)
 {
     qxl_surface_t *result = NULL;
 
-    if (free_surfaces)
+    if (qxl->free_surfaces)
     {
 	qxl_surface_t *s;
 
-	result = free_surfaces;
-	free_surfaces = free_surfaces->next;
+	result = qxl->free_surfaces;
+	qxl->free_surfaces = qxl->free_surfaces->next;
 
 	result->next = NULL;
 	result->in_use = TRUE;
 	result->ref_count = 1;
 
-	for (s = free_surfaces; s; s = s->next)
+	for (s = qxl->free_surfaces; s; s = s->next)
 	{
 	    if (s->id == result->id)
 		ErrorF ("huh: %d to be returned, but %d is in list\n",
@@ -108,14 +105,14 @@ surface_new (void)
 }
 
 static void
-surface_free (qxl_surface_t *surface)
+surface_free (qxl_screen_t *qxl, qxl_surface_t *surface)
 {
 #if 0
     ErrorF ("  Adding %d to free list\n", surface->id);
 #endif
     
-    surface->next = free_surfaces;
-    free_surfaces = surface;
+    surface->next = qxl->free_surfaces;
+    qxl->free_surfaces = surface;
 }
 
 qxl_surface_t *
@@ -357,7 +354,7 @@ qxl_surface_create (qxl_screen_t *qxl,
     }
 
 retry:
-    surface = surface_new();
+    surface = surface_new (qxl);
     if (!surface)
     {
 	if (!qxl_handle_oom (qxl))
@@ -533,17 +530,17 @@ qxl_surface_destroy (qxl_surface_t *surface)
 }
 
 void
-qxl_surface_unref (uint32_t id)
+qxl_surface_unref (qxl_screen_t *qxl, uint32_t id)
 {
-    qxl_surface_t *surface = all_surfaces + id;
+    qxl_surface_t *surface = qxl->all_surfaces + id;
 
     qxl_surface_destroy (surface);
 }
 
 void
-qxl_surface_recycle (uint32_t id)
+qxl_surface_recycle (qxl_screen_t *qxl, uint32_t id)
 {
-    qxl_surface_t *surface = all_surfaces + id;
+    qxl_surface_t *surface = qxl->all_surfaces + id;
 
 #if 0
     ErrorF ("recycle %d\n", id);
@@ -553,7 +550,8 @@ qxl_surface_recycle (uint32_t id)
     ErrorF ("freeing %p\n", surface->address);
 #endif
     qxl_free (surface->qxl->surf_mem, surface->address);
-    surface_free (surface);
+
+    surface_free (qxl, surface);
 }
 
 /* send anything pending to the other side */
