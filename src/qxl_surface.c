@@ -19,6 +19,8 @@ struct qxl_surface_t
     int			Bpp;
     int			ref_count;
 
+    PixmapPtr		pixmap;
+
     union
     {
 	qxl_surface_t *copy_src;
@@ -90,6 +92,7 @@ surface_new (qxl_screen_t *qxl)
 	result->next = NULL;
 	result->in_use = TRUE;
 	result->ref_count = 1;
+	result->pixmap = NULL;
 
 	for (s = qxl->free_surfaces; s; s = s->next)
 	{
@@ -493,6 +496,12 @@ retry2:
 #endif
 
     return surface;
+}
+
+void
+qxl_surface_set_pixmap (qxl_surface_t *surface, PixmapPtr pixmap)
+{
+    surface->pixmap = pixmap;
 }
 
 void

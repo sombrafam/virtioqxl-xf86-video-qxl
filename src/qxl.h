@@ -760,6 +760,8 @@ qxl_surface_t *	    qxl_surface_create (qxl_screen_t *qxl,
 					int	      width,
 					int	      height,
 					int	      bpp);
+void		    qxl_surface_set_pixmap (qxl_surface_t *surface,
+					    PixmapPtr      pixmap);
 /* Call this to ask the device to destroy the surface */
 void		    qxl_surface_destroy (qxl_surface_t *surface);
 /* Call this when the notification comes back from the device

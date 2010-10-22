@@ -668,6 +668,8 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 				   NULL);
 	
 	set_surface (pixmap, surface);
+
+	qxl_surface_set_pixmap (surface, pixmap);
     }
     else
     {
