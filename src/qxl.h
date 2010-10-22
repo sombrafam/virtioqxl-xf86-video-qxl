@@ -691,7 +691,16 @@ struct _qxl_screen_t
 
     uint8_t			vram_mem_slot;
 
+    /* 'All' surfaces is an array of all surfaces, indexed by
+     *	    surface id.
+     *
+     * 'Live' is a double linked list of all
+     *      surfaces that correspond to a pixmap
+     *
+     * 'Free' is a single linked list of all free surfaces
+     */
     qxl_surface_t *		all_surfaces;
+    qxl_surface_t *		live_surfaces;
     qxl_surface_t *		free_surfaces;
 };
 

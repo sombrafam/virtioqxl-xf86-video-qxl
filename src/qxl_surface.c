@@ -15,6 +15,8 @@ struct qxl_surface_t
     void *		end;
     
     qxl_surface_t *	next;
+    qxl_surface_t *	prev;	/* Only used in the 'live' chain in qxl_screen */
+
     int			in_use;
     int			Bpp;
     int			ref_count;
@@ -439,19 +441,7 @@ retry2:
 	return NULL;
     }
 
-#if 0
-    ErrorF ("Allocated %lu bytes for %p\n",
-	    stride * height + stride, surface->address);
-#endif
-    
-#if 0
-    ErrorF ("Allocated %p\n", surface->address);
-#endif
-    
     surface->end = (char *)surface->address + stride * height;
-#if 0
-    ErrorF ("%d alloc address %lx from %p\n", surface->id, surface->address, qxl->surf_mem);
-#endif
     
     cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_CREATE);
 
@@ -460,26 +450,10 @@ retry2:
     cmd->u.surface_create.height = height;
     cmd->u.surface_create.stride = - stride;
 
-#if 0
-    ErrorF ("stride: %d\n", stride);
-#endif
-
     cmd->u.surface_create.physical = 
       physical_address (qxl, surface->address, qxl->vram_mem_slot);
 
-#if 0
-    ErrorF ("create %d\n", cmd->surface_id);
-#endif
-
     push_surface_cmd (qxl, cmd);
-
-#if 0
-    static uint32_t color = 0x00ff00ff;
-
-    color = (color << 8) | (color >> 24);
-    
-    submit_fill (qxl, surface->id, &rect, color);
-#endif
     
     dev_addr = (uint32_t *)((uint8_t *)surface->address + stride * (height - 1));
 
@@ -491,10 +465,12 @@ retry2:
 
     surface->Bpp = PIXMAN_FORMAT_BPP (pformat) / 8;
     
-#if 0
-    ErrorF ("   Allocating %d %lx\n", surface->id, surface->address);
-#endif
-
+    surface->next = qxl->live_surfaces;
+    surface->prev = NULL;
+    if (qxl->live_surfaces)
+	qxl->live_surfaces->prev = surface;
+    qxl->live_surfaces = surface;
+    
     return surface;
 }
 
@@ -509,30 +485,30 @@ qxl_surface_destroy (qxl_surface_t *surface)
 {
     qxl_screen_t *qxl = surface->qxl;
     
-#if 0
-    ErrorF ("About to free %d\n", surface->id);
-#endif
-
     if (--surface->ref_count == 0)
     {
 	if (surface->dev_image)
 	    pixman_image_unref (surface->dev_image);
 	if (surface->host_image)
 	    pixman_image_unref (surface->host_image);
+
+	if (surface->prev)
+	    surface->prev->next = surface->next;
+	else
+	    qxl->live_surfaces = surface->next;
+
+	if (surface->next)
+	    surface->next->prev = surface->prev;
+
+	surface->prev = NULL;
+	surface->next = NULL;
 	
 	if (surface->id != 0)
 	{
 	    struct qxl_surface_cmd *cmd;
-#if 0
-	    ErrorF ("%d free address %lx from %p\n", surface->id, surface->address, surface->qxl->surf_mem);
-#endif
+
 	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
-	    
-#if 0
-	    ErrorF ("  pushing destroy command %lx\n", cmd->release_info.id);
-	    ErrorF ("destroy %d\n", cmd->surface_id);
-#endif
-	    
+
 	    push_surface_cmd (qxl, cmd);
 	}
     }
