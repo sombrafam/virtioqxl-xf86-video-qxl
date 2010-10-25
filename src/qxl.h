@@ -762,7 +762,7 @@ void              qxl_ring_wait_idle   (struct qxl_ring        *ring);
 /*
  * Surface
  */
-void		    qxl_surface_init (qxl_screen_t *qxl, int n_surfaces);
+void		    qxl_surface_init (qxl_screen_t *qxl);
 qxl_surface_t *	    qxl_surface_create_primary (qxl_screen_t *qxl,
 						struct qxl_mode *mode);
 qxl_surface_t *	    qxl_surface_create (qxl_screen_t *qxl,

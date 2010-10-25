@@ -343,7 +343,7 @@ qxl_reset (qxl_screen_t *qxl)
 
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
-    qxl_surface_init (qxl, qxl->rom->n_surfaces);
+    qxl_surface_init (qxl);
     
     /* Mem slots */
     ErrorF ("slots start: %d, slots end: %d\n",
@@ -861,7 +861,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 					 sizeof (uint64_t),
 					 8, 0);
 
-    qxl_surface_init (qxl, qxl->rom->n_surfaces);
+    qxl_surface_init (qxl);
     
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
     
