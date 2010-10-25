@@ -515,8 +515,6 @@ qxl_surface_set_pixmap (qxl_surface_t *surface, PixmapPtr pixmap)
     surface->pixmap = pixmap;
 
     assert (get_surface (pixmap) == surface);
-
-    ErrorF ("Surface %p now has pixmap %p\n", surface, pixmap);
 }
 
 static void
@@ -526,8 +524,6 @@ unlink_surface (qxl_surface_t *surface)
 	pixman_image_unref (surface->dev_image);
     if (surface->host_image)
 	pixman_image_unref (surface->host_image);
-
-    ErrorF ("Unlinking %p\n", surface);
     
     if (surface->prev)
 	surface->prev->next = surface->next;
@@ -784,7 +780,9 @@ qxl_surface_evacuate_all (qxl_screen_t *qxl)
     evacuated_surface_t *evacuated_surfaces = NULL;
     qxl_surface_t *s;
 
+#if 0
     ErrorF ("Evacuating all\n");
+#endif
 
     s = qxl->live_surfaces;
     while (s != NULL)
@@ -803,7 +801,9 @@ qxl_surface_evacuate_all (qxl_screen_t *qxl)
 
 	assert (get_surface (evacuated->pixmap) == s);
 	
+#if 0
 	ErrorF ("%d => %p\n", s->id, evacuated->pixmap);
+#endif
 	evacuated->Bpp = s->Bpp;
 	
 	s->host_image = NULL;
@@ -829,7 +829,9 @@ qxl_surface_replace_all (qxl_screen_t *qxl, void *data)
 {
     evacuated_surface_t *ev;
 
+#if 0
     ErrorF ("Replacing all\n");
+#endif
     qxl_surface_init (qxl);
     
     ev = data;
@@ -841,7 +843,9 @@ qxl_surface_replace_all (qxl_screen_t *qxl, void *data)
 	qxl_surface_t *surface;
 
 	surface = qxl_surface_create (qxl, width, height, ev->Bpp * 8);
+#if 0
 	ErrorF ("%d => %p\n", surface->id, ev->pixmap);
+#endif
 
 	assert (surface->host_image);
 	assert (surface->dev_image);

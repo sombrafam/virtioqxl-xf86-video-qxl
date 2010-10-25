@@ -675,7 +675,9 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 				   -1, -1, -1,
 				   NULL);
 	
+#if 0
 	ErrorF ("Create pixmap %p with surface %p\n", pixmap, surface);
+#endif
 	set_surface (pixmap, surface);
 
 	qxl_surface_set_pixmap (surface, pixmap);
@@ -689,7 +691,9 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 
 	pixmap = fbCreatePixmap (screen, w, h, depth, usage);
 
+#if 0
     	ErrorF ("Create pixmap %p without surface\n", pixmap);
+#endif
 }
     
     return pixmap;
@@ -709,7 +713,9 @@ qxl_destroy_pixmap (PixmapPtr pixmap)
     {
 	surface = get_surface (pixmap);
 
+#if 0
 	ErrorF ("- Destroy %p (had surface %p)\n", pixmap, surface);
+#endif
 	    
 	if (surface)
 	{
@@ -834,7 +840,9 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!qxl->fb)
 	goto out;
     
+#if 0
     ErrorF ("allocated %d x %d  %p\n", pScrn->virtualX, pScrn->virtualY, qxl->fb);
+#endif
     
     pScreen->totalPixmapSize = 100;
 

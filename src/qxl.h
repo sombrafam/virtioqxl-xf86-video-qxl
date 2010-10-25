@@ -827,9 +827,6 @@ static inline qxl_surface_t *get_surface (PixmapPtr pixmap)
 
 static inline void set_surface (PixmapPtr pixmap, qxl_surface_t *surface)
 {
-    if (surface == NULL)
-	ErrorF ("pixmap %p now has surface %p\n", pixmap, surface);
-    
     dixSetPrivate(&pixmap->devPrivates, &uxa_pixmap_index, surface);
 }
 
