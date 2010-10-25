@@ -769,6 +769,12 @@ qxl_surface_t *	    qxl_surface_create (qxl_screen_t *qxl,
 					int	      width,
 					int	      height,
 					int	      bpp);
+void
+qxl_surface_sanity_check (qxl_screen_t *qxl);
+void *
+qxl_surface_evacuate_all (qxl_screen_t *qxl);
+void
+qxl_surface_replace_all (qxl_screen_t *qxl, void *data);
 void		    qxl_surface_set_pixmap (qxl_surface_t *surface,
 					    PixmapPtr      pixmap);
 /* Call this to ask the device to destroy the surface */
@@ -821,6 +827,9 @@ static inline qxl_surface_t *get_surface (PixmapPtr pixmap)
 
 static inline void set_surface (PixmapPtr pixmap, qxl_surface_t *surface)
 {
+    if (surface == NULL)
+	ErrorF ("pixmap %p now has surface %p\n", pixmap, surface);
+    
     dixSetPrivate(&pixmap->devPrivates, &uxa_pixmap_index, surface);
 }
 

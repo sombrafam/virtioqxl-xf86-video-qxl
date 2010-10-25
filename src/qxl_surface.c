@@ -1,5 +1,7 @@
 #include "qxl.h"
 
+typedef struct evacuated_surface_t evacuated_surface_t;
+
 struct qxl_surface_t
 {
     qxl_screen_t *	qxl;
@@ -30,8 +32,6 @@ struct qxl_surface_t
     } u;
 };
 
-typedef struct evacuated_surface_t evacuated_surface_t;
-
 struct evacuated_surface_t
 {
     pixman_image_t	*image;
@@ -40,6 +40,25 @@ struct evacuated_surface_t
 
     evacuated_surface_t *next;
 };
+
+void
+qxl_surface_sanity_check (qxl_screen_t *qxl)
+{
+    qxl_surface_t *s;
+
+    for (s = qxl->live_surfaces; s != NULL; s = s->next)
+    {
+	PixmapPtr pixmap = s->pixmap;
+
+	if (! (get_surface (pixmap) == s) )
+	{
+	    ErrorF ("Surface %p has pixmap %p, but pixmap %p has surface %p\n",
+		    s, pixmap, pixmap, get_surface (pixmap));
+
+	    assert (0);
+	}
+    }
+}
 
 #if 0
 void
@@ -187,6 +206,8 @@ qxl_surface_create_primary (qxl_screen_t	*qxl,
     surface->host_image = host_image;
     surface->qxl = qxl;
     surface->Bpp = PIXMAN_FORMAT_BPP (format) / 8;
+    surface->next = NULL;
+    surface->prev = NULL;
 
 #if 0
     ErrorF ("primary %p\n", surface->address);
@@ -492,15 +513,21 @@ void
 qxl_surface_set_pixmap (qxl_surface_t *surface, PixmapPtr pixmap)
 {
     surface->pixmap = pixmap;
+
+    assert (get_surface (pixmap) == surface);
+
+    ErrorF ("Surface %p now has pixmap %p\n", surface, pixmap);
 }
 
 static void
-free_surface_content (qxl_surface_t *surface)
+unlink_surface (qxl_surface_t *surface)
 {
     if (surface->dev_image)
 	pixman_image_unref (surface->dev_image);
     if (surface->host_image)
 	pixman_image_unref (surface->host_image);
+
+    ErrorF ("Unlinking %p\n", surface);
     
     if (surface->prev)
 	surface->prev->next = surface->next;
@@ -509,37 +536,37 @@ free_surface_content (qxl_surface_t *surface)
     
     if (surface->next)
 	surface->next->prev = surface->prev;
+
+    surface->pixmap = NULL;
     
     surface->prev = NULL;
     surface->next = NULL;
 }
 
 void
-qxl_surface_destroy (qxl_surface_t *surface)
+qxl_surface_unref (qxl_screen_t *qxl, uint32_t id)
 {
-    qxl_screen_t *qxl = surface->qxl;
-    
-    if (--surface->ref_count == 0)
+    if (id != 0)
     {
-	if (surface->id != 0)
+	qxl_surface_t *surface = qxl->all_surfaces + id;
+	
+	if (--surface->ref_count == 0)
 	{
 	    struct qxl_surface_cmd *cmd;
-
+	    
 	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
-
+	    
 	    push_surface_cmd (qxl, cmd);
 	}
-
-	free_surface_content (surface);
     }
 }
 
 void
-qxl_surface_unref (qxl_screen_t *qxl, uint32_t id)
+qxl_surface_destroy (qxl_surface_t *surface)
 {
-    qxl_surface_t *surface = qxl->all_surfaces + id;
+    unlink_surface (surface);
 
-    qxl_surface_destroy (surface);
+    qxl_surface_unref (surface->qxl, surface->id);
 }
 
 void
@@ -671,69 +698,6 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
     return TRUE;
 }
 
-void *
-qxl_surface_evacuate_all (qxl_screen_t *qxl)
-{
-    evacuated_surface_t *evacuated_surfaces = NULL;
-    qxl_surface_t *s;
-
-    for (s = qxl->live_surfaces; s != NULL; s = s->next)
-    {
-	evacuated_surface_t *evacuated = malloc (sizeof (evacuated_surface_t));
-	int width, height;
-
-	width = pixman_image_get_width (s->host_image);
-	height = pixman_image_get_height (s->host_image);
-
-	download_box (s, 0, 0, width, height);
-
-	evacuated->image = s->host_image;
-	evacuated->pixmap = s->pixmap;
-	evacuated->Bpp = s->Bpp;
-	
-	s->host_image = NULL;
-
-	free_surface_content (s);
-	
-	evacuated->next = evacuated_surfaces;
-	evacuated_surfaces = evacuated;
-    }
-
-    free (qxl->all_surfaces);
-    qxl->all_surfaces = NULL;
-    qxl->live_surfaces = NULL;
-    qxl->free_surfaces = NULL;
-    
-    return evacuated_surfaces;
-}
-
-void
-qxl_surface_replace_all (qxl_screen_t *qxl, void *data)
-{
-    evacuated_surface_t *ev;
-
-    ev = data;
-    while (ev != NULL)
-    {
-	evacuated_surface_t *next = ev->next;
-	int width = pixman_image_get_width (ev->image);
-	int height = pixman_image_get_height (ev->image);
-	qxl_surface_t *surface;
-
-	surface = qxl_surface_create (qxl, width, height, ev->Bpp * 8);
-
-	set_surface (ev->pixmap, surface);
-
-	qxl_surface_set_pixmap (surface, ev->pixmap);
-	
-	free (ev);
-	
-	ev = next;
-    }
-
-    qxl_surface_init (qxl);
-}
-
 static void
 translate_rect (struct qxl_rect *rect)
 {
@@ -814,6 +778,91 @@ qxl_surface_finish_access (qxl_surface_t *surface, PixmapPtr pixmap)
     pScreen->ModifyPixmapHeader(pixmap, w, h, -1, -1, 0, NULL);
 }
 
+void *
+qxl_surface_evacuate_all (qxl_screen_t *qxl)
+{
+    evacuated_surface_t *evacuated_surfaces = NULL;
+    qxl_surface_t *s;
+
+    ErrorF ("Evacuating all\n");
+
+    s = qxl->live_surfaces;
+    while (s != NULL)
+    {
+	qxl_surface_t *next = s->next;
+	evacuated_surface_t *evacuated = malloc (sizeof (evacuated_surface_t));
+	int width, height;
+
+	width = pixman_image_get_width (s->host_image);
+	height = pixman_image_get_height (s->host_image);
+
+	download_box (s, 0, 0, width, height);
+
+	evacuated->image = s->host_image;
+	evacuated->pixmap = s->pixmap;
+
+	assert (get_surface (evacuated->pixmap) == s);
+	
+	ErrorF ("%d => %p\n", s->id, evacuated->pixmap);
+	evacuated->Bpp = s->Bpp;
+	
+	s->host_image = NULL;
+
+	unlink_surface (s);
+	
+	evacuated->next = evacuated_surfaces;
+	evacuated_surfaces = evacuated;
+
+	s = next;
+    }
+
+    free (qxl->all_surfaces);
+    qxl->all_surfaces = NULL;
+    qxl->live_surfaces = NULL;
+    qxl->free_surfaces = NULL;
+    
+    return evacuated_surfaces;
+}
+
+void
+qxl_surface_replace_all (qxl_screen_t *qxl, void *data)
+{
+    evacuated_surface_t *ev;
+
+    ErrorF ("Replacing all\n");
+    qxl_surface_init (qxl);
+    
+    ev = data;
+    while (ev != NULL)
+    {
+	evacuated_surface_t *next = ev->next;
+	int width = pixman_image_get_width (ev->image);
+	int height = pixman_image_get_height (ev->image);
+	qxl_surface_t *surface;
+
+	surface = qxl_surface_create (qxl, width, height, ev->Bpp * 8);
+	ErrorF ("%d => %p\n", surface->id, ev->pixmap);
+
+	assert (surface->host_image);
+	assert (surface->dev_image);
+
+	pixman_image_unref (surface->host_image);
+	surface->host_image = ev->image;
+
+	upload_box (surface, 0, 0, width, height);
+
+	set_surface (ev->pixmap, surface);
+
+	qxl_surface_set_pixmap (surface, ev->pixmap);
+
+	free (ev);
+	
+	ev = next;
+    }
+
+    qxl_surface_sanity_check (qxl);
+
+}
 
 static void
 print_region (const char *header, RegionPtr pRegion)

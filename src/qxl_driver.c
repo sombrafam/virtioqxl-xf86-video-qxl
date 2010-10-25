@@ -361,7 +361,8 @@ qxl_reset (qxl_screen_t *qxl)
     qxl->main_mem_slot = qxl->rom->slots_start;
     slot = &qxl->mem_slots[qxl->main_mem_slot];
     slot->start_phys_addr = (unsigned long)qxl->ram_physical;
-    slot->end_phys_addr = (unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
+    slot->end_phys_addr =
+	(unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
     slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->ram;
     slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
     
@@ -429,6 +430,9 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     int mode_index = (int)(unsigned long)p->Private;
     struct qxl_mode *m = qxl->modes + mode_index;
     ScreenPtr pScreen;
+    void *evacuated;
+
+    evacuated = qxl_surface_evacuate_all (qxl);
 
     if (qxl->primary)
 	qxl_surface_destroy (qxl->primary);
@@ -459,6 +463,8 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     if (qxl->surf_mem)
 	qxl_mem_free_all (qxl->surf_mem);
 
+    qxl_surface_replace_all (qxl, evacuated);
+    
     return TRUE;
 }
 
@@ -651,6 +657,8 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
     if (w > 32767 || h > 32767)
 	return NULL;
 
+    qxl_surface_sanity_check (qxl);
+
 #if 0
     ErrorF ("Create pixmap: %d %d @ %d (usage: %d)\n", w, h, depth, usage);
 #endif
@@ -667,6 +675,7 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 				   -1, -1, -1,
 				   NULL);
 	
+	ErrorF ("Create pixmap %p with surface %p\n", pixmap, surface);
 	set_surface (pixmap, surface);
 
 	qxl_surface_set_pixmap (surface, pixmap);
@@ -679,7 +688,9 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 #endif
 
 	pixmap = fbCreatePixmap (screen, w, h, depth, usage);
-    }
+
+    	ErrorF ("Create pixmap %p without surface\n", pixmap);
+}
     
     return pixmap;
 }
@@ -687,12 +698,24 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 static Bool
 qxl_destroy_pixmap (PixmapPtr pixmap)
 {
-    qxl_surface_t *surface;
+    ScreenPtr screen = pixmap->drawable.pScreen;
+    ScrnInfoPtr scrn = xf86Screens[screen->myNum];
+    qxl_screen_t *qxl = scrn->driverPrivate;
+    qxl_surface_t *surface = NULL;
 
-    if (pixmap->refcnt == 1 && (surface = get_surface (pixmap)))
+    qxl_surface_sanity_check (qxl);
+    
+    if (pixmap->refcnt == 1)
     {
-	qxl_surface_destroy (surface);
-	set_surface (pixmap, NULL);
+	surface = get_surface (pixmap);
+
+	ErrorF ("- Destroy %p (had surface %p)\n", pixmap, surface);
+	    
+	if (surface)
+	{
+	    qxl_surface_destroy (surface);
+	    set_surface (pixmap, NULL);
+	}
     }
     
     fbDestroyPixmap (pixmap);
