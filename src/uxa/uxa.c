@@ -335,11 +335,16 @@ void uxa_finish_access_window(WindowPtr pWin)
 static Bool uxa_change_window_attributes(WindowPtr pWin, unsigned long mask)
 {
 	Bool ret;
+	Bool need_access = !!(mask & (CWBackPixmap | CWBorderPixmap));
 
-	if (!uxa_prepare_access_window(pWin))
+	if (need_access)
+	{
+	    if (!uxa_prepare_access_window(pWin))
 		return FALSE;
+	}
 	ret = fbChangeWindowAttributes(pWin, mask);
-	uxa_finish_access_window(pWin);
+	if (need_access)
+	    uxa_finish_access_window(pWin);
 	return ret;
 }
 
