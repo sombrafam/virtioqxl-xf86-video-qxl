@@ -240,13 +240,10 @@ push_surface_cmd (qxl_screen_t *qxl, struct qxl_surface_cmd *cmd)
 {
     struct qxl_command command;
 
-    if (qxl->pScrn->vtSema)
-    {
-	command.type = QXL_CMD_SURFACE;
-	command.data = physical_address (qxl, cmd, qxl->main_mem_slot);
-	
-	qxl_ring_push (qxl->command_ring, &command);
-    }
+    command.type = QXL_CMD_SURFACE;
+    command.data = physical_address (qxl, cmd, qxl->main_mem_slot);
+    
+    qxl_ring_push (qxl->command_ring, &command);
 }
 
 enum ROPDescriptor
@@ -359,11 +356,7 @@ qxl_surface_create (qxl_screen_t *qxl,
     pixman_format_code_t pformat;
     int stride;
     uint32_t *dev_addr;
-    static int count;
     int n_attempts = 0;
-
-    if (++count < 10)
-      return NULL;
 
 #if 0
     ErrorF ("   qxl_surface: attempting to allocate %d x %d @ %d\n", width, height, bpp);
@@ -408,7 +401,6 @@ retry:
     
 #if 0
     ErrorF ("    Surface allocated: %u\n", surface->id);
-    ErrorF ("Allocated %d\n", surface->id);
 #endif
     
     if (width == 0 || height == 0)
@@ -490,6 +482,10 @@ retry2:
 
     push_surface_cmd (qxl, cmd);
     
+#if 0
+    ErrorF ("Allocated %d\n", surface->id);
+#endif
+
     dev_addr = (uint32_t *)((uint8_t *)surface->address + stride * (height - 1));
 
     surface->dev_image = pixman_image_create_bits (
@@ -551,6 +547,10 @@ qxl_surface_unref (qxl_screen_t *qxl, uint32_t id)
 	    struct qxl_surface_cmd *cmd;
 	    
 	    cmd = make_surface_cmd (qxl, surface->id, QXL_SURFACE_CMD_DESTROY);
+
+#if 0
+	    ErrorF ("Destroying %d\n", id);
+#endif
 	    
 	    push_surface_cmd (qxl, cmd);
 	}
@@ -601,6 +601,10 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     ram_header->update_area.right = x2;
     
     ram_header->update_surface = surface->id;
+
+#if 0
+    ErrorF ("Issuing update command for %d\n", surface->id);
+#endif
 
     outb (surface->qxl->io_base + QXL_IO_UPDATE_AREA, 0);
 
@@ -802,8 +806,9 @@ qxl_surface_evacuate_all (qxl_screen_t *qxl)
 	assert (get_surface (evacuated->pixmap) == s);
 	
 #if 0
-	ErrorF ("%d => %p\n", s->id, evacuated->pixmap);
+	ErrorF ("Evacuated %d => %p\n", s->id, evacuated->pixmap);
 #endif
+
 	evacuated->Bpp = s->Bpp;
 	
 	s->host_image = NULL;
@@ -844,6 +849,7 @@ qxl_surface_replace_all (qxl_screen_t *qxl, void *data)
 
 	surface = qxl_surface_create (qxl, width, height, ev->Bpp * 8);
 #if 0
+	ErrorF ("recreated %d\n", surface->id);
 	ErrorF ("%d => %p\n", surface->id, ev->pixmap);
 #endif
 

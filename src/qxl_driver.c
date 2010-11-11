@@ -312,12 +312,6 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     qxl_screen_t *qxl = pScrn->driverPrivate;
     Bool result;
     
-    if (pScrn->vtSema) {
-        qxl_restore_state(pScrn);
-	qxl_unmap_memory(qxl, scrnIndex);
-    }
-    pScrn->vtSema = FALSE;
-
     ErrorF ("Freeing %p\n", qxl->fb);
     free(qxl->fb);
     qxl->fb = NULL;
@@ -328,6 +322,12 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     
 
     result = pScreen->CloseScreen(scrnIndex, pScreen);
+
+    if (pScrn->vtSema) {
+        qxl_restore_state(pScrn);
+	qxl_unmap_memory(qxl, scrnIndex);
+    }
+    pScrn->vtSema = FALSE;
 
     return result;
 }
