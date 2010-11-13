@@ -604,6 +604,7 @@ struct qxl_ram_header {
 };
 
 #pragma pack(pop)
+typedef struct surface_cache_t surface_cache_t;
 
 typedef struct _qxl_screen_t qxl_screen_t;
 
@@ -691,17 +692,7 @@ struct _qxl_screen_t
 
     uint8_t			vram_mem_slot;
 
-    /* 'All' surfaces is an array of all surfaces, indexed by
-     *	    surface id.
-     *
-     * 'Live' is a double linked list of all
-     *      surfaces that correspond to a pixmap
-     *
-     * 'Free' is a single linked list of all free surfaces
-     */
-    qxl_surface_t *		all_surfaces;
-    qxl_surface_t *		live_surfaces;
-    qxl_surface_t *		free_surfaces;
+    surface_cache_t *		surface_cache;
 };
 
 static inline uint64_t
@@ -762,19 +753,20 @@ void              qxl_ring_wait_idle   (struct qxl_ring        *ring);
 /*
  * Surface
  */
-void		    qxl_surface_init (qxl_screen_t *qxl);
-qxl_surface_t *	    qxl_surface_create_primary (qxl_screen_t *qxl,
+surface_cache_t *   qxl_surface_cache_create (qxl_screen_t *qxl);
+qxl_surface_t *	    qxl_surface_cache_create_primary (surface_cache_t *qxl,
 						struct qxl_mode *mode);
-qxl_surface_t *	    qxl_surface_create (qxl_screen_t *qxl,
+qxl_surface_t *	    qxl_surface_create (surface_cache_t *qxl,
 					int	      width,
 					int	      height,
 					int	      bpp);
 void
-qxl_surface_sanity_check (qxl_screen_t *qxl);
+qxl_surface_cache_sanity_check (surface_cache_t *qxl);
 void *
-qxl_surface_evacuate_all (qxl_screen_t *qxl);
+qxl_surface_cache_evacuate_all (surface_cache_t *qxl);
 void
-qxl_surface_replace_all (qxl_screen_t *qxl, void *data);
+qxl_surface_cache_replace_all (surface_cache_t *qxl, void *data);
+
 void		    qxl_surface_set_pixmap (qxl_surface_t *surface,
 					    PixmapPtr      pixmap);
 /* Call this to ask the device to destroy the surface */
@@ -782,7 +774,7 @@ void		    qxl_surface_destroy (qxl_surface_t *surface);
 /* Call this when the notification comes back from the device
  * that the surface has been destroyed
  */
-void		    qxl_surface_recycle (qxl_screen_t *qxl, uint32_t id);
+void		    qxl_surface_recycle (surface_cache_t *cache, uint32_t id);
 
 /* send anything pending to the other side */
 void		    qxl_surface_flush (qxl_surface_t *surface);
@@ -814,7 +806,7 @@ void		    qxl_surface_copy	     (qxl_surface_t *dest,
 Bool		    qxl_surface_put_image    (qxl_surface_t *dest,
 					      int x, int y, int width, int height,
 					      const char *src, int src_pitch);
-void		    qxl_surface_unref        (qxl_screen_t *qxl,
+void		    qxl_surface_unref        (surface_cache_t *cache,
 					      uint32_t surface_id);
 					      
 

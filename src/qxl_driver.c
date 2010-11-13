@@ -86,7 +86,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 		
 		if (image->descriptor.type == QXL_IMAGE_TYPE_SURFACE)
 		{
-		    qxl_surface_unref (qxl, image->u.surface_id);
+		    qxl_surface_unref (qxl->surface_cache, image->u.surface_id);
 		    qxl_free (qxl->mem, image);
 		}
 		else
@@ -96,7 +96,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 	    }
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
-		qxl_surface_recycle (qxl, surface_cmd->surface_id);
+		qxl_surface_recycle (qxl->surface_cache, surface_cmd->surface_id);
 	    }
 	    
 	    id = info->next;
@@ -338,12 +338,10 @@ qxl_reset (qxl_screen_t *qxl)
     qxl_memslot_t *slot;
     uint64_t high_bits;
     struct qxl_ram_header *ram_header;
-    
+
     outb(qxl->io_base + QXL_IO_RESET, 0);
 
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
-    
-    qxl_surface_init (qxl);
     
     /* Mem slots */
     ErrorF ("slots start: %d, slots end: %d\n",
@@ -432,7 +430,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     ScreenPtr pScreen;
     void *evacuated;
 
-    evacuated = qxl_surface_evacuate_all (qxl);
+    evacuated = qxl_surface_cache_evacuate_all (qxl->surface_cache);
 
     if (qxl->primary)
 	qxl_surface_destroy (qxl->primary);
@@ -441,7 +439,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     
     ErrorF ("done reset\n");
 
-    qxl->primary = qxl_surface_create_primary (qxl, m);
+    qxl->primary = qxl_surface_cache_create_primary (qxl->surface_cache, m);
     qxl->current_mode = m;
     qxl->bytes_per_pixel = (qxl->pScrn->bitsPerPixel + 7) / 8;
 
@@ -463,7 +461,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     if (qxl->surf_mem)
 	qxl_mem_free_all (qxl->surf_mem);
 
-    qxl_surface_replace_all (qxl, evacuated);
+    qxl_surface_cache_replace_all (qxl->surface_cache, evacuated);
     
     return TRUE;
 }
@@ -657,13 +655,13 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
     if (w > 32767 || h > 32767)
 	return NULL;
 
-    qxl_surface_sanity_check (qxl);
+    qxl_surface_cache_sanity_check (qxl->surface_cache);
 
 #if 0
     ErrorF ("Create pixmap: %d %d @ %d (usage: %d)\n", w, h, depth, usage);
 #endif
     
-    surface = qxl_surface_create (qxl, w, h, depth);
+    surface = qxl_surface_create (qxl->surface_cache, w, h, depth);
     
     if (surface)
     {
@@ -707,7 +705,7 @@ qxl_destroy_pixmap (PixmapPtr pixmap)
     qxl_screen_t *qxl = scrn->driverPrivate;
     qxl_surface_t *surface = NULL;
 
-    qxl_surface_sanity_check (qxl);
+    qxl_surface_cache_sanity_check (qxl->surface_cache);
     
     if (pixmap->refcnt == 1)
     {
@@ -892,7 +890,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 					 sizeof (uint64_t),
 					 8, 0);
 
-    qxl_surface_init (qxl);
+    qxl->surface_cache = qxl_surface_cache_create (qxl);
     
     /* xf86DPMSInit(pScreen, xf86DPMSSet, 0); */
     
