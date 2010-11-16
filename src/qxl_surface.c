@@ -276,7 +276,7 @@ surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
 	    int w = pixman_image_get_width (s->host_image);
 	    int h = pixman_image_get_height (s->host_image);
 	    
-	    if (width <= w && width * 2 > w && height <= h && height * 2 > h)
+	    if (width <= w && width * 4 > w && height <= h && height * 4 > h)
 	    {
 		cache->cached_surfaces[i] = NULL;
 
@@ -309,6 +309,8 @@ surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
     return NULL;
 }
 
+static n_live;
+
 void
 qxl_surface_recycle (surface_cache_t *cache, uint32_t id)
 {
@@ -321,8 +323,14 @@ qxl_surface_recycle (surface_cache_t *cache, uint32_t id)
 #if 0
     ErrorF ("freeing %p\n", surface->address);
 #endif
+
+    n_live--;
     qxl_free (cache->qxl->surf_mem, surface->address);
 
+#if 0
+    ErrorF ("%d live\n", n_live);
+#endif
+    
 #if 0
     ErrorF ("  Adding %d to free list\n", surface->id);
 #endif
@@ -620,7 +628,8 @@ retry2:
 	if (qxl_garbage_collect (qxl))
 	    goto retry2;
 
-	ErrorF ("- OOM\n");
+	ErrorF ("- OOM at %d %d %d\n", width, height, bpp);
+	print_cache_info (cache);
 	
 	if (qxl_handle_oom (qxl))
 	{
@@ -662,6 +671,8 @@ retry2:
 	pformat, width, height, NULL, -1);
 
     surface->bpp = bpp;
+
+    n_live++;
     
     return surface;
 }
@@ -859,8 +870,15 @@ qxl_surface_kill (qxl_surface_t *surface)
 	    surface->bpp);
 #endif
     
-    if (surface->id != 0)
+    if (surface->id != 0					&&
+	pixman_image_get_width (surface->host_image) >= 128	&&
+	pixman_image_get_height (surface->host_image) >= 128)
+    {
+#if 0
+	ErrorF ("Adding %d to cache\n", surface->id);
+#endif
 	surface_add_to_cache (surface);
+    }
     
 #if 0
     ErrorF ("After adding %d to cache\n", surface->id);
