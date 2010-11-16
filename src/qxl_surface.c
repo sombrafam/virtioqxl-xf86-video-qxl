@@ -1,3 +1,48 @@
+/*
+ * Copyright 2010 Red Hat, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * on the rights to use, copy, modify, merge, publish, distribute, sub
+ * license, and/or sell copies of the Software, and to permit persons to whom
+ * the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/* The life cycle of surfaces
+ *
+ *    free => live => dead => destroyed => free
+ *
+ * A 'free' surface is one that is not allocated on the device. These
+ * are stored on the 'free_surfaces' list.
+ *
+ * A 'live' surface is one that the X server is using for something. It
+ * has an associated pixmap. It is allocated in the device. These are stored on
+ * the "live_surfaces" list.
+ *
+ * A 'dead' surface is one that the X server is no using any more, but
+ * is still allocated in the device. These surfaces may be stored in the
+ * cache, from where they can be resurrected. The cache holds a ref on the
+ * surfaces. 
+ *
+ * A 'destroyed' surface is one whose ref count has reached 0. It is no
+ * longer being referenced by either the server or the device or the cache.
+ * When a surface enters this state, the associated pixman images are freed, and
+ * a destroy command is sent. This will eventually trigger a 'recycle' call,
+ * which puts the surface into the 'free' state.
+ *
+ */
 #include "qxl.h"
 
 typedef struct evacuated_surface_t evacuated_surface_t;
@@ -182,7 +227,7 @@ print_cache_info (surface_cache_t *cache)
 }
 
 static qxl_surface_t *
-surface_get_cached (surface_cache_t *cache, int width, int height, int bpp)
+surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
 {
     int i;
 
@@ -217,43 +262,6 @@ surface_get_cached (surface_cache_t *cache, int width, int height, int bpp)
     }
 
     return NULL;
-}
-
-static qxl_surface_t *
-surface_new (surface_cache_t *cache)
-{
-    qxl_surface_t *result = NULL;
-
-    if (cache->free_surfaces)
-    {
-	qxl_surface_t *s;
-
-	result = cache->free_surfaces;
-	cache->free_surfaces = cache->free_surfaces->next;
-
-	result->next = NULL;
-	result->in_use = TRUE;
-	result->ref_count = 1;
-	result->pixmap = NULL;
-
-	for (s = cache->free_surfaces; s; s = s->next)
-	{
-	    if (s->id == result->id)
-		ErrorF ("huh: %d to be returned, but %d is in list\n",
-			s->id, result->id);
-
-	    assert (s->id != result->id);
-	}
-    }
-
-#if 0
-    if (result)
-	ErrorF ("returning %d from surface_new\n", result->id);
-    else
-	ErrorF ("returning nul from surface_new\n");
-#endif
-    
-    return result;
 }
 
 void
@@ -472,6 +480,36 @@ submit_fill (qxl_screen_t *qxl, int id,
     push_drawable (qxl, drawable);
 }
 
+static qxl_surface_t *
+surface_get_from_free_list (surface_cache_t *cache)
+{
+    qxl_surface_t *result = NULL;
+
+    if (cache->free_surfaces)
+    {
+	qxl_surface_t *s;
+
+	result = cache->free_surfaces;
+	cache->free_surfaces = cache->free_surfaces->next;
+
+	result->next = NULL;
+	result->in_use = TRUE;
+	result->ref_count = 1;
+	result->pixmap = NULL;
+
+	for (s = cache->free_surfaces; s; s = s->next)
+	{
+	    if (s->id == result->id)
+		ErrorF ("huh: %d to be returned, but %d is in list\n",
+			s->id, result->id);
+
+	    assert (s->id != result->id);
+	}
+    }
+    
+    return result;
+}
+
 qxl_surface_t *
 qxl_surface_create (surface_cache_t *    cache,
 		    int			 width,
@@ -487,10 +525,6 @@ qxl_surface_create (surface_cache_t *    cache,
     int n_attempts = 0;
     qxl_screen_t *qxl = cache->qxl;
 
-#if 0
-    ErrorF ("   qxl_surface: attempting to allocate %d x %d @ %d\n", width, height, bpp);
-#endif
-    
     if ((bpp & 3) != 0)
     {
 	ErrorF ("   Bad bpp: %d (%d)\n", bpp, bpp & 7);
@@ -499,10 +533,10 @@ qxl_surface_create (surface_cache_t *    cache,
 
     if (bpp == 8)
       {
-	static int warned = 10;
-	if (warned > 0)
+	static int warned;
+	if (!warned)
 	{
-	    warned--;
+	    warned = 1;
 	    ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
 	}
 	
@@ -515,13 +549,13 @@ qxl_surface_create (surface_cache_t *    cache,
 	return NULL;
     }
 
-    surface = surface_get_cached (cache, width, height, bpp);
+    surface = surface_get_from_cache (cache, width, height, bpp);
 
     if (surface)
 	return surface;
     
 retry:
-    surface = surface_new (cache);
+    surface = surface_get_from_free_list (cache);
     if (!surface)
     {
 	if (!qxl_handle_oom (cache->qxl))
@@ -532,10 +566,6 @@ retry:
 	else
 	    goto retry;
     }
-    
-#if 0
-    ErrorF ("    Surface allocated: %u\n", surface->id);
-#endif
     
     if (width == 0 || height == 0)
     {
@@ -669,10 +699,6 @@ send_destroy (qxl_surface_t *surface)
 {
     struct qxl_surface_cmd *cmd;
 
-#if 0
-    ErrorF ("destroy %d\n", surface->id);
-#endif
-
     if (surface->dev_image)
 	pixman_image_unref (surface->dev_image);
     if (surface->host_image)
@@ -681,6 +707,86 @@ send_destroy (qxl_surface_t *surface)
     cmd = make_surface_cmd (surface->cache, surface->id, QXL_SURFACE_CMD_DESTROY);
     
     push_surface_cmd (surface->cache, cmd);
+}
+
+static void
+surface_add_to_cache (qxl_surface_t *surface)
+{
+    surface_cache_t *cache = surface->cache;
+    int oldest = -1;
+    int n_surfaces = 0;
+    int i, delta;
+    int destroy_id = -1;
+    qxl_surface_t *destroy_surface = NULL;
+
+    surface->ref_count++;
+    
+    print_cache_info (cache);
+    
+    for (i = 0; i < N_CACHED_SURFACES; ++i)
+    {
+	if (cache->cached_surfaces[i])
+	{
+	    oldest = i;
+	    n_surfaces++;
+	}
+    }
+    
+    if (n_surfaces == N_CACHED_SURFACES)
+    {
+	int i;
+	destroy_id = cache->cached_surfaces[oldest]->id;
+	
+	destroy_surface = cache->cached_surfaces[oldest];
+	
+	cache->cached_surfaces[oldest] = NULL;
+	
+	print_cache_info (cache);
+	
+	for (i = 0; i < N_CACHED_SURFACES; ++i)
+	    assert (!cache->cached_surfaces[i] ||
+		    cache->cached_surfaces[i]->id != destroy_id);
+    }
+    
+    delta = 0;
+    for (i = N_CACHED_SURFACES - 1; i >= 0; i--)
+    {
+	if (cache->cached_surfaces[i])
+	{
+	    if (delta > 0)
+	    {
+		cache->cached_surfaces[i + delta] =
+		    cache->cached_surfaces[i];
+		
+		assert (cache->cached_surfaces[i + delta]->id != destroy_id);
+		
+		cache->cached_surfaces[i] = NULL;
+	    }
+	}
+	else
+	{
+	    delta++;
+	}
+    }
+    
+    assert (delta > 0);
+    
+    cache->cached_surfaces[i + delta] = surface;
+    
+    for (i = 0; i < N_CACHED_SURFACES; ++i)
+	assert (!cache->cached_surfaces[i] || cache->cached_surfaces[i]->id != destroy_id);
+
+    /* Note that sending a destroy command can trigger callbacks into
+     * this function (due to memory management), so we have to
+     * do this after updating the cache
+     */
+    if (destroy_surface)
+	qxl_surface_unref (destroy_surface->cache, destroy_surface->id);
+    
+#if 0
+    ErrorF ("Done\n");
+#endif
+    print_cache_info (cache);
 }
 
 void
@@ -692,90 +798,18 @@ qxl_surface_unref (surface_cache_t *cache, uint32_t id)
 
 	if (--surface->ref_count == 0)
 	{
-	    int oldest = -1;
-	    int n_surfaces = 0;
-	    int i, delta;
-	    int destroy_id = -1;
-	    qxl_surface_t *destroy_surface = NULL;
-
-#if 0
-	    ErrorF ("Unreffing %d - before\n", id);
-#endif
-
-	    print_cache_info (cache);
-
-	    for (i = 0; i < N_CACHED_SURFACES; ++i)
-	    {
-		if (cache->cached_surfaces[i])
-		{
-		    oldest = i;
-		    n_surfaces++;
-		}
-	    }
-
-	    if (n_surfaces == N_CACHED_SURFACES)
-	    {
-		int i;
-		destroy_id = cache->cached_surfaces[oldest]->id;
-
-		destroy_surface = cache->cached_surfaces[oldest];
-		
-		cache->cached_surfaces[oldest] = NULL;
-
-		print_cache_info (cache);
-
-		for (i = 0; i < N_CACHED_SURFACES; ++i)
-		    assert (!cache->cached_surfaces[i] ||
-			    cache->cached_surfaces[i]->id != destroy_id);
-	    }
-	    
-	    delta = 0;
-	    for (i = N_CACHED_SURFACES - 1; i >= 0; i--)
-	    {
-		if (cache->cached_surfaces[i])
-		{
-		    if (delta > 0)
-		    {
-			cache->cached_surfaces[i + delta] =
-			    cache->cached_surfaces[i];
-
-			assert (cache->cached_surfaces[i + delta]->id != destroy_id);
-			
-			cache->cached_surfaces[i] = NULL;
-		    }
-		}
-		else
-		{
-		    delta++;
-		}
-	    }
-
-	    assert (delta > 0);
-	    
-	    cache->cached_surfaces[i + delta] = surface;
-
-	    for (i = 0; i < N_CACHED_SURFACES; ++i)
-		assert (!cache->cached_surfaces[i] || cache->cached_surfaces[i]->id != destroy_id);
-	    /* Note that sending a destroy command can trigger callbacks into
-	     * this function (due to memory management), so we have to
-	     * do this after updating the cache
-	     */
-	    if (destroy_surface)
-		send_destroy (destroy_surface);
-
-#if 0
-	    ErrorF ("Done\n");
-#endif
-	    print_cache_info (cache);
+	    send_destroy (surface);
 	}
     }
 }
 
 void
-qxl_surface_destroy (qxl_surface_t *surface)
+qxl_surface_kill (qxl_surface_t *surface)
 {
     unlink_surface (surface);
 
+    surface_add_to_cache (surface);
+    
     qxl_surface_unref (surface->cache, surface->id);
 }
 

@@ -22,6 +22,7 @@
 
 /** \file qxl_driver.c
  * \author Adam Jackson <ajax@redhat.com>
+ * \author Søren Sandmann <sandmann@redhat.com>
  *
  * This is qxl, a driver for the Qumranet paravirtualized graphics device
  * in qemu.
@@ -433,7 +434,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     evacuated = qxl_surface_cache_evacuate_all (qxl->surface_cache);
 
     if (qxl->primary)
-	qxl_surface_destroy (qxl->primary);
+	qxl_surface_kill (qxl->primary);
 
     qxl_reset (qxl);
     
@@ -717,7 +718,7 @@ qxl_destroy_pixmap (PixmapPtr pixmap)
 	    
 	if (surface)
 	{
-	    qxl_surface_destroy (surface);
+	    qxl_surface_kill (surface);
 	    set_surface (pixmap, NULL);
 	}
     }

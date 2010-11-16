@@ -769,9 +769,9 @@ qxl_surface_cache_replace_all (surface_cache_t *qxl, void *data);
 
 void		    qxl_surface_set_pixmap (qxl_surface_t *surface,
 					    PixmapPtr      pixmap);
-/* Call this to ask the device to destroy the surface */
-void		    qxl_surface_destroy (qxl_surface_t *surface);
-/* Call this when the notification comes back from the device
+/* Call this to indicate that the server is done with the surface */
+void		    qxl_surface_kill (qxl_surface_t *surface);
+/* Call this when a notification comes back from the device
  * that the surface has been destroyed
  */
 void		    qxl_surface_recycle (surface_cache_t *cache, uint32_t id);
