@@ -67,11 +67,11 @@ struct qxl_surface_t
 				 */
 
     int			in_use;
-    int			Bpp;
+    int			bpp;		/* bpp of the pixmap */
     int			ref_count;
 
     PixmapPtr		pixmap;
-
+    
     union
     {
 	qxl_surface_t *copy_src;
@@ -83,12 +83,12 @@ struct evacuated_surface_t
 {
     pixman_image_t	*image;
     PixmapPtr		 pixmap;
-    int			 Bpp;
+    int			 bpp;
 
     evacuated_surface_t *next;
 };
 
-#define N_CACHED_SURFACES 16
+#define N_CACHED_SURFACES 64
 
 /*
  * Surface cache
@@ -172,6 +172,7 @@ qxl_surface_cache_create (qxl_screen_t *qxl)
 void
 qxl_surface_cache_sanity_check (surface_cache_t *qxl)
 {
+#if 0
     qxl_surface_t *s;
 
     for (s = qxl->live_surfaces; s != NULL; s = s->next)
@@ -186,6 +187,7 @@ qxl_surface_cache_sanity_check (surface_cache_t *qxl)
 	    assert (0);
 	}
     }
+#endif
 }
 
 #if 0
@@ -206,7 +208,6 @@ qxl_surface_free_all (qxl_screen_t *qxl)
 static void
 print_cache_info (surface_cache_t *cache)
 {
-#if 0
     int i;
     int n_surfaces = 0;
 
@@ -223,9 +224,39 @@ print_cache_info (surface_cache_t *cache)
     }
 
     ErrorF ("    total: %d\n", n_surfaces);
-#endif
 }
 
+static void
+get_formats (int bpp, qxl_bitmap_format *format, pixman_format_code_t *pformat)
+{
+    switch (bpp)
+    {
+    case 8:
+	*format = QXL_SURFACE_FMT_8_A;
+	*pformat = PIXMAN_a8;
+	break;
+
+    case 16:
+	*format = QXL_SURFACE_FMT_16_565;
+	*pformat = PIXMAN_r5g6b5;
+	break;
+
+    case 24:
+	*format = QXL_SURFACE_FMT_32_xRGB;
+	*pformat = PIXMAN_a8r8g8b8;
+	break;
+	
+    case 32:
+	*format = QXL_SURFACE_FMT_32_ARGB;
+	*pformat = PIXMAN_a8r8g8b8;
+	break;
+
+    default:
+	*format = *pformat = -1;
+	break;
+    }
+}
+		 
 static qxl_surface_t *
 surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
 {
@@ -233,20 +264,17 @@ surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
 
 #if 0
     ErrorF ("Before getting from cache\n");
-#endif
     print_cache_info (cache);
+#endif
 
     for (i = 0; i < N_CACHED_SURFACES; ++i)
     {
 	qxl_surface_t *s = cache->cached_surfaces[i];
 
-	if (s && bpp / 8 == s->Bpp)
+	if (s && bpp == s->bpp)
 	{
-	    int w;
-	    int h;
-	    
-	    w = pixman_image_get_width (s->host_image);
-	    h = pixman_image_get_height (s->host_image);
+	    int w = pixman_image_get_width (s->host_image);
+	    int h = pixman_image_get_height (s->host_image);
 	    
 	    if (width <= w && width * 2 > w && height <= h && height * 2 > h)
 	    {
@@ -254,13 +282,30 @@ surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
 
 #if 0
 		ErrorF ("Got %d from cache\n", s->id);
-#endif
 		print_cache_info (cache);
+#endif
 		return s;
 	    }
 	}
+#if 0
+	else
+	{
+	    if (s)
+		ErrorF ("!%d (%d %d %d, %d); ", s->id,
+			pixman_image_get_width (s->host_image),
+			pixman_image_get_height (s->host_image),
+			bpp,
+			s->bpp);
+	    else
+		ErrorF ("[null]; ");
+	}
+#endif
     }
 
+#if 0
+    ErrorF ("Nothing in cache for %d %d %d\n", width, height, bpp);
+#endif
+    
     return NULL;
 }
 
@@ -339,7 +384,7 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
     surface->dev_image = dev_image;
     surface->host_image = host_image;
     surface->cache = cache;
-    surface->Bpp = PIXMAN_FORMAT_BPP (format) / 8;
+    surface->bpp = mode->bits;
     surface->next = NULL;
     surface->prev = NULL;
 
@@ -510,49 +555,31 @@ surface_get_from_free_list (surface_cache_t *cache)
     return result;
 }
 
-qxl_surface_t *
-qxl_surface_create (surface_cache_t *    cache,
-		    int			 width,
-		    int			 height,
-		    int			 bpp)
+static int
+align (int x)
 {
-    qxl_surface_t *surface;
-    struct qxl_surface_cmd *cmd;
+#if 0
+    return (x + 255) & ~255;
+#endif
+    return x;
+}
+
+static qxl_surface_t *
+surface_send_create (surface_cache_t *cache,
+		     int	      width,
+		     int	      height,
+		     int	      bpp)
+{
     qxl_bitmap_format format;
     pixman_format_code_t pformat;
+    struct qxl_surface_cmd *cmd;
     int stride;
     uint32_t *dev_addr;
     int n_attempts = 0;
     qxl_screen_t *qxl = cache->qxl;
+    qxl_surface_t *surface;
 
-    if ((bpp & 3) != 0)
-    {
-	ErrorF ("   Bad bpp: %d (%d)\n", bpp, bpp & 7);
-	return NULL;
-    }
-
-    if (bpp == 8)
-      {
-	static int warned;
-	if (!warned)
-	{
-	    warned = 1;
-	    ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
-	}
-	
-	return NULL;
-      }
-    
-    if (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 24)
-    {
-	ErrorF ("   Unknown bpp\n");
-	return NULL;
-    }
-
-    surface = surface_get_from_cache (cache, width, height, bpp);
-
-    if (surface)
-	return surface;
+    get_formats (bpp, &format, &pformat);
     
 retry:
     surface = surface_get_from_free_list (cache);
@@ -572,34 +599,10 @@ retry:
 	ErrorF ("   Zero width or height\n");
 	return NULL;
     }
+
+    width = align (width);
+    height = align (height);
     
-    switch (bpp)
-    {
-    case 8:
-	format = QXL_SURFACE_FMT_8_A;
-	pformat = PIXMAN_a8;
-	break;
-
-    case 16:
-	format = QXL_SURFACE_FMT_16_565;
-	pformat = PIXMAN_r5g6b5;
-	break;
-
-    case 24:
-	format = QXL_SURFACE_FMT_32_xRGB;
-	pformat = PIXMAN_a8r8g8b8;
-	break;
-	
-    case 32:
-	format = QXL_SURFACE_FMT_32_ARGB;
-	pformat = PIXMAN_a8r8g8b8;
-	break;
-
-    default:
-      return NULL;
-      break;
-    }
-
     stride = width * PIXMAN_FORMAT_BPP (pformat) / 8;
     stride = (stride + 3) & ~3;
 
@@ -647,7 +650,7 @@ retry2:
     push_surface_cmd (cache, cmd);
     
 #if 0
-    ErrorF ("Allocated %d\n", surface->id);
+    ErrorF ("Allocated %d (%d %d %d)\n", surface->id, width, height, surface->bpp);
 #endif
 
     dev_addr = (uint32_t *)((uint8_t *)surface->address + stride * (height - 1));
@@ -658,7 +661,46 @@ retry2:
     surface->host_image = pixman_image_create_bits (
 	pformat, width, height, NULL, -1);
 
-    surface->Bpp = PIXMAN_FORMAT_BPP (pformat) / 8;
+    surface->bpp = bpp;
+    
+    return surface;
+}
+
+qxl_surface_t *
+qxl_surface_create (surface_cache_t *    cache,
+		    int			 width,
+		    int			 height,
+		    int			 bpp)
+{
+    qxl_surface_t *surface;
+
+    if ((bpp & 3) != 0)
+    {
+	ErrorF ("   Bad bpp: %d (%d)\n", bpp, bpp & 7);
+	return NULL;
+    }
+
+    if (bpp == 8)
+      {
+	static int warned;
+	if (!warned)
+	{
+	    warned = 1;
+	    ErrorF ("bpp == 8 triggers bugs in spice apparently\n");
+	}
+	
+	return NULL;
+      }
+    
+    if (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 24)
+    {
+	ErrorF ("   Unknown bpp\n");
+	return NULL;
+    }
+
+    if (!(surface = surface_get_from_cache (cache, width, height, bpp)))
+	if (!(surface = surface_send_create (cache, width, height, bpp)))
+	    return NULL;
     
     surface->next = cache->live_surfaces;
     surface->prev = NULL;
@@ -675,6 +717,10 @@ qxl_surface_set_pixmap (qxl_surface_t *surface, PixmapPtr pixmap)
     surface->pixmap = pixmap;
 
     assert (get_surface (pixmap) == surface);
+
+#if 0
+    ErrorF ("setting pixmap %p on surface %p\n", pixmap, surface);
+#endif
 }
 
 static void
@@ -721,8 +767,6 @@ surface_add_to_cache (qxl_surface_t *surface)
 
     surface->ref_count++;
     
-    print_cache_info (cache);
-    
     for (i = 0; i < N_CACHED_SURFACES; ++i)
     {
 	if (cache->cached_surfaces[i])
@@ -740,8 +784,6 @@ surface_add_to_cache (qxl_surface_t *surface)
 	destroy_surface = cache->cached_surfaces[oldest];
 	
 	cache->cached_surfaces[oldest] = NULL;
-	
-	print_cache_info (cache);
 	
 	for (i = 0; i < N_CACHED_SURFACES; ++i)
 	    assert (!cache->cached_surfaces[i] ||
@@ -786,7 +828,6 @@ surface_add_to_cache (qxl_surface_t *surface)
 #if 0
     ErrorF ("Done\n");
 #endif
-    print_cache_info (cache);
 }
 
 void
@@ -798,6 +839,9 @@ qxl_surface_unref (surface_cache_t *cache, uint32_t id)
 
 	if (--surface->ref_count == 0)
 	{
+#if 0
+	    ErrorF ("destroying %d\n", id);
+#endif
 	    send_destroy (surface);
 	}
     }
@@ -808,9 +852,27 @@ qxl_surface_kill (qxl_surface_t *surface)
 {
     unlink_surface (surface);
 
-    surface_add_to_cache (surface);
+#if 0
+    ErrorF ("killed %d (%d %d %d)\n", surface->id,
+	    pixman_image_get_width (surface->host_image),
+	    pixman_image_get_height (surface->host_image),
+	    surface->bpp);
+#endif
+    
+    if (surface->id != 0)
+	surface_add_to_cache (surface);
+    
+#if 0
+    ErrorF ("After adding %d to cache\n", surface->id);
+    print_cache_info (surface->cache);
+#endif
     
     qxl_surface_unref (surface->cache, surface->id);
+
+#if 0
+    ErrorF ("After unreffing %d\n", surface->id);
+    print_cache_info (surface->cache);
+#endif
 }
 
 /* send anything pending to the other side */
@@ -967,7 +1029,7 @@ upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     
     image = qxl_image_create (
 	qxl, (const uint8_t *)data, x1, y1, x2 - x1, y2 - y1, stride, 
-	surface->Bpp);
+	surface->bpp == 24 ? 4 : surface->bpp / 8);
     drawable->u.copy.src_bitmap =
 	physical_address (qxl, image, qxl->main_mem_slot);
     
@@ -1019,7 +1081,6 @@ qxl_surface_cache_evacuate_all (surface_cache_t *cache)
 #if 0
     ErrorF ("Before evacucate\n");
 #endif
-    print_cache_info (cache);
     for (i = 0; i < N_CACHED_SURFACES; ++i)
     {
 	if (cache->cached_surfaces[i])
@@ -1054,7 +1115,7 @@ qxl_surface_cache_evacuate_all (surface_cache_t *cache)
 	ErrorF ("Evacuated %d => %p\n", s->id, evacuated->pixmap);
 #endif
 
-	evacuated->Bpp = s->Bpp;
+	evacuated->bpp = s->bpp;
 	
 	s->host_image = NULL;
 
@@ -1082,7 +1143,6 @@ qxl_surface_cache_replace_all (surface_cache_t *cache, void *data)
 #if 0
     ErrorF ("Before replace\n");
 #endif
-    print_cache_info (cache);
 #if 0
     ErrorF ("Replacing all\n");
 #endif
@@ -1100,7 +1160,7 @@ qxl_surface_cache_replace_all (surface_cache_t *cache, void *data)
 	int height = pixman_image_get_height (ev->image);
 	qxl_surface_t *surface;
 
-	surface = qxl_surface_create (cache, width, height, ev->Bpp * 8);
+	surface = qxl_surface_create (cache, width, height, ev->bpp);
 #if 0
 	ErrorF ("recreated %d\n", surface->id);
 	ErrorF ("%d => %p\n", surface->id, ev->pixmap);
@@ -1300,6 +1360,13 @@ qxl_surface_copy (qxl_surface_t *dest,
 	
 	assert (src_x1 >= 0);
 	assert (src_y1 >= 0);
+
+	if (width > pixman_image_get_width (dest->u.copy_src->host_image))
+	{
+	    ErrorF ("dest w: %d   src w: %d\n",
+		    width, pixman_image_get_width (dest->u.copy_src->host_image));
+	}
+	
 	assert (width <= pixman_image_get_width (dest->u.copy_src->host_image));
 	assert (height <= pixman_image_get_height (dest->u.copy_src->host_image));
     }
@@ -1338,7 +1405,7 @@ qxl_surface_put_image (qxl_surface_t *dest,
 
     image = qxl_image_create (
 	qxl, (const uint8_t *)src, 0, 0, width, height, src_pitch,
-	dest->Bpp);
+	dest->bpp == 24 ? 4 : dest->bpp / 8);
     drawable->u.copy.src_bitmap =
 	physical_address (qxl, image, qxl->main_mem_slot);
     

@@ -88,6 +88,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 		if (image->descriptor.type == QXL_IMAGE_TYPE_SURFACE)
 		{
 		    qxl_surface_unref (qxl->surface_cache, image->u.surface_id);
+		    qxl_surface_cache_sanity_check (qxl->surface_cache);
 		    qxl_free (qxl->mem, image);
 		}
 		else
@@ -98,6 +99,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 	    else if (is_surface && surface_cmd->type == QXL_SURFACE_CMD_DESTROY)
 	    {
 		qxl_surface_recycle (qxl->surface_cache, surface_cmd->surface_id);
+		qxl_surface_cache_sanity_check (qxl->surface_cache);
 	    }
 	    
 	    id = info->next;
@@ -434,8 +436,11 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     evacuated = qxl_surface_cache_evacuate_all (qxl->surface_cache);
 
     if (qxl->primary)
+    {
 	qxl_surface_kill (qxl->primary);
-
+	qxl_surface_cache_sanity_check (qxl->surface_cache);
+    }
+	
     qxl_reset (qxl);
     
     ErrorF ("done reset\n");
@@ -448,7 +453,11 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
     if (pScreen)
     {
 	PixmapPtr root = pScreen->GetScreenPixmap (pScreen);
+	qxl_surface_t *surf;
 
+	if ((surf = get_surface (root)))
+	    qxl_surface_kill (surf);
+	
 	set_surface (root, qxl->primary);
     }
     
@@ -489,6 +498,7 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     qxl_screen_t *qxl = pScrn->driverPrivate;
     Bool ret;
     PixmapPtr pPixmap;
+    qxl_surface_t *surf;
     
     pScreen->CreateScreenResources = qxl->create_screen_resources;
     ret = pScreen->CreateScreenResources (pScreen);
@@ -501,6 +511,9 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     
     set_screen_pixmap_header (pScreen);
 
+    if ((surf = get_surface (pPixmap)))
+	qxl_surface_kill (surf);
+    
     set_surface (pPixmap, qxl->primary);
     
     return TRUE;
@@ -678,8 +691,9 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 	ErrorF ("Create pixmap %p with surface %p\n", pixmap, surface);
 #endif
 	set_surface (pixmap, surface);
-
 	qxl_surface_set_pixmap (surface, pixmap);
+
+	qxl_surface_cache_sanity_check (qxl->surface_cache);
     }
     else
     {
@@ -720,6 +734,8 @@ qxl_destroy_pixmap (PixmapPtr pixmap)
 	{
 	    qxl_surface_kill (surface);
 	    set_surface (pixmap, NULL);
+
+	    qxl_surface_cache_sanity_check (qxl->surface_cache);
 	}
     }
     
