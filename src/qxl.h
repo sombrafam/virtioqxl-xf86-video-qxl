@@ -809,12 +809,19 @@ Bool		    qxl_surface_put_image    (qxl_surface_t *dest,
 void		    qxl_surface_unref        (surface_cache_t *cache,
 					      uint32_t surface_id);
 					      
-
+#if HAS_DEVPRIVATEKEYREC
 extern DevPrivateKeyRec uxa_pixmap_index;
+#else
+extern int uxa_pixmap_index;
+#endif
 
 static inline qxl_surface_t *get_surface (PixmapPtr pixmap)
 {
+#if HAS_DEVPRIVATEKEYREC
     return dixGetPrivate(&pixmap->devPrivates, &uxa_pixmap_index);
+#else
+    return dixLookupPrivate(&pixmap->devPrivates, &uxa_pixmap_index);
+#endif
 }
 
 static inline void set_surface (PixmapPtr pixmap, qxl_surface_t *surface)

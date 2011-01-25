@@ -519,7 +519,11 @@ qxl_create_screen_resources(ScreenPtr pScreen)
     return TRUE;
 }
 
+#if HAS_DEVPRIVATEKEYREC
 DevPrivateKeyRec uxa_pixmap_index;
+#else
+int uxa_pixmap_index;
+#endif
 
 static Bool
 unaccel (void)
@@ -747,9 +751,13 @@ static Bool
 setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 {
     ScrnInfoPtr scrn = xf86Screens[screen->myNum];
-
+#if HAS_DIXREGISTERPRIVATEKEY
     if (!dixRegisterPrivateKey(&uxa_pixmap_index, PRIVATE_PIXMAP, 0))
 	return FALSE;
+#else
+    if (!dixRequestPrivate(&uxa_pixmap_index, 0))
+	return FALSE;
+#endif
     
     qxl->uxa = uxa_driver_alloc();
     if (qxl->uxa == NULL)
