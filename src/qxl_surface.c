@@ -227,7 +227,7 @@ print_cache_info (surface_cache_t *cache)
 }
 
 static void
-get_formats (int bpp, qxl_bitmap_format *format, pixman_format_code_t *pformat)
+get_formats (int bpp, SpiceBitmapFmt *format, pixman_format_code_t *pformat)
 {
     switch (bpp)
     {
@@ -341,11 +341,11 @@ qxl_surface_recycle (surface_cache_t *cache, uint32_t id)
 
 qxl_surface_t *
 qxl_surface_cache_create_primary (surface_cache_t	*cache,
-				  struct qxl_mode	*mode)
+				  struct QXLMode	*mode)
 {
     struct qxl_ram_header *ram_header =
 	(void *)((unsigned long)cache->qxl->ram + cache->qxl->rom->ram_header_offset);
-    struct qxl_surface_create *create = &(ram_header->create_surface);
+    struct QXLSurfaceCreate *create = &(ram_header->create_surface);
     pixman_format_code_t format;
     uint8_t *dev_addr;
     pixman_image_t *dev_image, *host_image;
@@ -370,7 +370,7 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
     create->width = mode->x_res;
     create->height = mode->y_res;
     create->stride = - mode->stride;
-    create->depth = mode->bits;
+    create->format = mode->bits;
     create->position = 0; /* What is this? The Windows driver doesn't use it */
     create->flags = 0;
     create->type = QXL_SURF_TYPE_PRIMARY;
@@ -405,10 +405,10 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
     return surface;
 }
 
-static struct qxl_surface_cmd *
+static struct QXLSurfaceCmd *
 make_surface_cmd (surface_cache_t *cache, uint32_t id, QXLSurfaceCmdType type)
 {
-    struct qxl_surface_cmd *cmd;
+    struct QXLSurfaceCmd *cmd;
     qxl_screen_t *qxl = cache->qxl;
 
     qxl_garbage_collect (qxl);
@@ -424,9 +424,9 @@ make_surface_cmd (surface_cache_t *cache, uint32_t id, QXLSurfaceCmdType type)
 }
 
 static void
-push_surface_cmd (surface_cache_t *cache, struct qxl_surface_cmd *cmd)
+push_surface_cmd (surface_cache_t *cache, struct QXLSurfaceCmd *cmd)
 {
-    struct qxl_command command;
+    struct QXLCommand command;
     qxl_screen_t *qxl = cache->qxl;
 
     command.type = QXL_CMD_SURFACE;
@@ -450,12 +450,12 @@ enum ROPDescriptor
     ROPD_INVERS_RES = (1 <<10),
 };
 
-static struct qxl_drawable *
+static struct QXLDrawable *
 make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
-	       const struct qxl_rect *rect
+	       const struct QXLRect *rect
 	       /* , pRegion clip */)
 {
-    struct qxl_drawable *drawable;
+    struct QXLDrawable *drawable;
     int i;
     
     drawable = qxl_allocnf (qxl, sizeof *drawable);
@@ -472,7 +472,7 @@ make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
     drawable->self_bitmap_area.bottom = 0;
     drawable->self_bitmap_area.right = 0;
     /* FIXME: add clipping */
-    drawable->clip.type = QXL_CLIP_TYPE_NONE;
+    drawable->clip.type = SPICE_CLIP_TYPE_NONE;
     
     /*
      * surfaces_dest[i] should apparently be filled out with the
@@ -492,9 +492,9 @@ make_drawable (qxl_screen_t *qxl, int surface, uint8_t type,
 }
 
 static void
-push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
+push_drawable (qxl_screen_t *qxl, struct QXLDrawable *drawable)
 {
-    struct qxl_command cmd;
+    struct QXLCommand cmd;
     
     /* When someone runs "init 3", the device will be 
      * switched into VGA mode and there is nothing we
@@ -516,13 +516,13 @@ push_drawable (qxl_screen_t *qxl, struct qxl_drawable *drawable)
 
 static void
 submit_fill (qxl_screen_t *qxl, int id,
-	     const struct qxl_rect *rect, uint32_t color)
+	     const struct QXLRect *rect, uint32_t color)
 {
-    struct qxl_drawable *drawable;
+    struct QXLDrawable *drawable;
     
     drawable = make_drawable (qxl, id, QXL_DRAW_FILL, rect);
     
-    drawable->u.fill.brush.type = QXL_BRUSH_TYPE_SOLID;
+    drawable->u.fill.brush.type = SPICE_BRUSH_TYPE_SOLID;
     drawable->u.fill.brush.u.color = color;
     drawable->u.fill.rop_descriptor = ROPD_OP_PUT;
     drawable->u.fill.mask.flags = 0;
@@ -578,9 +578,9 @@ surface_send_create (surface_cache_t *cache,
 		     int	      height,
 		     int	      bpp)
 {
-    qxl_bitmap_format format;
+    SpiceBitmapFmt format;
     pixman_format_code_t pformat;
-    struct qxl_surface_cmd *cmd;
+    struct QXLSurfaceCmd *cmd;
     int stride;
     uint32_t *dev_addr;
     int n_attempts = 0;
@@ -653,7 +653,7 @@ retry2:
     cmd->u.surface_create.height = height;
     cmd->u.surface_create.stride = - stride;
 
-    cmd->u.surface_create.physical = 
+    cmd->u.surface_create.data =
       physical_address (qxl, surface->address, qxl->vram_mem_slot);
 
     push_surface_cmd (cache, cmd);
@@ -754,7 +754,7 @@ unlink_surface (qxl_surface_t *surface)
 static void
 send_destroy (qxl_surface_t *surface)
 {
-    struct qxl_surface_cmd *cmd;
+    struct QXLSurfaceCmd *cmd;
 
     if (surface->dev_image)
 	pixman_image_unref (surface->dev_image);
@@ -1010,7 +1010,7 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
 }
 
 static void
-translate_rect (struct qxl_rect *rect)
+translate_rect (struct QXLRect *rect)
 {
     rect->right -= rect->left;
     rect->bottom -= rect->top;
@@ -1020,9 +1020,9 @@ translate_rect (struct qxl_rect *rect)
 static void
 upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
-    struct qxl_rect rect;
-    struct qxl_drawable *drawable;
-    struct qxl_image *image;
+    struct QXLRect rect;
+    struct QXLDrawable *drawable;
+    struct QXLImage *image;
     qxl_screen_t *qxl = surface->cache->qxl;
     uint32_t *data;
     int stride;
@@ -1255,7 +1255,7 @@ qxl_surface_solid (qxl_surface_t *destination,
 		   int	          y2)
 {
     qxl_screen_t *qxl = destination->cache->qxl;
-    struct qxl_rect qrect;
+    struct QXLRect qrect;
     uint32_t p;
 
     qrect.top = y1;
@@ -1310,8 +1310,8 @@ qxl_surface_copy (qxl_surface_t *dest,
 		  int width, int height)
 {
     qxl_screen_t *qxl = dest->cache->qxl;
-    struct qxl_drawable *drawable;
-    struct qxl_rect qrect;
+    struct QXLDrawable *drawable;
+    struct QXLRect qrect;
 
 #if 0
     print_region (" copy src", &(dest->u.copy_src->access_region));
@@ -1336,15 +1336,15 @@ qxl_surface_copy (qxl_surface_t *dest,
     }
     else
     {
-	struct qxl_image *image = qxl_allocnf (qxl, sizeof *image);
+	struct QXLImage *image = qxl_allocnf (qxl, sizeof *image);
 
 	dest->u.copy_src->ref_count++;
 
 	image->descriptor.id = 0;
-	image->descriptor.type = QXL_IMAGE_TYPE_SURFACE;
+	image->descriptor.type = SPICE_IMAGE_TYPE_SURFACE;
 	image->descriptor.width = 0;
 	image->descriptor.height = 0;
-	image->u.surface_id = dest->u.copy_src->id;
+	image->surface_image.surface_id = dest->u.copy_src->id;
 
 	drawable = make_drawable (qxl, dest->id, QXL_DRAW_COPY, &qrect);
 
@@ -1397,10 +1397,10 @@ qxl_surface_put_image (qxl_surface_t *dest,
 		       int x, int y, int width, int height,
 		       const char *src, int src_pitch)
 {
-    struct qxl_drawable *drawable;
+    struct QXLDrawable *drawable;
     qxl_screen_t *qxl = dest->cache->qxl;
-    struct qxl_rect rect;
-    struct qxl_image *image;
+    struct QXLRect rect;
+    struct QXLImage *image;
     
     rect.left = x;
     rect.right = x + width;

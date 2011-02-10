@@ -20,7 +20,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
-/** \file qxl_image.c
+/** \file qxl_cursor.c
  * \author Søren Sandmann <sandmann@redhat.com>
  */
 
@@ -29,9 +29,9 @@
 #include <cursorstr.h>
 
 static void
-push_cursor (qxl_screen_t *qxl, struct qxl_cursor_cmd *cursor)
+push_cursor (qxl_screen_t *qxl, struct QXLCursorCmd *cursor)
 {
-    struct qxl_command cmd;
+    struct QXLCommand cmd;
 
     /* See comment on push_command() in qxl_driver.c */
     if (qxl->pScrn->vtSema)
@@ -43,11 +43,11 @@ push_cursor (qxl_screen_t *qxl, struct qxl_cursor_cmd *cursor)
     }
 }
 
-static struct qxl_cursor_cmd *
+static struct QXLCursorCmd *
 qxl_alloc_cursor_cmd(qxl_screen_t *qxl)
 {
-    struct qxl_cursor_cmd *cmd =
-	qxl_allocnf (qxl, sizeof(struct qxl_cursor_cmd));
+    struct QXLCursorCmd *cmd =
+	qxl_allocnf (qxl, sizeof(struct QXLCursorCmd));
 
     cmd->release_info.id = pointer_to_u64 (cmd) | 1;
     
@@ -58,7 +58,7 @@ static void
 qxl_set_cursor_position(ScrnInfoPtr pScrn, int x, int y)
 {
     qxl_screen_t *qxl = pScrn->driverPrivate;
-    struct qxl_cursor_cmd *cmd = qxl_alloc_cursor_cmd(qxl);
+    struct QXLCursorCmd *cmd = qxl_alloc_cursor_cmd(qxl);
 
     qxl->cur_x = x;
     qxl->cur_y = y;
@@ -89,12 +89,12 @@ qxl_load_cursor_argb (ScrnInfoPtr pScrn, CursorPtr pCurs)
     int h = pCurs->bits->height;
     int size = w * h * sizeof (CARD32);
 
-    struct qxl_cursor_cmd *cmd = qxl_alloc_cursor_cmd (qxl);
-    struct qxl_cursor *cursor =
-	qxl_allocnf(qxl, sizeof(struct qxl_cursor) + size);
+    struct QXLCursorCmd *cmd = qxl_alloc_cursor_cmd (qxl);
+    struct QXLCursor *cursor =
+	qxl_allocnf(qxl, sizeof(struct QXLCursor) + size);
 
     cursor->header.unique = 0;
-    cursor->header.type = CURSOR_TYPE_ALPHA;
+    cursor->header.type = SPICE_CURSOR_TYPE_ALPHA;
     cursor->header.width = w;
     cursor->header.height = h;
     /* I wonder if we can just tell the client that the hotspot is 0, 0
@@ -156,7 +156,7 @@ static void
 qxl_hide_cursor(ScrnInfoPtr pScrn)
 {
     qxl_screen_t *qxl = pScrn->driverPrivate;
-    struct qxl_cursor_cmd *cursor = qxl_alloc_cursor_cmd(qxl);
+    struct QXLCursorCmd *cursor = qxl_alloc_cursor_cmd(qxl);
 
     cursor->type = QXL_CURSOR_HIDE;
 

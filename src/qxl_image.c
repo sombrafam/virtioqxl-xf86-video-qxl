@@ -20,7 +20,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  */
-/** \file qxl_image.c
+/** \file QXLImage.c
  * \author Søren Sandmann <sandmann@redhat.com>
  */
 
@@ -34,7 +34,7 @@ typedef struct image_info_t image_info_t;
 
 struct image_info_t
 {
-    struct qxl_image *image;
+    struct QXLImage *image;
     int ref_count;
     image_info_t *next;
 };
@@ -74,7 +74,7 @@ lookup_image_info (unsigned int hash,
 
     while (info)
     {
-	struct qxl_image *image = info->image;
+	struct QXLImage *image = info->image;
 
 	if (image->descriptor.id == hash		&&
 	    image->descriptor.width == width		&&
@@ -121,7 +121,7 @@ remove_image_info (image_info_t *info)
     free (info);
 }
 
-struct qxl_image *
+struct QXLImage *
 qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride, int Bpp)
@@ -146,11 +146,11 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 
 	for (i = 0; i < height; ++i)
 	{
-	    struct qxl_data_chunk *chunk;
+	    struct QXLDataChunk *chunk;
 	    const uint8_t *src_line = data + i * stride;
 	    uint32_t *dest_line;
 		
-	    chunk = virtual_address (qxl, u64_to_pointer (info->image->u.bitmap.data), qxl->main_mem_slot);
+	    chunk = virtual_address (qxl, u64_to_pointer (info->image->bitmap.data), qxl->main_mem_slot);
 	    
 	    dest_line = (uint32_t *)chunk->data + width * i;
 
@@ -173,8 +173,8 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
     }
     else
     {
-	struct qxl_image *image;
-	struct qxl_data_chunk *chunk;
+	struct QXLImage *image;
+	struct QXLDataChunk *chunk;
 	int dest_stride = width * Bpp;
 
 #if 0
@@ -198,7 +198,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	image = qxl_allocnf (qxl, sizeof *image);
 
 	image->descriptor.id = 0;
-	image->descriptor.type = QXL_IMAGE_TYPE_BITMAP;
+	image->descriptor.type = SPICE_IMAGE_TYPE_BITMAP;
 	
 	image->descriptor.flags = 0;
 	image->descriptor.width = width;
@@ -206,25 +206,25 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 
 	if (Bpp == 2)
 	{
-	    image->u.bitmap.format = QXL_BITMAP_FMT_16BIT;
+	    image->bitmap.format = SPICE_BITMAP_FMT_16BIT;
 	}
 	else if (Bpp == 1)
 	{
-	    image->u.bitmap.format = QXL_BITMAP_FMT_8BIT;
+	    image->bitmap.format = SPICE_BITMAP_FMT_8BIT;
 	}
 	else if (Bpp == 4)
 	{
-	    image->u.bitmap.format = QXL_BITMAP_FMT_32BIT;
+	    image->bitmap.format = SPICE_BITMAP_FMT_32BIT;
 	}
 	else
 	  abort();
 
-	image->u.bitmap.flags = QXL_BITMAP_TOP_DOWN;
-	image->u.bitmap.x = width;
-	image->u.bitmap.y = height;
-	image->u.bitmap.stride = width * Bpp;
-	image->u.bitmap.palette = 0;
-	image->u.bitmap.data = physical_address (qxl, chunk, qxl->main_mem_slot);
+	image->bitmap.flags = SPICE_BITMAP_FLAGS_TOP_DOWN;
+	image->bitmap.x = width;
+	image->bitmap.y = height;
+	image->bitmap.stride = width * Bpp;
+	image->bitmap.palette = 0;
+	image->bitmap.data = physical_address (qxl, chunk, qxl->main_mem_slot);
 
 #if 0
 	ErrorF ("%p has size %d %d\n", image, width, height);
@@ -238,7 +238,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	    info->ref_count = 1;
 
 	    image->descriptor.id = hash;
-	    image->descriptor.flags = QXL_IMAGE_CACHE;
+	    image->descriptor.flags = SPICE_IMAGE_CACHE;
 
 #if 0
 	    ErrorF ("added with hash %u\n", hash);
@@ -252,12 +252,12 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 
 void
 qxl_image_destroy (qxl_screen_t *qxl,
-		   struct qxl_image *image)
+		   struct QXLImage *image)
 {
-    struct qxl_data_chunk *chunk;
+    struct QXLDataChunk *chunk;
     image_info_t *info;
 
-    chunk = virtual_address (qxl, u64_to_pointer (image->u.bitmap.data), qxl->main_mem_slot);
+    chunk = virtual_address (qxl, u64_to_pointer (image->bitmap.data), qxl->main_mem_slot);
     
     info = lookup_image_info (image->descriptor.id,
 			      image->descriptor.width,

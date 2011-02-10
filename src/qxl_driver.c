@@ -58,10 +58,10 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 	     */
 #define POINTER_MASK ((1 << 2) - 1)
 	    
-	    union qxl_release_info *info = u64_to_pointer (id & ~POINTER_MASK);
-	    struct qxl_cursor_cmd *cmd = (struct qxl_cursor_cmd *)info;
-	    struct qxl_drawable *drawable = (struct qxl_drawable *)info;
-	    struct qxl_surface_cmd *surface_cmd = (struct qxl_surface_cmd *)info;
+	    union QXLReleaseInfo *info = u64_to_pointer (id & ~POINTER_MASK);
+	    struct QXLCursorCmd *cmd = (struct QXLCursorCmd *)info;
+	    struct QXLDrawable *drawable = (struct qxl_drawable *)info;
+	    struct QXLSurfaceCmd *surface_cmd = (struct QXLSurfaceCmd *)info;
 	    int is_cursor = FALSE;
 	    int is_surface = FALSE;
 	    int is_drawable = FALSE;
@@ -75,19 +75,19 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 
 	    if (is_cursor && cmd->type == QXL_CURSOR_SET)
 	    {
-		struct qxl_cursor *cursor = (void *)virtual_address (
+		struct QXLCursor *cursor = (void *)virtual_address (
 		    qxl, u64_to_pointer (cmd->u.set.shape), qxl->main_mem_slot);
 		
 		qxl_free (qxl->mem, cursor);
 	    }
 	    else if (is_drawable && drawable->type == QXL_DRAW_COPY)
 	    {
-		struct qxl_image *image = virtual_address (
+		struct QXLImage *image = virtual_address (
 		    qxl, u64_to_pointer (drawable->u.copy.src_bitmap), qxl->main_mem_slot);
 		
-		if (image->descriptor.type == QXL_IMAGE_TYPE_SURFACE)
+		if (image->descriptor.type == SPICE_IMAGE_TYPE_SURFACE)
 		{
-		    qxl_surface_unref (qxl->surface_cache, image->u.surface_id);
+		    qxl_surface_unref (qxl->surface_cache, image->surface_image.surface_id);
 		    qxl_surface_cache_sanity_check (qxl->surface_cache);
 		    qxl_free (qxl->mem, image);
 		}
@@ -281,7 +281,7 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
     xf86DrvMsg(scrnIndex, X_INFO, "rom at %p\n", qxl->rom);
     
     qxl->num_modes = *(uint32_t *)((uint8_t *)qxl->rom + qxl->rom->modes_offset);
-    qxl->modes = (struct qxl_mode *)(((uint8_t *)qxl->rom) + qxl->rom->modes_offset + 4);
+    qxl->modes = (struct QXLMode *)(((uint8_t *)qxl->rom) + qxl->rom->modes_offset + 4);
     qxl->surface0_area = qxl->ram;
     qxl->surface0_size = qxl->rom->surface0_area_size;
 
@@ -429,7 +429,7 @@ qxl_switch_mode(int scrnIndex, DisplayModePtr p, int flags)
 {
     qxl_screen_t *qxl = xf86Screens[scrnIndex]->driverPrivate;
     int mode_index = (int)(unsigned long)p->Private;
-    struct qxl_mode *m = qxl->modes + mode_index;
+    struct QXLMode *m = qxl->modes + mode_index;
     ScreenPtr pScreen;
     void *evacuated;
 
@@ -904,10 +904,10 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
     
     qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
-					 sizeof (struct qxl_command),
+					 sizeof (struct QXLCommand),
 					 32, qxl->io_base + QXL_IO_NOTIFY_CMD);
     qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring_hdr),
-					sizeof (struct qxl_command),
+					sizeof (struct QXLCommand),
 					32, qxl->io_base + QXL_IO_NOTIFY_CURSOR);
     qxl->release_ring = qxl_ring_create (&(ram_header->release_ring_hdr),
 					 sizeof (uint64_t),
@@ -1013,7 +1013,7 @@ print_modes (qxl_screen_t *qxl, int scrnIndex)
     
     for (i = 0; i < qxl->num_modes; ++i)
     {
-	struct qxl_mode *m = qxl->modes + i;
+	struct QXLMode *m = qxl->modes + i;
 	
 	xf86DrvMsg (scrnIndex, X_INFO,
 		    "%d: %dx%d, %d bits, stride %d, %dmm x %dmm, orientation %d\n",
@@ -1026,7 +1026,7 @@ static Bool
 qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
-    struct qxl_rom *rom = qxl->rom;
+    struct QXLRom *rom = qxl->rom;
     struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram + rom->ram_header_offset);
     
     CHECK_POINT();
@@ -1077,7 +1077,7 @@ qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
     
     for (i = 0; i < qxl->num_modes; i++) 
     {
-	struct qxl_mode *m = qxl->modes + i;
+	struct QXLMode *m = qxl->modes + i;
 	
 	if (m->x_res == p->HDisplay &&
 	    m->y_res == p->VDisplay &&
