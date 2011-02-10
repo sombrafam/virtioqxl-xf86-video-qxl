@@ -826,7 +826,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     qxl_screen_t *qxl = pScrn->driverPrivate;
-    struct qxl_rom *rom;
     struct qxl_ram_header *ram_header;
     VisualPtr visual;
     
@@ -837,7 +836,6 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!qxl_map_memory(qxl, scrnIndex))
 	return FALSE;
     
-    rom = qxl->rom;
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
     printf ("ram_header at %d\n", qxl->rom->ram_header_offset);
