@@ -781,12 +781,12 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
     qxl->uxa->done_copy = qxl_done_copy;
     
     /* Composite */
-    qxl->uxa->check_composite = unaccel;
-    qxl->uxa->check_composite_target = unaccel;
-    qxl->uxa->check_composite_texture = unaccel;
-    qxl->uxa->prepare_composite = unaccel;
-    qxl->uxa->composite = unaccel;
-    qxl->uxa->done_composite = unaccel;
+    qxl->uxa->check_composite = (typeof(qxl->uxa->check_composite))unaccel;
+    qxl->uxa->check_composite_target = (typeof(qxl->uxa->check_composite_target))unaccel;
+    qxl->uxa->check_composite_texture = (typeof(qxl->uxa->check_composite_texture))unaccel;
+    qxl->uxa->prepare_composite = (typeof(qxl->uxa->prepare_composite))unaccel;
+    qxl->uxa->composite = (typeof(qxl->uxa->composite))unaccel;
+    qxl->uxa->done_composite = (typeof(qxl->uxa->done_composite))unaccel;
     
     /* PutImage */
     qxl->uxa->put_image = qxl_put_image;
