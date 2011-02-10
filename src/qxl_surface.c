@@ -232,22 +232,22 @@ get_formats (int bpp, qxl_bitmap_format *format, pixman_format_code_t *pformat)
     switch (bpp)
     {
     case 8:
-	*format = QXL_SURFACE_FMT_8_A;
+	*format = SPICE_SURFACE_FMT_8_A;
 	*pformat = PIXMAN_a8;
 	break;
 
     case 16:
-	*format = QXL_SURFACE_FMT_16_565;
+	*format = SPICE_SURFACE_FMT_16_565;
 	*pformat = PIXMAN_r5g6b5;
 	break;
 
     case 24:
-	*format = QXL_SURFACE_FMT_32_xRGB;
+	*format = SPICE_SURFACE_FMT_32_xRGB;
 	*pformat = PIXMAN_a8r8g8b8;
 	break;
 	
     case 32:
-	*format = QXL_SURFACE_FMT_32_ARGB;
+	*format = SPICE_SURFACE_FMT_32_ARGB;
 	*pformat = PIXMAN_a8r8g8b8;
 	break;
 
@@ -406,7 +406,7 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
 }
 
 static struct qxl_surface_cmd *
-make_surface_cmd (surface_cache_t *cache, uint32_t id, qxl_surface_cmd_type type)
+make_surface_cmd (surface_cache_t *cache, uint32_t id, QXLSurfaceCmdType type)
 {
     struct qxl_surface_cmd *cmd;
     qxl_screen_t *qxl = cache->qxl;

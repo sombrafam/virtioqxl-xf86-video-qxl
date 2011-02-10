@@ -42,6 +42,8 @@
 #include "uxa/uxa.h"
 #include "vgaHW.h"
 
+#include <spice/qxl_dev.h>
+
 #define hidden _X_HIDDEN
 
 #define QXL_NAME		"qxl"
@@ -54,27 +56,6 @@
 #pragma pack(push,1)
 
 /* I/O port definitions */
-enum {
-    QXL_IO_NOTIFY_CMD,
-    QXL_IO_NOTIFY_CURSOR,
-    QXL_IO_UPDATE_AREA,
-    QXL_IO_UPDATE_IRQ,
-    QXL_IO_NOTIFY_OOM,
-    QXL_IO_RESET,
-    QXL_IO_SET_MODE,			/* qxl 1 */
-    QXL_IO_LOG,
-    /* Appended in qxl 2 */
-    QXL_IO_MEMSLOT_ADD,
-    QXL_IO_MEMSLOT_DEL,
-    QXL_IO_DETACH_PRIMARY,
-    QXL_IO_ATTACH_PRIMARY,
-    QXL_IO_CREATE_PRIMARY,
-    QXL_IO_DESTROY_PRIMARY,
-    QXL_IO_DESTROY_SURFACE_WAIT,
-    QXL_IO_DESTROY_ALL_SURFACES,
-
-    QXL_IO_RANGE_SIZE
-};
 
 struct qxl_mode {
     uint32_t id;
@@ -86,16 +67,6 @@ struct qxl_mode {
     uint32_t y_mili;
     uint32_t orientation;
 };
-
-typedef enum
-{
-    QXL_CMD_NOP,
-    QXL_CMD_DRAW,
-    QXL_CMD_UPDATE,
-    QXL_CMD_CURSOR,
-    QXL_CMD_MESSAGE,
-    QXL_CMD_SURFACE
-} qxl_command_type;
 
 struct qxl_command {
     uint64_t data;
@@ -176,10 +147,6 @@ typedef enum {
     QXL_IMAGE_TYPE_JPEG_ALPHA
 } qxl_image_type;
 
-typedef enum {
-    QXL_IMAGE_CACHE = (1 << 0)
-} qxl_image_flags;
-
 struct qxl_image_descriptor
 {
     uint64_t id;
@@ -209,24 +176,6 @@ typedef enum
     QXL_BITMAP_FMT_32BIT,
     QXL_BITMAP_FMT_RGBA,
 } qxl_bitmap_format;
-
-typedef enum {
-    QXL_BITMAP_PAL_CACHE_ME = (1 << 0),
-    QXL_BITMAP_PAL_FROM_CACHE = (1 << 1),
-    QXL_BITMAP_TOP_DOWN = (1 << 2),
-} qxl_bitmap_flags;
-
-typedef enum {
-    QXL_SURFACE_FMT_INVALID,
-    QXL_SURFACE_FMT_1_A,
-    QXL_SURFACE_FMT_8_A = 8,
-    QXL_SURFACE_FMT_16_555 = 16,
-    QXL_SURFACE_FMT_32_xRGB = 32,
-    QXL_SURFACE_FMT_16_565 = 80,
-    QXL_SURFACE_FMT_32_ARGB = 96,
-
-    SPICE_SURFACE_FMT_ENUM_END
-} qxl_surface_fmt;
 
 struct qxl_bitmap {
     uint8_t format;
@@ -344,17 +293,6 @@ struct qxl_whiteness {
 };
 
 /* Effects */
-typedef enum
-{
-    QXL_EFFECT_BLEND,
-    QXL_EFFECT_OPAQUE,
-    QXL_EFFECT_REVERT_ON_DUP,
-    QXL_EFFECT_BLACKNESS_ON_DUP,
-    QXL_EFFECT_WHITENESS_ON_DUP,
-    QXL_EFFECT_NOP_ON_DUP,
-    QXL_EFFECT_NOP,
-    QXL_EFFECT_OPAQUE_BRUSH
-} qxl_effect_type;
 
 typedef enum
 {
@@ -362,23 +300,6 @@ typedef enum
     QXL_CLIP_TYPE_RECTS,
     QXL_CLIP_TYPE_PATH,
 } qxl_clip_type;
-
-typedef enum {
-    QXL_DRAW_NOP,
-    QXL_DRAW_FILL,
-    QXL_DRAW_OPAQUE,
-    QXL_DRAW_COPY,
-    QXL_COPY_BITS,
-    QXL_DRAW_BLEND,
-    QXL_DRAW_BLACKNESS,
-    QXL_DRAW_WHITENESS,
-    QXL_DRAW_INVERS,
-    QXL_DRAW_ROP3,
-    QXL_DRAW_STROKE,
-    QXL_DRAW_TEXT,
-    QXL_DRAW_TRANSPARENT,
-    QXL_DRAW_ALPHA_BLEND,
-} qxl_draw_type;
 
 /* QXL 1 */
 struct qxl_compat_drawable {
@@ -437,11 +358,6 @@ struct qxl_drawable {
     } u;
 };
 
-typedef enum {
-    QXL_SURFACE_CMD_CREATE,
-    QXL_SURFACE_CMD_DESTROY
-}  qxl_surface_cmd_type;
-
 struct qxl_surface_info
 {
     uint32_t format;
@@ -479,13 +395,6 @@ struct qxl_update_cmd {
 struct qxl_point16 {
     int16_t x;
     int16_t y;
-};
-
-enum {
-    QXL_CURSOR_SET,
-    QXL_CURSOR_MOVE,
-    QXL_CURSOR_HIDE,
-    QXL_CURSOR_TRAIL,
 };
 
 #define QXL_CURSOR_DEVICE_DATA_SIZE 128
