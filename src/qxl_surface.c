@@ -343,7 +343,7 @@ qxl_surface_t *
 qxl_surface_cache_create_primary (surface_cache_t	*cache,
 				  struct QXLMode	*mode)
 {
-    struct qxl_ram_header *ram_header =
+    struct QXLRam *ram_header =
 	(void *)((unsigned long)cache->qxl->ram + cache->qxl->rom->ram_header_offset);
     struct QXLSurfaceCreate *create = &(ram_header->create_surface);
     pixman_format_code_t format;
@@ -904,7 +904,7 @@ qxl_surface_flush (qxl_surface_t *surface)
 static void
 download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
 {
-    struct qxl_ram_header *ram_header = get_ram_header (surface->cache->qxl);
+    struct QXLRam *ram_header = get_ram_header (surface->cache->qxl);
     
     ram_header->update_area.top = y1;
     ram_header->update_area.bottom = y2;

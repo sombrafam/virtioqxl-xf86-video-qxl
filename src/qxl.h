@@ -63,28 +63,6 @@ struct qxl_ring_header {
     uint32_t notify_on_cons;
 };
 
-#define QXL_LOG_BUF_SIZE 4096
-
-struct qxl_ram_header {
-    uint32_t			magic;
-    uint32_t			int_pending;
-    uint32_t			int_mask;
-    unsigned char		log_buf[QXL_LOG_BUF_SIZE];
-    struct qxl_ring_header	cmd_ring_hdr;
-    struct QXLCommand		cmd_ring[32];
-    struct qxl_ring_header	cursor_ring_hdr;
-    struct QXLCommand		cursor_ring[32];
-    struct qxl_ring_header	release_ring_hdr;
-    uint64_t			release_ring[8];
-    struct QXLRect		update_area;
-    /* appended for qxl-2 */
-    uint32_t			update_surface;
-    uint64_t			mem_slot_start;
-    uint64_t			mem_slot_end;
-    struct QXLSurfaceCreate	create_surface;
-    uint64_t			flags;
-};
-
 #pragma pack(pop)
 typedef struct surface_cache_t surface_cache_t;
 
@@ -311,10 +289,10 @@ static inline void set_surface (PixmapPtr pixmap, qxl_surface_t *surface)
     dixSetPrivate(&pixmap->devPrivates, &uxa_pixmap_index, surface);
 }
 
-static inline struct qxl_ram_header *
+static inline struct QXLRam *
 get_ram_header (qxl_screen_t *qxl)
 {
-    return (struct qxl_ram_header *)
+    return (struct QXLRam *)
 	((uint8_t *)qxl->ram + qxl->rom->ram_header_offset);
 }
 

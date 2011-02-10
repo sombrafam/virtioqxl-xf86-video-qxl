@@ -156,7 +156,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
     
     while (!(result = qxl_alloc (qxl->mem, size)))
     {
-	struct qxl_ram_header *ram_header = (void *)(
+	struct QXLRam *ram_header = (void *)(
 	    (unsigned long)qxl->ram + qxl->rom->ram_header_offset);
     
 	/* Rather than go out of memory, we simply tell the
@@ -340,7 +340,7 @@ qxl_reset (qxl_screen_t *qxl)
 {
     qxl_memslot_t *slot;
     uint64_t high_bits;
-    struct qxl_ram_header *ram_header;
+    struct QXLRam *ram_header;
 
     outb(qxl->io_base + QXL_IO_RESET, 0);
 
@@ -367,8 +367,8 @@ qxl_reset (qxl_screen_t *qxl)
     slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->ram;
     slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
     
-    ram_header->mem_slot_start = slot->start_phys_addr;
-    ram_header->mem_slot_end = slot->end_phys_addr;
+    ram_header->mem_slot.mem_start = slot->start_phys_addr;
+    ram_header->mem_slot.mem_end = slot->end_phys_addr;
     
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
@@ -387,8 +387,8 @@ qxl_reset (qxl_screen_t *qxl)
     slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->vram;
     slot->end_virt_addr = (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size;
 
-    ram_header->mem_slot_start = slot->start_phys_addr;
-    ram_header->mem_slot_end = slot->end_phys_addr;
+    ram_header->mem_slot.mem_start = slot->start_phys_addr;
+    ram_header->mem_slot.mem_end = slot->end_phys_addr;
 
     outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
 
@@ -826,7 +826,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     qxl_screen_t *qxl = pScrn->driverPrivate;
-    struct qxl_ram_header *ram_header;
+    struct QXLRam *ram_header;
     VisualPtr visual;
     
     CHECK_POINT();
@@ -903,13 +903,13 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
     
-    qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring_hdr),
+    qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring),
 					 sizeof (struct QXLCommand),
 					 32, qxl->io_base + QXL_IO_NOTIFY_CMD);
-    qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring_hdr),
+    qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring),
 					sizeof (struct QXLCommand),
 					32, qxl->io_base + QXL_IO_NOTIFY_CURSOR);
-    qxl->release_ring = qxl_ring_create (&(ram_header->release_ring_hdr),
+    qxl->release_ring = qxl_ring_create (&(ram_header->release_ring),
 					 sizeof (uint64_t),
 					 8, 0);
 
@@ -1027,7 +1027,7 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
     int scrnIndex = pScrn->scrnIndex;
     struct QXLRom *rom = qxl->rom;
-    struct qxl_ram_header *ram_header = (void *)((unsigned long)qxl->ram + rom->ram_header_offset);
+    struct QXLRam *ram_header = (void *)((unsigned long)qxl->ram + rom->ram_header_offset);
     
     CHECK_POINT();
     
