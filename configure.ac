@@ -76,6 +76,8 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # Checks for libraries.
 
+PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.7.0])
+
 DRIVER_NAME=qxl
 AC_SUBST([DRIVER_NAME])
 
