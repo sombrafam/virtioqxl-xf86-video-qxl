@@ -869,29 +869,22 @@ uxa_damage_poly_fill_rect (RegionPtr   region,
 {
     if (nRects && checkGCDamage (pGC))
     {
-	BoxRec	    box;
-	xRectangle  *pRectsTmp = pRects;
-	int	    nRectsTmp = nRects;
-	
-	box.x1 = pRectsTmp->x;
-	box.x2 = box.x1 + pRectsTmp->width;
-	box.y1 = pRectsTmp->y;
-	box.y2 = box.y1 + pRectsTmp->height;
-	
-	while(--nRectsTmp) 
+	int i;
+
+	for (i = 0; i < nRects; ++i)
 	{
-	    pRectsTmp++;
-	    if(box.x1 > pRectsTmp->x) box.x1 = pRectsTmp->x;
-	    if(box.x2 < (pRectsTmp->x + pRectsTmp->width))
-		box.x2 = pRectsTmp->x + pRectsTmp->width;
-	    if(box.y1 > pRectsTmp->y) box.y1 = pRectsTmp->y;
-	    if(box.y2 < (pRectsTmp->y + pRectsTmp->height))
-		box.y2 = pRectsTmp->y + pRectsTmp->height;
+	    xRectangle *rect = &(pRects[i]);
+	    BoxRec box;
+
+	    box.x1 = rect->x;
+	    box.x2 = rect->x + rect->width;
+	    box.y1 = rect->y;
+	    box.y2 = rect->y + rect->height;
+
+	    TRIM_AND_TRANSLATE_BOX(box, pDrawable, pGC);
+	    if(BOX_NOT_EMPTY(box))
+		add_box (region, &box, pDrawable, pGC->subWindowMode);
 	}
-	
-	TRIM_AND_TRANSLATE_BOX(box, pDrawable, pGC);
-	if(BOX_NOT_EMPTY(box))
-	    add_box (region, &box, pDrawable, pGC->subWindowMode);
     }
 }
 
