@@ -1385,6 +1385,12 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     int *linePitches = NULL;
     DisplayModePtr mode;
     unsigned int max_x = 0, max_y = 0;
+
+    /* In X server 1.7.5, Xorg -configure will cause this
+     * function to get called without a confScreen.
+     */
+    if (!pScrn->confScreen)
+	return FALSE;
     
     CHECK_POINT();
     
