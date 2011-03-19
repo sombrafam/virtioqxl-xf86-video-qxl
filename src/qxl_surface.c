@@ -56,6 +56,7 @@ struct qxl_surface_t
     pixman_image_t *	dev_image;
     pixman_image_t *	host_image;
 
+    uxa_access_t	access_type;
     RegionRec		access_region;
 
     void *		address;
@@ -139,6 +140,7 @@ surface_cache_init (surface_cache_t *cache, qxl_screen_t *qxl)
 	
 	REGION_INIT (
 	    NULL, &(cache->all_surfaces[i].access_region), (BoxPtr)NULL, 0);
+	cache->all_surfaces[i].access_type = UXA_ACCESS_RO;
 
 	if (i) /* surface 0 is the primary surface */
 	{
@@ -309,7 +311,7 @@ surface_get_from_cache (surface_cache_t *cache, int width, int height, int bpp)
     return NULL;
 }
 
-static n_live;
+static int n_live;
 
 void
 qxl_surface_recycle (surface_cache_t *cache, uint32_t id)
@@ -401,6 +403,7 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
 #endif
     
     REGION_INIT (NULL, &(surface->access_region), (BoxPtr)NULL, 0);
+    surface->access_type = UXA_ACCESS_RO;
     
     return surface;
 }
@@ -945,6 +948,9 @@ qxl_surface_prepare_access (qxl_surface_t  *surface,
     REGION_INIT (NULL, &new, (BoxPtr)NULL, 0);
     REGION_SUBTRACT (NULL, &new, region, &surface->access_region);
 
+    if (access == UXA_ACCESS_RW)
+	surface->access_type = UXA_ACCESS_RW;
+    
     region = &new;
     
     n_boxes = REGION_NUM_RECTS (region);
@@ -1066,25 +1072,29 @@ qxl_surface_finish_access (qxl_surface_t *surface, PixmapPtr pixmap)
     n_boxes = REGION_NUM_RECTS (&surface->access_region);
     boxes = REGION_RECTS (&surface->access_region);
 
-    if (n_boxes < 25)
+    if (surface->access_type == UXA_ACCESS_RW)
     {
-	while (n_boxes--)
+	if (n_boxes < 25)
 	{
-	    upload_box (surface, boxes->x1, boxes->y1, boxes->x2, boxes->y2);
-	
-	    boxes++;
+	    while (n_boxes--)
+	    {
+		upload_box (surface, boxes->x1, boxes->y1, boxes->x2, boxes->y2);
+		
+		boxes++;
+	    }
 	}
-    }
-    else
-    {
-	upload_box (surface,
-		    surface->access_region.extents.x1,
-		    surface->access_region.extents.y1,
-		    surface->access_region.extents.x2,
-		    surface->access_region.extents.y2);
+	else
+	{
+	    upload_box (surface,
+			surface->access_region.extents.x1,
+			surface->access_region.extents.y1,
+			surface->access_region.extents.x2,
+			surface->access_region.extents.y2);
+	}
     }
 
     REGION_EMPTY (pScreen, &surface->access_region);
+    surface->access_type = UXA_ACCESS_RO;
     
     pScreen->ModifyPixmapHeader(pixmap, w, h, -1, -1, 0, NULL);
 }
