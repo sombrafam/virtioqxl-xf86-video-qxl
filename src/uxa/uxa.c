@@ -391,6 +391,13 @@ void uxa_set_force_fallback(ScreenPtr screen, Bool value)
 	uxa_screen->force_fallback = value;
 }
 
+Bool uxa_swapped_out(ScreenPtr screen)
+{
+	uxa_screen_t *uxa_screen = uxa_get_screen (screen);
+
+	return uxa_screen->swappedOut;
+}
+
 /**
  * uxa_close_screen() unwraps its wrapped screen functions and tears down UXA's
  * screen private, before calling down to the next CloseSccreen.

@@ -153,6 +153,9 @@ struct _qxl_screen_t
     uint8_t			vram_mem_slot;
 
     surface_cache_t *		surface_cache;
+
+    /* Evacuated surfaces are stored here during VT switches */
+    void *			vt_surfaces;
 };
 
 static inline uint64_t

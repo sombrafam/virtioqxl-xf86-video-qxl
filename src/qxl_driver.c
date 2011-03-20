@@ -678,6 +678,9 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 #if 0
     ErrorF ("Create pixmap: %d %d @ %d (usage: %d)\n", w, h, depth, usage);
 #endif
+
+    if (uxa_swapped_out (screen))
+	goto fallback;
     
     surface = qxl_surface_create (qxl->surface_cache, w, h, depth);
     
@@ -705,13 +708,13 @@ qxl_create_pixmap (ScreenPtr screen, int w, int h, int depth, unsigned usage)
 	ErrorF ("   Couldn't allocate %d x %d @ %d surface in video memory\n",
 		w, h, depth);
 #endif
-
+    fallback:
 	pixmap = fbCreatePixmap (screen, w, h, depth, usage);
 
 #if 0
     	ErrorF ("Create pixmap %p without surface\n", pixmap);
 #endif
-}
+    }
     
     return pixmap;
 }
@@ -961,10 +964,20 @@ static Bool
 qxl_enter_vt(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
-    
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+
     qxl_save_state(pScrn);
     qxl_switch_mode(scrnIndex, pScrn->currentMode, 0);
 
+    if (qxl->vt_surfaces)
+    {
+	qxl_surface_cache_replace_all (qxl->surface_cache, qxl->vt_surfaces);
+
+	qxl->vt_surfaces = NULL;
+    }
+
+    pScrn->EnableDisableFBAccess (scrnIndex, TRUE);
+    
     return TRUE;
 }
 
@@ -972,7 +985,14 @@ static void
 qxl_leave_vt(int scrnIndex, int flags)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
     
+    pScrn->EnableDisableFBAccess (scrnIndex, FALSE);
+
+    qxl->vt_surfaces = qxl_surface_cache_evacuate_all (qxl->surface_cache);
+
+    outb(qxl->io_base + QXL_IO_RESET, 0);
+
     qxl_restore_state(pScrn);
 }
 
