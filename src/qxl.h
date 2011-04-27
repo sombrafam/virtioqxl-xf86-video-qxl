@@ -20,6 +20,9 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifndef QXL_H
+#define QXL_H
+
 #include "config.h"
 
 #include <stdint.h>
@@ -331,3 +334,5 @@ void              qxl_mem_free_all     (struct qxl_mem         *mem);
 void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
 int		   qxl_garbage_collect (qxl_screen_t *qxl);
+
+#endif // QXL_H
