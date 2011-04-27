@@ -831,14 +831,14 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_screen_t *qxl = pScrn->driverPrivate;
     struct QXLRam *ram_header;
     VisualPtr visual;
-    
+
     CHECK_POINT();
-    
+
     qxl->pScrn = pScrn;
-    
+
     if (!qxl_map_memory(qxl, scrnIndex))
 	return FALSE;
-    
+
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
     printf ("ram_header at %d\n", qxl->rom->ram_header_offset);
@@ -902,7 +902,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Set up resources */
     qxl_reset (qxl);
     ErrorF ("done reset\n");
-    
+
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
 
@@ -944,7 +944,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     pScreen->CloseScreen = qxl_close_screen;
     
     qxl_cursor_init (pScreen);
-    
+
     CHECK_POINT();
 
     pScreen->width = pScrn->currentMode->HDisplay;
@@ -953,7 +953,7 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_switch_mode(scrnIndex, pScrn->currentMode, 0);
     
     CHECK_POINT();
-    
+
     return TRUE;
     
 out:
@@ -1067,15 +1067,15 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 	       rom->num_pages, (unsigned long)qxl->ram);
     
     xf86DrvMsg(scrnIndex, X_INFO, "RAM header offset: 0x%x\n", rom->ram_header_offset);
-    
+
     if (ram_header->magic != 0x41525851) { /* "QXRA" little-endian */
 	xf86DrvMsg(scrnIndex, X_ERROR, "Bad RAM signature %x at %p\n",
 		   ram_header->magic,
 		   &ram_header->magic);
 	return FALSE;
     }
-    
-    xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n", 
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n",
 	       ram_header->magic);
     
     pScrn->videoRam = (rom->num_pages * 4096) / 1024;
@@ -1201,7 +1201,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     if (!pScrn->driverPrivate)
 	pScrn->driverPrivate = xnfcalloc(sizeof(qxl_screen_t), 1);
     qxl = pScrn->driverPrivate;
-    
+
     qxl->entity = xf86GetEntityInfo(pScrn->entityList[0]);
     qxl->pci = xf86GetPciInfoForEntity(qxl->entity->index);
 #ifndef XSERVER_LIBPCIACCESS
@@ -1221,7 +1221,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     if (!qxl_check_device(pScrn, qxl))
 	goto out;
-    
+
     /* ddc stuff here */
     
     clockRanges = xnfcalloc(sizeof(ClockRange), 1);
@@ -1301,7 +1301,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     }
     
     print_modes (qxl, scrnIndex);
-    
+
     /* VGA hardware initialisation */
     if (!vgaHWGetHWRec(pScrn))
         return FALSE;
@@ -1338,7 +1338,7 @@ static const struct pci_id_match qxl_device_match[] = {
 	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_01FF, PCI_MATCH_ANY, PCI_MATCH_ANY,
 	0x00030000, 0x00ffffff, CHIP_QXL_1
     },
-    
+
     { 0 },
 };
 #endif
@@ -1384,37 +1384,37 @@ qxl_probe(DriverPtr drv, int flags)
     int numDevSections;
     int *usedChips;
     GDevPtr *devSections;
-    
+
     if ((numDevSections = xf86MatchDevice(QXL_NAME, &devSections)) <= 0)
 	return FALSE;
-    
+
     if (!xf86GetPciVideoInfo())
 	return FALSE;
-    
+
     numUsed = xf86MatchPciInstances(QXL_NAME, PCI_VENDOR_RED_HAT,
 				    qxlChips, qxlPciChips,
 				    devSections, numDevSections,
 				    drv, &usedChips);
-    
+
     xfree(devSections);
-    
+
     if (numUsed < 0) {
 	xfree(usedChips);
 	return FALSE;
     }
-    
+
     if (flags & PROBE_DETECT) {
 	xfree(usedChips);
 	return TRUE;
     }
-    
+
     for (i = 0; i < numUsed; i++) {
 	ScrnInfoPtr pScrn = NULL;
 	if ((pScrn = xf86ConfigPciEntity(pScrn, 0, usedChips[i], qxlPciChips,
 					 0, 0, 0, 0, 0)))
 	    qxl_init_scrn(pScrn);
     }
-    
+
     xfree(usedChips);
     return TRUE;
 }
@@ -1427,17 +1427,17 @@ qxl_pci_probe(DriverPtr drv, int entity, struct pci_device *dev, intptr_t match)
     qxl_screen_t *qxl;
     ScrnInfoPtr pScrn = xf86ConfigPciEntity(NULL, 0, entity, NULL, NULL,
 					    NULL, NULL, NULL, NULL);
-    
+
     if (!pScrn)
 	return FALSE;
-    
+
     if (!pScrn->driverPrivate)
 	pScrn->driverPrivate = xnfcalloc(sizeof(qxl_screen_t), 1);
     qxl = pScrn->driverPrivate;
     qxl->pci = dev;
-    
+
     qxl_init_scrn(pScrn);
-    
+
     return TRUE;
 }
 
