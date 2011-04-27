@@ -41,6 +41,7 @@
 #include "spiceqxl_driver.h"
 #include "spiceqxl_main_loop.h"
 #include "spiceqxl_display.h"
+#include "spiceqxl_inputs.h"
 #endif /* XSPICE */
 
 #if 0
@@ -1624,6 +1625,9 @@ qxl_setup(pointer module, pointer opts, int *errmaj, int *errmin)
     if (!loaded) {
 	loaded = TRUE;
 	xf86AddDriver(&qxl_driver, module, HaveDriverFuncs);
+#ifdef XSPICE
+	xspice_add_input_drivers(module);
+#endif
 	return (void *)1;
     } else {
 	if (errmaj)

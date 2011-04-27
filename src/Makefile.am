@@ -65,6 +65,7 @@ spiceqxl_drv_la_SOURCES =				\
 	spiceqxl_driver.c			\
 	spiceqxl_main_loop.c			\
 	spiceqxl_display.c			\
+	spiceqxl_inputs.c			\
 	qxl_driver.c				\
 	qxl_image.c				\
 	qxl_surface.c				\
