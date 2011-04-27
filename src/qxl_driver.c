@@ -205,7 +205,7 @@ qxl_blank_screen(ScreenPtr pScreen, int mode)
 }
 
 static void
-qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
+unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 {
 #ifdef XSERVER_LIBPCIACCESS
     if (qxl->ram)
@@ -222,9 +222,56 @@ qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
     if (qxl->rom)
 	xf86UnMapVidMem(scrnIndex, qxl->rom, (1 << qxl->pci->size[2]));
 #endif
-    
+}
+
+static void
+map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
+{
+#ifdef XSERVER_LIBPCIACCESS
+    pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr,
+			 qxl->pci->regions[0].size,
+			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
+			 &qxl->ram);
+    qxl->ram_physical = u64_to_pointer (qxl->pci->regions[0].base_addr);
+
+    pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr,
+			 qxl->pci->regions[1].size,
+			 PCI_DEV_MAP_FLAG_WRITABLE,
+			 &qxl->vram);
+    qxl->vram_physical = u64_to_pointer (qxl->pci->regions[1].base_addr);
+    qxl->vram_size = qxl->pci->regions[1].size;
+
+    pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr,
+			 qxl->pci->regions[2].size, 0,
+			 (void **)&qxl->rom);
+
+    qxl->io_base = qxl->pci->regions[3].base_addr;
+#else
+    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
+			     qxl->pci_tag, qxl->pci->memBase[0],
+			     (1 << qxl->pci->size[0]));
+    qxl->ram_physical = (void *)qxl->pci->memBase[0];
+
+    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			      qxl->pci_tag, qxl->pci->memBase[1],
+			      (1 << qxl->pci->size[1]));
+    qxl->vram_physical = (void *)qxl->pci->memBase[1];
+    qxl->vram_size = (1 << qxl->pci->size[1]);
+
+    qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
+			     qxl->pci_tag, qxl->pci->memBase[2],
+			     (1 << qxl->pci->size[2]));
+
+    qxl->io_base = qxl->pci->ioBase[3];
+#endif
+}
+
+static void
+qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
+{
+    unmap_memory_helper(qxl, scrnIndex);
     qxl->ram = qxl->ram_physical = qxl->vram = qxl->rom = NULL;
-    
+
     qxl->num_modes = 0;
     qxl->modes = NULL;
 }
@@ -232,49 +279,14 @@ qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
 static Bool
 qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 {
-#ifdef XSERVER_LIBPCIACCESS
-    pci_device_map_range(qxl->pci, qxl->pci->regions[0].base_addr, 
-			 qxl->pci->regions[0].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE | PCI_DEV_MAP_FLAG_WRITE_COMBINE,
-			 &qxl->ram);
-    qxl->ram_physical = u64_to_pointer (qxl->pci->regions[0].base_addr);
-    
-    pci_device_map_range(qxl->pci, qxl->pci->regions[1].base_addr, 
-			 qxl->pci->regions[1].size,
-			 PCI_DEV_MAP_FLAG_WRITABLE,
-			 &qxl->vram);
-    qxl->vram_physical = u64_to_pointer (qxl->pci->regions[1].base_addr);
-    qxl->vram_size = qxl->pci->regions[1].size;
-    
-    pci_device_map_range(qxl->pci, qxl->pci->regions[2].base_addr, 
-			 qxl->pci->regions[2].size, 0,
-			 (void **)&qxl->rom);
-    
-    qxl->io_base = qxl->pci->regions[3].base_addr;
-#else
-    qxl->ram = xf86MapPciMem(scrnIndex, VIDMEM_FRAMEBUFFER,
-			     qxl->pci_tag, qxl->pci->memBase[0],
-			     (1 << qxl->pci->size[0]));
-    qxl->ram_physical = (void *)qxl->pci->memBase[0];
-    
-    qxl->vram = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			      qxl->pci_tag, qxl->pci->memBase[1],
-			      (1 << qxl->pci->size[1]));
-    qxl->vram_physical = (void *)qxl->pci->memBase[1];
-    qxl->vram_size = (1 << qxl->pci->size[1]);
-    
-    qxl->rom = xf86MapPciMem(scrnIndex, VIDMEM_MMIO | VIDMEM_MMIO_32BIT,
-			     qxl->pci_tag, qxl->pci->memBase[2],
-			     (1 << qxl->pci->size[2]));
-    
-    qxl->io_base = qxl->pci->ioBase[3];
-#endif
+    map_memory_helper(qxl, scrnIndex);
+
     if (!qxl->ram || !qxl->vram || !qxl->rom)
 	return FALSE;
-    
+
     xf86DrvMsg(scrnIndex, X_INFO, "framebuffer at %p (%d KB)\n",
 	       qxl->ram, qxl->rom->surface0_area_size / 1024);
-    
+
     xf86DrvMsg(scrnIndex, X_INFO, "command ram at %p (%d KB)\n",
 	       (void *)((unsigned long)qxl->ram + qxl->rom->surface0_area_size),
 	       (qxl->rom->num_pages * getpagesize() - qxl->rom->surface0_area_size)/1024);
@@ -283,7 +295,7 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 	       qxl->vram, qxl->vram_size / 1024);
 
     xf86DrvMsg(scrnIndex, X_INFO, "rom at %p\n", qxl->rom);
-    
+
     qxl->num_modes = *(uint32_t *)((uint8_t *)qxl->rom + qxl->rom->modes_offset);
     qxl->modes = (struct QXLMode *)(((uint8_t *)qxl->rom) + qxl->rom->modes_offset + 4);
     qxl->surface0_area = qxl->ram;
