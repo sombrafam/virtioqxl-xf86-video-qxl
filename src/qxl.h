@@ -179,6 +179,11 @@ struct _qxl_screen_t
     void *			vt_surfaces;
 
     OptionInfoRec	options[OPTION_COUNT + 1];
+
+#ifdef XSPICE
+    /* XSpice specific */
+    struct QXLRom		shadow_rom;    /* Parameter RAM */
+#endif /* XSPICE */
 };
 
 static inline uint64_t
@@ -365,5 +370,22 @@ static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
     outb(qxl->io_base + port, val);
 }
 #endif
+
+#ifdef XSPICE
+
+// Taken from qemu's qxl.c, not sure the values make sense? we
+// only have a single slot, and it is never changed after being added,
+// so not a problem?
+#define MEMSLOT_GENERATION_BITS 8
+#define MEMSLOT_SLOT_BITS 1
+
+// qemu/cpu-all.h
+#define TARGET_PAGE_SIZE (1 << TARGET_PAGE_BITS)
+// qemu/target-i386/cpu.h
+#define TARGET_PAGE_BITS 12
+
+#define NUM_SURFACES 1024
+
+#endif /* XSPICE */
 
 #endif // QXL_H

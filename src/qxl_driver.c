@@ -37,6 +37,10 @@
 #include "qxl.h"
 #include "assert.h"
 
+#ifdef XSPICE
+#include "spiceqxl_driver.h"
+#endif /* XSPICE */
+
 #if 0
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
 #endif
@@ -208,11 +212,22 @@ qxl_blank_screen(ScreenPtr pScreen, int mode)
 static void
 unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 {
+    free(qxl->ram);
+    free(qxl->vram);
+    free(qxl->rom);
 }
 
 static void
 map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 {
+    qxl->ram = malloc(RAM_SIZE);
+    qxl->ram_physical = qxl->ram;
+    qxl->vram = malloc(VRAM_SIZE);
+    qxl->vram_size = VRAM_SIZE;
+    qxl->vram_physical = qxl->vram;
+    qxl->rom = malloc(ROM_SIZE);
+
+    init_qxl_rom(qxl, ROM_SIZE);
 }
 #else /* Default */
 static void
