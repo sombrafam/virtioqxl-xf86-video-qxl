@@ -93,6 +93,7 @@ lookup_image_info (unsigned int hash,
     return NULL;
 }
 
+#if 0
 static image_info_t *
 insert_image_info (unsigned int hash)
 {
@@ -106,6 +107,7 @@ insert_image_info (unsigned int hash)
     
     return info;
 }
+#endif
 
 static void
 remove_image_info (image_info_t *info)
