@@ -40,12 +40,15 @@
 #include "xf86xv.h"
 #include "shadow.h"
 #include "micmap.h"
+#include "uxa/uxa.h"
+
+#ifndef XSPICE
 #ifdef XSERVER_PCIACCESS
 #include "pciaccess.h"
 #endif
 #include "fb.h"
-#include "uxa/uxa.h"
 #include "vgaHW.h"
+#endif /* XSPICE */
 
 #define hidden _X_HIDDEN
 
@@ -133,9 +136,10 @@ struct _qxl_screen_t
     
     EntityInfoPtr		entity;
 
+#ifndef XSPICE
     void *			io_pages;
     void *			io_pages_physical;
-    
+
 #ifdef XSERVER_LIBPCIACCESS
     struct pci_device *		pci;
 #else
@@ -143,6 +147,7 @@ struct _qxl_screen_t
     PCITAG			pci_tag;
 #endif
     vgaRegRec                   vgaRegs;
+#endif /* XSPICE */
 
     uxa_driver_t *		uxa;
     

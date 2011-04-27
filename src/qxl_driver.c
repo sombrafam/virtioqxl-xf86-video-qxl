@@ -204,6 +204,17 @@ qxl_blank_screen(ScreenPtr pScreen, int mode)
     return TRUE;
 }
 
+#ifdef XSPICE
+static void
+unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
+{
+}
+
+static void
+map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
+{
+}
+#else /* Default */
 static void
 unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 {
@@ -265,6 +276,7 @@ map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
     qxl->io_base = qxl->pci->ioBase[3];
 #endif
 }
+#endif /* XSPICE */
 
 static void
 qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
@@ -308,6 +320,17 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
     return TRUE;
 }
 
+#ifdef XSPICE
+static void
+qxl_save_state(ScrnInfoPtr pScrn)
+{
+}
+
+static void
+qxl_restore_state(ScrnInfoPtr pScrn)
+{
+}
+#else /* QXL */
 static void
 qxl_save_state(ScrnInfoPtr pScrn)
 {
@@ -323,6 +346,7 @@ qxl_restore_state(ScrnInfoPtr pScrn)
 
     vgaHWRestoreFonts(pScrn, &qxl->vgaRegs);
 }
+#endif /* XSPICE */
 
 static Bool
 qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
@@ -916,8 +940,10 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_reset (qxl);
     ErrorF ("done reset\n");
 
+#ifndef XSPICE
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
+#endif
 
     qxl->command_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cmd_ring),
 					 sizeof (struct QXLCommand),
@@ -1055,6 +1081,7 @@ print_modes (qxl_screen_t *qxl, int scrnIndex)
     }
 }
 
+#ifndef XSPICE
 static Bool
 qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
@@ -1090,15 +1117,9 @@ qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 
     xf86DrvMsg(scrnIndex, X_INFO, "Correct RAM signature %x\n",
 	       ram_header->magic);
-    
-    pScrn->videoRam = (rom->num_pages * 4096) / 1024;
-    
-    xf86DrvMsg(scrnIndex, X_INFO, "%d KB of video RAM\n", pScrn->videoRam);
-    
-    xf86DrvMsg(scrnIndex, X_INFO, "%d surfaces\n", rom->n_surfaces);
-    
     return TRUE;
 }
+#endif /* !XSPICE */
 
 static int
 qxl_find_native_mode(ScrnInfoPtr pScrn, DisplayModePtr p)
@@ -1216,11 +1237,14 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     qxl = pScrn->driverPrivate;
 
     qxl->entity = xf86GetEntityInfo(pScrn->entityList[0]);
+    
+#ifndef XSPICE
     qxl->pci = xf86GetPciInfoForEntity(qxl->entity->index);
 #ifndef XSERVER_LIBPCIACCESS
     qxl->pci_tag = pciTag(qxl->pci->bus, qxl->pci->device, qxl->pci->func);
 #endif
-    
+#endif /* XSPICE */
+
     pScrn->monitor = pScrn->confScreen->monitor;
     
     if (!qxl_color_setup(pScrn))
@@ -1234,8 +1258,13 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     if (!qxl_map_memory(qxl, scrnIndex))
 	goto out;
     
+#ifndef XSPICE
     if (!qxl_check_device(pScrn, qxl))
 	goto out;
+#endif
+    pScrn->videoRam = (qxl->rom->num_pages * 4096) / 1024;
+    xf86DrvMsg(scrnIndex, X_INFO, "%d KB of video RAM\n", pScrn->videoRam);
+    xf86DrvMsg(scrnIndex, X_INFO, "%d surfaces\n", qxl->rom->n_surfaces);
 
     /* ddc stuff here */
     
@@ -1317,9 +1346,11 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     print_modes (qxl, scrnIndex);
 
+#ifndef XSPICE
     /* VGA hardware initialisation */
     if (!vgaHWGetHWRec(pScrn))
         return FALSE;
+#endif
 
     /* hate */
     qxl_unmap_memory(qxl, scrnIndex);
@@ -1341,6 +1372,7 @@ out:
     return FALSE;
 }
 
+#ifndef XSPICE
 #ifdef XSERVER_LIBPCIACCESS
 enum qxl_class
 {
@@ -1374,11 +1406,14 @@ static PciChipsets qxlPciChips[] =
     { -1, -1, RES_UNDEFINED }
 };
 #endif
+#endif /* !XSPICE */
 
 static void
 qxl_identify(int flags)
 {
+#ifndef XSPICE
     xf86PrintChipsets("qxl", "Driver for QXL virtual graphics", qxlChips);
+#endif
 }
 
 static void
@@ -1394,6 +1429,37 @@ qxl_init_scrn(ScrnInfoPtr pScrn)
     pScrn->LeaveVT	    = qxl_leave_vt;
 }
 
+#ifdef XSPICE
+static Bool
+qxl_probe(struct _DriverRec *drv, int flags)
+{
+    ScrnInfoPtr pScrn;
+    int entityIndex;
+    EntityInfoPtr pEnt;
+    GDevPtr* device;
+
+    if (flags & PROBE_DETECT) {
+        return TRUE;
+    }
+
+    pScrn = xf86AllocateScreen(drv, flags);
+    qxl_init_scrn(pScrn);
+
+    xf86MatchDevice(QXL_DRIVER_NAME, &device);
+    entityIndex = xf86ClaimNoSlot(drv, 0, device[0], TRUE);
+    pEnt = xf86GetEntityInfo(entityIndex);
+    pEnt->driver = drv;
+
+    xf86AddEntityToScreen(pScrn, entityIndex);
+
+    return TRUE;
+}
+static Bool qxl_driver_func(ScrnInfoPtr screen_info_ptr, xorgDriverFuncOp xorg_driver_func_op, pointer hw_flags)
+{
+    *(xorgHWFlags*)hw_flags = (xorgHWFlags)HW_SKIP_CONSOLE;
+    return TRUE;
+}
+#else /* normal, not XSPICE */
 #ifndef XSERVER_LIBPCIACCESS
 static Bool
 qxl_probe(DriverPtr drv, int flags)
@@ -1462,6 +1528,7 @@ qxl_pci_probe(DriverPtr drv, int entity, struct pci_device *dev, intptr_t match)
 #define qxl_probe NULL
 
 #endif
+#endif /* XSPICE */
 
 static DriverRec qxl_driver = {
     0,
@@ -1471,11 +1538,17 @@ static DriverRec qxl_driver = {
     NULL,
     NULL,
     0,
+#ifdef XSPICE
+    qxl_driver_func,
+    NULL,
+    NULL
+#else
     NULL,
 #ifdef XSERVER_LIBPCIACCESS
     qxl_device_match,
     qxl_pci_probe
 #endif
+#endif /* XSPICE */
 };
 
 static pointer
