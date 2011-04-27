@@ -29,6 +29,7 @@ SUBDIRS=uxa
 
 AM_CFLAGS = $(SPICE_PROTOCOL_CFLAGS) $(XORG_CFLAGS) $(PCIACCESS_CFLAGS) $(CWARNFLAGS)
 
+if BUILD_QXL
 qxl_drv_la_LTLIBRARIES = qxl_drv.la
 qxl_drv_la_LDFLAGS = -module -avoid-version
 qxl_drv_ladir = @moduledir@/drivers
@@ -47,3 +48,27 @@ qxl_drv_la_SOURCES =				\
 	lookup3.c				\
 	lookup3.h				\
 	qxl_cursor.c
+endif
+
+if BUILD_XSPICE
+spiceqxl_drv_la_LTLIBRARIES = spiceqxl_drv.la
+spiceqxl_drv_la_LDFLAGS = -module -avoid-version $(SPICE_LIBS)
+spiceqxl_drv_ladir = @moduledir@/drivers
+
+spiceqxl_drv_la_CFLAGS = -DXSPICE $(AM_CFLAGS) $(SPICE_CFLAGS)
+
+spiceqxl_drv_la_LIBADD = uxa/libuxa.la
+
+spiceqxl_drv_la_SOURCES =				\
+	qxl.h					\
+	qxl_driver.c				\
+	qxl_image.c				\
+	qxl_surface.c				\
+	qxl_ring.c				\
+	qxl_mem.c				\
+	mspace.c				\
+	mspace.h				\
+	lookup3.c				\
+	lookup3.h				\
+	qxl_cursor.c
+endif

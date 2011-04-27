@@ -76,6 +76,35 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # Checks for libraries.
 
+enable_qxl=yes
+AC_ARG_ENABLE(xspice,
+[  --enable-xspice[[=(no|yes|only)]]  Build the xspice driver
+                   no      (default) Do not build
+                   yes     Build in addition to qxl
+                   only    Only build xspice],
+[  if test "x$enableval" = "xyes"; then
+        enable_xspice=yes
+   elif test "x$enableval" = "xonly"; then
+        enable_xspice=yes
+        enable_qxl=no
+   else
+        enable_xspice=no
+   fi
+])
+
+if test "x$enable_xspice" = "xyes"; then
+    PKG_CHECK_MODULES([SPICE], [spice-server >= 0.6.3],
+    [
+        AC_SUBST(SPICE_CFLAGS)
+        AC_SUBST(SPICE_LIBS)
+    ],
+)
+else
+    enable_xspice=no
+fi
+AM_CONDITIONAL(BUILD_XSPICE, test "x$enable_xspice" = "xyes")
+AM_CONDITIONAL(BUILD_QXL, test "x$enable_qxl" = "xyes")
+
 PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.8.1])
 
 AC_CHECK_FILE(.git, [
@@ -100,5 +129,6 @@ echo "
         prefix:                   ${prefix}
         c compiler:               ${CC}
 
+        Build qxl:                ${enable_qxl}
         Build xspice:             ${enable_xspice}
 "
