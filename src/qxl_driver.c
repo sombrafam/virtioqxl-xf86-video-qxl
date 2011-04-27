@@ -39,6 +39,7 @@
 
 #ifdef XSPICE
 #include "spiceqxl_driver.h"
+#include "spiceqxl_main_loop.h"
 #endif /* XSPICE */
 
 #if 0
@@ -883,6 +884,37 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
     return TRUE;
 }
 
+#ifdef XSPICE
+
+SpiceServer *xspice_get_spice_server(void)
+{
+    static SpiceServer *spice_server;
+    if (!spice_server) {
+        spice_server = spice_server_new();
+    }
+    return spice_server;
+}
+
+static void
+spiceqxl_screen_init(int scrnIndex, ScrnInfoPtr pScrn, qxl_screen_t *qxl)
+{
+    SpiceCoreInterface *core;
+
+    // Init spice
+    if (!qxl->spice_server) {
+        qxl->spice_server = xspice_get_spice_server();
+        // some common initialization for all display tests
+        spice_server_set_port(qxl->spice_server, qxl->options[OPTION_SPICE_PORT].value.num);
+        spice_server_set_noauth(qxl->spice_server); // TODO - take this from config
+        // TODO - parse rest of parameters (streaming, compression, jpeg, etc.) from config
+        core = basic_event_loop_init();
+        spice_server_init(qxl->spice_server, core);
+    }
+    qxl->spice_server = qxl->spice_server;
+}
+
+#endif
+
 static Bool
 qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
@@ -898,6 +930,9 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!qxl_map_memory(qxl, scrnIndex))
 	return FALSE;
 
+#ifdef XSPICE
+    spiceqxl_screen_init(scrnIndex, pScrn, qxl);
+#endif
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
     printf ("ram_header at %d\n", qxl->rom->ram_header_offset);

@@ -28,6 +28,9 @@
 #include <stdint.h>
 
 #include <spice/qxl_dev.h>
+#ifdef XSPICE
+#include <spice.h>
+#endif
 
 #include "compiler.h"
 #include "xf86.h"
@@ -186,6 +189,7 @@ struct _qxl_screen_t
 #ifdef XSPICE
     /* XSpice specific */
     struct QXLRom		shadow_rom;    /* Parameter RAM */
+    SpiceServer *       spice_server;
 #endif /* XSPICE */
 };
 
@@ -388,6 +392,9 @@ static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
 #define TARGET_PAGE_BITS 12
 
 #define NUM_SURFACES 1024
+
+/* initializes if required and returns the server singleton */
+SpiceServer *xspice_get_spice_server(void);
 
 #endif /* XSPICE */
 
