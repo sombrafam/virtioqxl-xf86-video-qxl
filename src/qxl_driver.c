@@ -905,14 +905,14 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
-    
-    qxl->command_ring = qxl_ring_create (&(ram_header->cmd_ring),
+
+    qxl->command_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cmd_ring),
 					 sizeof (struct QXLCommand),
 					 QXL_COMMAND_RING_SIZE, QXL_IO_NOTIFY_CMD);
-    qxl->cursor_ring = qxl_ring_create (&(ram_header->cursor_ring),
+    qxl->cursor_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cursor_ring),
 					sizeof (struct QXLCommand),
 					QXL_CURSOR_RING_SIZE, QXL_IO_NOTIFY_CURSOR);
-    qxl->release_ring = qxl_ring_create (&(ram_header->release_ring),
+    qxl->release_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->release_ring),
 					 sizeof (uint64_t),
 					 QXL_RELEASE_RING_SIZE, 0);
 
