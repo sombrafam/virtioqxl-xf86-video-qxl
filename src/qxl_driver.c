@@ -339,17 +339,42 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     return result;
 }
 
+static uint8_t
+setup_slot(qxl_screen_t *qxl, uint8_t slot_index_offset,
+    unsigned long start_phys_addr, unsigned long end_phys_addr,
+    uint64_t start_virt_addr, uint64_t end_virt_addr)
+{
+    uint64_t high_bits;
+    qxl_memslot_t *slot;
+    uint8_t slot_index;
+    struct QXLRam *ram_header;
+    ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
+
+    slot_index = qxl->rom->slots_start + slot_index_offset;
+    slot = &qxl->mem_slots[slot_index];
+    slot->start_phys_addr = start_phys_addr;
+    slot->end_phys_addr = end_phys_addr;
+    slot->start_virt_addr = start_virt_addr;
+    slot->end_virt_addr = end_virt_addr;
+
+    ram_header->mem_slot.mem_start = slot->start_phys_addr;
+    ram_header->mem_slot.mem_end = slot->end_phys_addr;
+
+    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, slot_index);
+
+    slot->generation = qxl->rom->slot_generation;
+    
+    high_bits = slot_index << qxl->slot_gen_bits;
+    high_bits |= slot->generation;
+    high_bits <<= (64 - (qxl->slot_gen_bits + qxl->slot_id_bits));
+    slot->high_bits = high_bits;
+    return slot_index;
+}
+
 static void
 qxl_reset (qxl_screen_t *qxl)
 {
-    qxl_memslot_t *slot;
-    uint64_t high_bits;
-    struct QXLRam *ram_header;
-
     ioport_write(qxl, QXL_IO_RESET, 0);
-
-    ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
-    
     /* Mem slots */
     ErrorF ("slots start: %d, slots end: %d\n",
 	    qxl->rom->slots_start,
@@ -360,48 +385,20 @@ qxl_reset (qxl_screen_t *qxl)
     qxl->slot_gen_bits = qxl->rom->slot_gen_bits;
     qxl->slot_id_bits = qxl->rom->slot_id_bits;
     qxl->va_slot_mask = (~(uint64_t)0) >> (qxl->slot_id_bits + qxl->slot_gen_bits);
-    
+
     qxl->mem_slots = xnfalloc (qxl->n_mem_slots * sizeof (qxl_memslot_t));
-    
-    qxl->main_mem_slot = qxl->rom->slots_start;
-    slot = &qxl->mem_slots[qxl->main_mem_slot];
-    slot->start_phys_addr = (unsigned long)qxl->ram_physical;
-    slot->end_phys_addr =
-	(unsigned long)slot->start_phys_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
-    slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->ram;
-    slot->end_virt_addr = slot->start_virt_addr + (unsigned long)qxl->rom->num_pages * getpagesize();
-    
-    ram_header->mem_slot.mem_start = slot->start_phys_addr;
-    ram_header->mem_slot.mem_end = slot->end_phys_addr;
-    
-    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
-    slot->generation = qxl->rom->slot_generation;
-    
-    high_bits = qxl->main_mem_slot << qxl->slot_gen_bits;
-    high_bits |= slot->generation;
-    high_bits <<= (64 - (qxl->slot_gen_bits + qxl->slot_id_bits));
-    slot->high_bits = high_bits;
-    
-    /* Vram slot */
-    qxl->vram_mem_slot = qxl->rom->slots_start + 1;
-    slot = &qxl->mem_slots[qxl->vram_mem_slot];
-    slot->start_phys_addr = (unsigned long)qxl->vram_physical;
-    slot->end_phys_addr = (unsigned long)qxl->vram_physical + (unsigned long)qxl->vram_size;
-    slot->start_virt_addr = (uint64_t)(uintptr_t)qxl->vram;
-    slot->end_virt_addr = (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size;
-
-    ram_header->mem_slot.mem_start = slot->start_phys_addr;
-    ram_header->mem_slot.mem_end = slot->end_phys_addr;
-
-    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
-
-    slot->generation = qxl->rom->slot_generation;
-    
-    high_bits = qxl->vram_mem_slot << qxl->slot_gen_bits;
-    high_bits |= slot->generation;
-    high_bits <<= (64 - (qxl->slot_gen_bits + qxl->slot_id_bits));
-    slot->high_bits = high_bits;
+    qxl->main_mem_slot = setup_slot(qxl, 0,
+        (unsigned long)qxl->ram_physical,
+        (unsigned long)qxl->ram_physical + (unsigned long)qxl->rom->num_pages * getpagesize(),
+        (uint64_t)(uintptr_t)qxl->ram,
+        (uint64_t)(uintptr_t)qxl->ram + (unsigned long)qxl->rom->num_pages * getpagesize()
+    );
+    qxl->vram_mem_slot = setup_slot(qxl, 1,
+        (unsigned long)qxl->vram_physical,
+        (unsigned long)qxl->vram_physical + (unsigned long)qxl->vram_size,
+        (uint64_t)(uintptr_t)qxl->vram,
+        (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size);
 }
 
 static void
