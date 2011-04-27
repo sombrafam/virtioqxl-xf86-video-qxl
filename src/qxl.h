@@ -351,9 +351,14 @@ void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
 int		   qxl_garbage_collect (qxl_screen_t *qxl);
 
+#ifdef XSPICE
+/* device to spice-server, now xspice to spice-server */
+void ioport_write(qxl_screen_t *qxl, uint32_t io_port, uint32_t val);
+#else
 static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
 {
     outb(qxl->io_base + port, val);
 }
+#endif
 
 #endif // QXL_H
