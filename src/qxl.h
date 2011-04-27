@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <spice/qxl_dev.h>
+
 #include "compiler.h"
 #include "xf86.h"
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
