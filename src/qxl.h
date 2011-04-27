@@ -83,6 +83,14 @@ typedef struct
 
 typedef struct qxl_surface_t qxl_surface_t;
 
+/*
+ * Config Options
+ */
+
+enum {
+    OPTION_COUNT,
+};
+
 struct _qxl_screen_t
 {
     /* These are the names QXL uses */
@@ -159,6 +167,8 @@ struct _qxl_screen_t
 
     /* Evacuated surfaces are stored here during VT switches */
     void *			vt_surfaces;
+
+    OptionInfoRec	options[OPTION_COUNT + 1];
 };
 
 static inline uint64_t

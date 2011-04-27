@@ -42,6 +42,10 @@
 #endif
 #define CHECK_POINT()
 
+const OptionInfoRec DefaultOptions[] = {
+    { -1,                 NULL,           OPTV_NONE,    {0},    FALSE }
+};
+
 int
 qxl_garbage_collect (qxl_screen_t *qxl)
 {
@@ -1215,6 +1219,8 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     /* option parsing and card differentiation */
     xf86CollectOptions(pScrn, NULL);
+    memcpy(qxl->options, DefaultOptions, sizeof(DefaultOptions));
+    xf86ProcessOptions(scrnIndex, pScrn->options, qxl->options);
     
     if (!qxl_map_memory(qxl, scrnIndex))
 	goto out;
