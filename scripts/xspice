@@ -1,0 +1,103 @@
+#!/usr/bin/python
+
+"""
+xspice
+
+xspice is a standard X server that is also a Spice server.
+
+It is implemented as a module with video, mouse and keyboard drivers.
+
+The video driver is mostly the same code as the qxl guest driver, hence
+xspice is kept in the same repository. It can also be used to debug the qxl
+driver.
+
+xspice (this executable) will set a bunch of environment variables that are
+used by spiceqxl_drv.so, and then exec Xorg, giving it the default config file,
+which can be overridden as well.
+"""
+
+import argparse
+import os
+import sys
+
+def which(x):
+    for p in os.environ['PATH'].split(':'):
+        candidate = os.path.join(p, x)
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+cgdb = which('cgdb') and os.path.exists(
+    os.path.join(os.path.dirname(sys.modules[__name__].__file__),
+                 'configure.ac'))
+
+def add_boolean(flag, *args, **kw):
+    parser.add_argument(flag, action='store_const', const='1', default='0',
+                        *args, **kw)
+
+wan_compression_options = ['auto', 'never', 'always']
+parser = argparse.ArgumentParser("xspice",
+    description="X and Spice server. example usage: xspice --port 5900 :1.0",
+    usage="xspice [xspice and Xorg options intermixed]",
+    epilog="Any options not parsed by xspice get passed to Xorg as is.")
+parser.add_argument('--xorg', default=which('Xorg'))
+parser.add_argument('--config', default='spiceqxl.xorg.conf')
+# Don't use any options that are already used by Xorg (unless we must)
+# specifically, don't use -p and -s.
+parser.add_argument('--port', type=int, help='standard spice port')
+parser.add_argument('--tls-port', type=int, help='spice tls port')
+add_boolean('--disable-ticketing', help="do not require a client password")
+add_boolean('--sasl', help="enable sasl")
+parser.add_argument('--x509-dir', help="x509 directory for tls")
+parser.add_argument('--cacert-file', help="ca certificate file for tls")
+parser.add_argument('--x509-key-file', help="key file for tls")
+parser.add_argument('--x509-key-password', help="key file password for tls")
+parser.add_argument('--tls-ciphers')
+parser.add_argument('--dh-file')
+parser.add_argument('--password', help="set password required to connect to server")
+parser.add_argument('--image-compression',
+                    choices = ['off', 'auto_glz', 'auto_lz', 'quic',
+                               'glz', 'lz'],
+                    default='auto_glz', help='auto_glz by default')
+parser.add_argument('--jpeg-wan-compression',
+                    choices=wan_compression_options,
+                    default='auto', help='auto by default')
+parser.add_argument('--zlib-glz-wan-compression',
+                    choices=wan_compression_options,
+                    default='auto', help='auto by default')
+# TODO - sound support
+#parser.add_argument('--playback-compression', choices=['0', '1'], default='1', help='enabled by default')
+parser.add_argument('--streaming-video', choices=['off', 'all', 'filter'],
+                    default='filter', help='filter by default')
+add_boolean('--ipv4-only')
+add_boolean('--ipv6-only')
+
+if cgdb:
+    parser.add_argument('--cgdb', action='store_true', default=False)
+# TODO:
+#add_boolean(parser, '--agent-mouse')
+
+args, xorg_args = parser.parse_known_args(sys.argv[1:])
+
+def error(msg, exit_code=1):
+    print "xspice: %s" % msg
+    sys.exit(exit_code)
+
+if not args.xorg:
+    error("Xorg missing")
+
+var_args = ['port', 'tls_port', 'disable_ticketing',
+    'x509_dir', 'sasl', 'cacert_file', 'x509_key_file', 'x509_key_password',
+    'tls_ciphers', 'dh_file', 'password', 'image_compression',
+    'jpeg_wan_compression', 'zlib_glz_wan_compression',
+    'playback_compression', 'streaming_video']
+for arg in var_args:
+    if getattr(args, arg):
+        os.environ['XSPICE_' + arg.upper()] = str(getattr(args, arg))
+
+exec_args = [args.xorg, '-config', args.config]
+if cgdb and args.cgdb:
+    exec_args = [cgdb, '--args'] + exec_args
+    args.xorg = cgdb
+
+os.execv(args.xorg, exec_args + xorg_args)

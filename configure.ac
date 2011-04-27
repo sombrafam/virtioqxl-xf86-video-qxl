@@ -116,7 +116,9 @@ AC_CHECK_FILE(.git, [
 AC_CONFIG_FILES([
                 Makefile
                 src/Makefile
-		src/uxa/Makefile
+                src/uxa/Makefile
+                scripts/Makefile
+                examples/Makefile
 ])
 AC_OUTPUT
 
