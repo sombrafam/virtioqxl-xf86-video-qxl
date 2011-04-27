@@ -40,6 +40,7 @@
 #ifdef XSPICE
 #include "spiceqxl_driver.h"
 #include "spiceqxl_main_loop.h"
+#include "spiceqxl_display.h"
 #endif /* XSPICE */
 
 #if 0
@@ -909,6 +910,8 @@ spiceqxl_screen_init(int scrnIndex, ScrnInfoPtr pScrn, qxl_screen_t *qxl)
         // TODO - parse rest of parameters (streaming, compression, jpeg, etc.) from config
         core = basic_event_loop_init();
         spice_server_init(qxl->spice_server, core);
+        qxl_add_spice_display_interface(qxl);
+        qxl->worker->start(qxl->worker);
     }
     qxl->spice_server = qxl->spice_server;
 }

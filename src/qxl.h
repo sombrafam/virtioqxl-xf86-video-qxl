@@ -190,6 +190,26 @@ struct _qxl_screen_t
     /* XSpice specific */
     struct QXLRom		shadow_rom;    /* Parameter RAM */
     SpiceServer *       spice_server;
+    QXLWorker *         worker;
+    QXLInstance         display_sin;
+    /* XSpice specific, dragged from the Device */
+    QXLReleaseInfo     *last_release;
+
+    uint32_t           cmdflags;
+    uint32_t           oom_running;
+    uint32_t           num_free_res; /* is having a release ring effective
+                                        for Xspice? */
+    /* This is only touched from red worker thread - do not access
+     * from Xorg threads. */
+    struct guest_primary {
+        QXLSurfaceCreate surface;
+        uint32_t       commands;
+        uint32_t       resized;
+        int32_t        stride;
+        uint32_t       bits_pp;
+        uint32_t       bytes_pp;
+        uint8_t        *data, *flipped;
+    } guest_primary;
 #endif /* XSPICE */
 };
 
@@ -380,9 +400,13 @@ static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
 
 #ifdef XSPICE
 
+#define MEMSLOT_GROUP 0
+#define NUM_MEMSLOTS_GROUPS 1
+
 // Taken from qemu's qxl.c, not sure the values make sense? we
 // only have a single slot, and it is never changed after being added,
 // so not a problem?
+#define NUM_MEMSLOTS 8
 #define MEMSLOT_GENERATION_BITS 8
 #define MEMSLOT_SLOT_BITS 1
 
