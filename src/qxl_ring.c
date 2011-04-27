@@ -75,7 +75,11 @@ qxl_ring_push (struct qxl_ring *ring,
     while (header->prod - header->cons == header->num_items)
     {
 	header->notify_on_cons = header->cons + 1;
-
+#ifdef XSPICE
+	/* in gtkperf, circles, this is a major bottleneck. Can't be that good in a vm either
+	 * Adding the yield reduces cpu usage, but doesn't improve throughput. */
+	pthread_yield();
+#endif
 	mem_barrier();
     }
 
