@@ -424,6 +424,9 @@ qxl_reset (qxl_screen_t *qxl)
 
     qxl->mem_slots = xnfalloc (qxl->n_mem_slots * sizeof (qxl_memslot_t));
 
+#ifdef XSPICE
+    qxl->main_mem_slot = qxl->vram_mem_slot = setup_slot(qxl, 0, 0, ~0, 0, ~0);
+#else /* QXL */
     qxl->main_mem_slot = setup_slot(qxl, 0,
         (unsigned long)qxl->ram_physical,
         (unsigned long)qxl->ram_physical + (unsigned long)qxl->rom->num_pages * getpagesize(),
@@ -435,6 +438,7 @@ qxl_reset (qxl_screen_t *qxl)
         (unsigned long)qxl->vram_physical + (unsigned long)qxl->vram_size,
         (uint64_t)(uintptr_t)qxl->vram,
         (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size);
+#endif
 }
 
 static void
