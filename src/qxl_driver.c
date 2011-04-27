@@ -1341,9 +1341,12 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     xf86PrintModes(pScrn);
     xf86SetDpi(pScrn, 0, 0);
     
-    if (!xf86LoadSubModule(pScrn, "fb") ||
-	!xf86LoadSubModule(pScrn, "ramdac") ||
-	!xf86LoadSubModule(pScrn, "vgahw"))
+    if (!xf86LoadSubModule(pScrn, "fb")
+#ifndef XSPICE
+	|| !xf86LoadSubModule(pScrn, "ramdac")
+	|| !xf86LoadSubModule(pScrn, "vgahw")
+#endif
+    )
     {
 	goto out;
     }
