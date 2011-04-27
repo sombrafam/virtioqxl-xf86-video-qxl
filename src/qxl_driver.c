@@ -130,7 +130,7 @@ qxl_usleep (int useconds)
 int
 qxl_handle_oom (qxl_screen_t *qxl)
 {
-    outb (qxl->io_base + QXL_IO_NOTIFY_OOM, 0);
+    ioport_write(qxl, QXL_IO_NOTIFY_OOM, 0);
     
 #if 0
     ErrorF (".");
@@ -168,7 +168,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	ram_header->update_area.right = qxl->virtual_x;
 	ram_header->update_surface = 0;		/* Only primary for now */
 	
-	outb (qxl->io_base + QXL_IO_UPDATE_AREA, 0);
+	ioport_write(qxl, QXL_IO_UPDATE_AREA, 0);
 	
 #if 0
  	ErrorF ("eliminated memory (%d)\n", nth_oom++);
@@ -342,7 +342,7 @@ qxl_reset (qxl_screen_t *qxl)
     uint64_t high_bits;
     struct QXLRam *ram_header;
 
-    outb(qxl->io_base + QXL_IO_RESET, 0);
+    ioport_write(qxl, QXL_IO_RESET, 0);
 
     ram_header = (void *)((unsigned long)qxl->ram + (unsigned long)qxl->rom->ram_header_offset);
     
@@ -370,7 +370,7 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header->mem_slot.mem_start = slot->start_phys_addr;
     ram_header->mem_slot.mem_end = slot->end_phys_addr;
     
-    outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
+    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, qxl->main_mem_slot);
 
     slot->generation = qxl->rom->slot_generation;
     
@@ -390,7 +390,7 @@ qxl_reset (qxl_screen_t *qxl)
     ram_header->mem_slot.mem_start = slot->start_phys_addr;
     ram_header->mem_slot.mem_end = slot->end_phys_addr;
 
-    outb (qxl->io_base + QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
+    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, qxl->vram_mem_slot);
 
     slot->generation = qxl->rom->slot_generation;
     

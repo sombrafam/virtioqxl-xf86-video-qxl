@@ -88,8 +88,9 @@ qxl_ring_push (struct qxl_ring *ring,
 
     mem_barrier();
 
-    if (header->prod == header->notify_on_prod)
-	outb (ring->qxl->io_base + ring->io_port_prod_notify, 0);
+    if (header->prod == header->notify_on_prod) {
+        ioport_write (ring->qxl, ring->io_port_prod_notify, 0);
+    }
 }
 
 Bool

@@ -336,4 +336,9 @@ void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
 int		   qxl_garbage_collect (qxl_screen_t *qxl);
 
+static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
+{
+    outb(qxl->io_base + port, val);
+}
+
 #endif // QXL_H
