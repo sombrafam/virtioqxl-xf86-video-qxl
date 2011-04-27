@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <spice/qxl_dev.h>
 #include "compiler.h"
 #include "xf86.h"
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
@@ -44,8 +45,6 @@
 #include "fb.h"
 #include "uxa/uxa.h"
 #include "vgaHW.h"
-
-#include <spice/qxl_dev.h>
 
 #define hidden _X_HIDDEN
 
