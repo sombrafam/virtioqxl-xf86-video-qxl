@@ -208,7 +208,8 @@ void              qxl_cursor_init        (ScreenPtr               pScreen);
 struct qxl_ring * qxl_ring_create      (struct qxl_ring_header *header,
 					int                     element_size,
 					int                     n_elements,
-					int                     prod_notify);
+					int                     prod_notify,
+					qxl_screen_t            *qxl);
 void              qxl_ring_push        (struct qxl_ring        *ring,
 					const void             *element);
 Bool              qxl_ring_pop         (struct qxl_ring        *ring,

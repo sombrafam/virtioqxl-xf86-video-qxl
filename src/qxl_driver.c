@@ -908,13 +908,13 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
     qxl->command_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cmd_ring),
 					 sizeof (struct QXLCommand),
-					 32, qxl->io_base + QXL_IO_NOTIFY_CMD);
+					 QXL_COMMAND_RING_SIZE, QXL_IO_NOTIFY_CMD, qxl);
     qxl->cursor_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cursor_ring),
 					sizeof (struct QXLCommand),
-					32, qxl->io_base + QXL_IO_NOTIFY_CURSOR);
+					QXL_CURSOR_RING_SIZE, QXL_IO_NOTIFY_CURSOR, qxl);
     qxl->release_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->release_ring),
 					 sizeof (uint64_t),
-					 8, 0);
+					 QXL_RELEASE_RING_SIZE, 0, qxl);
 
     qxl->surface_cache = qxl_surface_cache_create (qxl);
     
