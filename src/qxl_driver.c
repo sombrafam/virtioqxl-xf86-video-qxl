@@ -1587,7 +1587,13 @@ static XF86ModuleVersionInfo qxl_module_info = {
     { 0, 0, 0, 0 }
 };
 
-_X_EXPORT XF86ModuleData qxlModuleData = {
+_X_EXPORT XF86ModuleData
+#ifdef XSPICE
+spiceqxlModuleData
+#else
+qxlModuleData
+#endif
+= {
     &qxl_module_info,
     qxl_setup,
     NULL
