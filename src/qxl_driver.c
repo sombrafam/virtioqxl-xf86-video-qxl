@@ -60,7 +60,7 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 	    
 	    union QXLReleaseInfo *info = u64_to_pointer (id & ~POINTER_MASK);
 	    struct QXLCursorCmd *cmd = (struct QXLCursorCmd *)info;
-	    struct QXLDrawable *drawable = (struct qxl_drawable *)info;
+	    struct QXLDrawable *drawable = (struct QXLDrawable *)info;
 	    struct QXLSurfaceCmd *surface_cmd = (struct QXLSurfaceCmd *)info;
 	    int is_cursor = FALSE;
 	    int is_surface = FALSE;
