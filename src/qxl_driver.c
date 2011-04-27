@@ -1321,6 +1321,8 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
 #ifndef XSPICE
     if (!qxl_check_device(pScrn, qxl))
 	goto out;
+#else
+    init_qxl_ram(qxl); /* initialize the rings */
 #endif
     pScrn->videoRam = (qxl->rom->num_pages * 4096) / 1024;
     xf86DrvMsg(scrnIndex, X_INFO, "%d KB of video RAM\n", pScrn->videoRam);
