@@ -96,6 +96,9 @@ typedef struct qxl_surface_t qxl_surface_t;
  */
 
 enum {
+#ifdef XSPICE
+    OPTION_SPICE_PORT = 0,
+#endif
     OPTION_COUNT,
 };
 

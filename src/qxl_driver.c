@@ -47,6 +47,9 @@
 #define CHECK_POINT()
 
 const OptionInfoRec DefaultOptions[] = {
+#ifdef XSPICE
+    { OPTION_SPICE_PORT,  "SpicePort",    OPTV_INTEGER, {5912}, FALSE },
+#endif
     { -1,                 NULL,           OPTV_NONE,    {0},    FALSE }
 };
 
