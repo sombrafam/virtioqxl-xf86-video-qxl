@@ -18,7 +18,7 @@ qxl_mem_create       (void                   *base,
     if (!mem)
 	goto out;
 
-    ErrorF ("memory space from %p to %p\n", base, base + n_bytes);
+    ErrorF ("memory space from %p to %p\n", base, (char *)base + n_bytes);
 
     mem->space = create_mspace_with_base (base, n_bytes, 0, NULL);
     
