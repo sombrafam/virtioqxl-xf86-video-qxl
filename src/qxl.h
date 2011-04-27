@@ -49,8 +49,13 @@
 
 #define hidden _X_HIDDEN
 
+#ifdef XSPICE
+#define QXL_NAME		"spiceqxl"
+#define QXL_DRIVER_NAME		"spiceqxl"
+#else
 #define QXL_NAME		"qxl"
 #define QXL_DRIVER_NAME		"qxl"
+#endif
 #define PCI_VENDOR_RED_HAT	0x1b36
 
 #define PCI_CHIP_QXL_0100	0x0100

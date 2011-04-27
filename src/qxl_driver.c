@@ -1385,7 +1385,7 @@ static void
 qxl_init_scrn(ScrnInfoPtr pScrn)
 {
     pScrn->driverVersion    = 0;
-    pScrn->driverName	    = pScrn->name = "qxl";
+    pScrn->driverName	    = pScrn->name = QXL_DRIVER_NAME;
     pScrn->PreInit	    = qxl_pre_init;
     pScrn->ScreenInit	    = qxl_screen_init;
     pScrn->SwitchMode	    = qxl_switch_mode;
@@ -1465,7 +1465,7 @@ qxl_pci_probe(DriverPtr drv, int entity, struct pci_device *dev, intptr_t match)
 
 static DriverRec qxl_driver = {
     0,
-    "qxl",
+    QXL_DRIVER_NAME,
     qxl_identify,
     qxl_probe,
     NULL,
@@ -1495,7 +1495,7 @@ qxl_setup(pointer module, pointer opts, int *errmaj, int *errmin)
 }
 
 static XF86ModuleVersionInfo qxl_module_info = {
-    "qxl",
+    QXL_DRIVER_NAME,
     MODULEVENDORSTRING,
     MODINFOSTRING1,
     MODINFOSTRING2,
