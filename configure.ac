@@ -78,9 +78,6 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.7.0])
 
-DRIVER_NAME=qxl
-AC_SUBST([DRIVER_NAME])
-
 AC_CONFIG_FILES([
                 Makefile
                 src/Makefile
