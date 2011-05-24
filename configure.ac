@@ -78,6 +78,12 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.7.0])
 
+AC_CHECK_FILE(.git, [
+    GIT_VERSION=`git log -1 --format=%h`
+    AC_DEFINE_UNQUOTED([GIT_VERSION], ["$GIT_VERSION"], [Defined if building from git])
+    ], []
+)
+
 AC_CONFIG_FILES([
                 Makefile
                 src/Makefile
