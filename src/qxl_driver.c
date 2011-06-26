@@ -302,6 +302,12 @@ map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 static void
 qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
 {
+#ifdef XSPICE
+    if (qxl->worker) {
+        qxl->worker->stop(qxl->worker);
+        qxl->worker_running = FALSE;
+    }
+#endif
     unmap_memory_helper(qxl, scrnIndex);
     qxl->ram = qxl->ram_physical = qxl->vram = qxl->rom = NULL;
 
@@ -913,6 +919,7 @@ spiceqxl_screen_init(int scrnIndex, ScrnInfoPtr pScrn, qxl_screen_t *qxl)
         spice_server_init(qxl->spice_server, core);
         qxl_add_spice_display_interface(qxl);
         qxl->worker->start(qxl->worker);
+        qxl->worker_running = TRUE;
     }
     qxl->spice_server = qxl->spice_server;
 }

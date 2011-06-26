@@ -171,6 +171,10 @@ void ioport_write(qxl_screen_t *qxl, uint32_t io_port, uint32_t val)
 {
     QXLRam *header = get_ram_header(qxl);
 
+    if (!qxl->worker_running) {
+        return;
+    }
+
     switch (io_port) {
     case QXL_IO_UPDATE_AREA:
     {

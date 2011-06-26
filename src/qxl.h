@@ -191,6 +191,7 @@ struct _qxl_screen_t
     struct QXLRom		shadow_rom;    /* Parameter RAM */
     SpiceServer *       spice_server;
     QXLWorker *         worker;
+    int                 worker_running;
     QXLInstance         display_sin;
     /* XSpice specific, dragged from the Device */
     QXLReleaseInfo     *last_release;
