@@ -90,3 +90,15 @@ AC_CONFIG_FILES([
 		src/uxa/Makefile
 ])
 AC_OUTPUT
+
+dnl ==========================================================================
+echo "
+
+        xf86-video-qxl $VERSION
+        =====================
+
+        prefix:                   ${prefix}
+        c compiler:               ${CC}
+
+        Build xspice:             ${enable_xspice}
+"
