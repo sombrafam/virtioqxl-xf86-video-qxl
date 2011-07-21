@@ -43,6 +43,7 @@
 #include "spiceqxl_display.h"
 #include "spiceqxl_inputs.h"
 #include "spiceqxl_io_port.h"
+#include "spiceqxl_spice_server.h"
 #endif /* XSPICE */
 
 #if 0
@@ -52,9 +53,53 @@
 
 const OptionInfoRec DefaultOptions[] = {
 #ifdef XSPICE
-    { OPTION_SPICE_PORT,  "SpicePort",    OPTV_INTEGER, {5912}, FALSE },
+    { OPTION_SPICE_PORT,
+        "SpicePort",                OPTV_INTEGER,   {5900}, FALSE },
+    { OPTION_SPICE_TLS_PORT,
+        "SpiceTlsPort",             OPTV_INTEGER,   {0}, FALSE},
+    { OPTION_SPICE_ADDR,
+        "SpiceAddr",                OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_X509_DIR,
+        "SpiceX509Dir",             OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_SASL,
+        "SpiceSasl",                OPTV_BOOLEAN,   {0}, FALSE},
+    /* VVV qemu defaults to 1 - not implemented in xspice yet */
+    { OPTION_SPICE_AGENT_MOUSE,
+        "SpiceAgentMouse",          OPTV_BOOLEAN,   {0}, FALSE},
+    { OPTION_SPICE_DISABLE_TICKETING,
+        "SpiceDisableTicketing",    OPTV_BOOLEAN,   {0}, FALSE},
+    { OPTION_SPICE_PASSWORD,
+        "SpicePassword",            OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_X509_KEY_FILE,
+        "SpiceX509KeyFile",         OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_STREAMING_VIDEO,
+        "SpiceStreamingVideo",      OPTV_STRING,    {.str="filter"}, FALSE},
+    { OPTION_SPICE_PLAYBACK_COMPRESSION,
+        "SpicePlaybackCompression", OPTV_BOOLEAN,   {1}, FALSE},
+    { OPTION_SPICE_ZLIB_GLZ_WAN_COMPRESSION,
+        "SpiceZlibGlzWanCompression", OPTV_STRING,  {.str="auto"}, FALSE},
+    { OPTION_SPICE_JPEG_WAN_COMPRESSION,
+        "SpiceJpegWanCompression",  OPTV_STRING,    {.str="auto"}, FALSE},
+    { OPTION_SPICE_IMAGE_COMPRESSION,
+        "SpiceImageCompression",    OPTV_STRING,    {.str="auto_glz"}, FALSE},
+    { OPTION_SPICE_DISABLE_COPY_PASTE,
+        "SpiceDisableCopyPaste",    OPTV_BOOLEAN,   {0}, FALSE},
+    { OPTION_SPICE_IPV4_ONLY,
+        "SpiceIPV4Only",            OPTV_BOOLEAN,   {0}, FALSE},
+    { OPTION_SPICE_IPV6_ONLY,
+        "SpiceIPV6Only",            OPTV_BOOLEAN,   {0}, FALSE},
+    { OPTION_SPICE_X509_CERT_FILE,
+        "SpiceX509CertFile",        OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_X509_KEY_PASSWORD,
+        "SpiceX509KeyPassword",     OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_TLS_CIPHERS,
+        "SpiceTlsCiphers",          OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_CACERT_FILE,
+        "SpiceCacertFile",          OPTV_STRING,    {0}, FALSE},
+    { OPTION_SPICE_DH_FILE,
+        "SpiceDhFile",              OPTV_STRING,    {0}, FALSE},
 #endif
-    { -1,                 NULL,           OPTV_NONE,    {0},    FALSE }
+    { -1, NULL, OPTV_NONE, {0}, FALSE }
 };
 
 int
@@ -895,15 +940,6 @@ setup_uxa (qxl_screen_t *qxl, ScreenPtr screen)
 
 #ifdef XSPICE
 
-SpiceServer *xspice_get_spice_server(void)
-{
-    static SpiceServer *spice_server;
-    if (!spice_server) {
-        spice_server = spice_server_new();
-    }
-    return spice_server;
-}
-
 static void
 spiceqxl_screen_init(int scrnIndex, ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
@@ -912,10 +948,7 @@ spiceqxl_screen_init(int scrnIndex, ScrnInfoPtr pScrn, qxl_screen_t *qxl)
     // Init spice
     if (!qxl->spice_server) {
         qxl->spice_server = xspice_get_spice_server();
-        // some common initialization for all display tests
-        spice_server_set_port(qxl->spice_server, qxl->options[OPTION_SPICE_PORT].value.num);
-        spice_server_set_noauth(qxl->spice_server); // TODO - take this from config
-        // TODO - parse rest of parameters (streaming, compression, jpeg, etc.) from config
+        xspice_set_spice_server_options(qxl->options);
         core = basic_event_loop_init();
         spice_server_init(qxl->spice_server, core);
         qxl_add_spice_display_interface(qxl);

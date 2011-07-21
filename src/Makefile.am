@@ -61,6 +61,8 @@ spiceqxl_drv_la_LIBADD = uxa/libuxa.la
 
 spiceqxl_drv_la_SOURCES =				\
 	qxl.h					\
+	spiceqxl_spice_server.c			\
+	spiceqxl_spice_server.h			\
 	spiceqxl_io_port.c			\
 	spiceqxl_driver.c			\
 	spiceqxl_main_loop.c			\
