@@ -1240,6 +1240,7 @@ qxl_surface_cache_replace_all (surface_cache_t *cache, void *data)
 
 }
 
+#ifdef DEBUG_REGIONS
 static void
 print_region (const char *header, RegionPtr pRegion)
 {
@@ -1262,6 +1263,7 @@ print_region (const char *header, RegionPtr pRegion)
 	pbox++;
     }
 }
+#endif // DEBUG_REGIONS
 
 /* solid */
 Bool
@@ -1273,7 +1275,7 @@ qxl_surface_prepare_solid (qxl_surface_t *destination,
 	ErrorF (" solid not in vmem\n");
     }
 
-#if 0
+#ifdef DEBUG_REGIONS
     print_region ("prepare solid", &(destination->access_region));
 #endif
     
@@ -1328,7 +1330,7 @@ qxl_surface_prepare_copy (qxl_surface_t *dest,
 	return FALSE;
 #endif
 
-#if 0
+#ifdef DEBUG_REGIONS
     print_region ("prepare copy src", &(source->access_region));
     print_region ("prepare copy dest", &(dest->access_region));
 #endif
@@ -1348,7 +1350,7 @@ qxl_surface_copy (qxl_surface_t *dest,
     struct QXLDrawable *drawable;
     struct QXLRect qrect;
 
-#if 0
+#ifdef DEBUG_REGIONS
     print_region (" copy src", &(dest->u.copy_src->access_region));
     print_region (" copy dest", &(dest->access_region));
 #endif
