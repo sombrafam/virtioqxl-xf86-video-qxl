@@ -64,10 +64,15 @@ spiceqxl_drv_la_SOURCES =				\
 	spiceqxl_spice_server.c			\
 	spiceqxl_spice_server.h			\
 	spiceqxl_io_port.c			\
+	spiceqxl_io_port.h			\
 	spiceqxl_driver.c			\
+	spiceqxl_driver.h			\
 	spiceqxl_main_loop.c			\
+	spiceqxl_main_loop.h		\
 	spiceqxl_display.c			\
+	spiceqxl_display.h			\
 	spiceqxl_inputs.c			\
+	spiceqxl_inputs.h			\
 	qxl_driver.c				\
 	qxl_image.c				\
 	qxl_surface.c				\

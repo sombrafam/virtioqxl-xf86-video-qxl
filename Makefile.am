@@ -30,3 +30,9 @@ ChangeLog:
 	$(CHANGELOG_CMD)
 
 dist-hook: ChangeLog INSTALL
+
+EXTRA_DIST = \
+	README			\
+	README.xspice
+
+DISTCHECK_CONFIGURE_FLAGS=--enable-xspice
