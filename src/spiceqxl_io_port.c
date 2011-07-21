@@ -39,7 +39,7 @@ static int spiceqxl_io_port_debug_level = 5;
         }                                                               \
     } while (0)
 
-void init_qxl_ram(qxl_screen_t *qxl)
+void xspice_init_qxl_ram(qxl_screen_t *qxl)
 {
     QXLRam *ram = get_ram_header(qxl);
     uint64_t *item;
@@ -62,7 +62,7 @@ static void qxl_reset_state(qxl_screen_t *qxl)
     assert(SPICE_RING_IS_EMPTY(&ram->cursor_ring));
     qxl->shadow_rom.update_id = 0;
     *qxl->rom = qxl->shadow_rom;
-    init_qxl_ram(qxl);
+    xspice_init_qxl_ram(qxl);
     qxl->num_free_res = 0;
     qxl->last_release = NULL;
     // TODO - dirty ?
