@@ -42,6 +42,7 @@
 #include "spiceqxl_main_loop.h"
 #include "spiceqxl_display.h"
 #include "spiceqxl_inputs.h"
+#include "spiceqxl_io_port.h"
 #endif /* XSPICE */
 
 #if 0
