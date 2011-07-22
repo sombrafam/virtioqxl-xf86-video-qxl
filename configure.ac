@@ -76,7 +76,7 @@ AM_CONDITIONAL(XSERVER_LIBPCIACCESS, test "x$XSERVER_LIBPCIACCESS" = xyes)
 
 # Checks for libraries.
 
-PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.7.0])
+PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.8.1])
 
 AC_CHECK_FILE(.git, [
     GIT_VERSION=`git log -1 --format=%h`
