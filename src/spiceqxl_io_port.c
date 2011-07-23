@@ -52,14 +52,25 @@
         ret = &m_item->el;                                              \
     }
 
-static int spiceqxl_io_port_debug_level = 5;
+static int spiceqxl_io_port_debug_level = -1;
 
-#define dprint(_level, _fmt, ...)                                 \
-    do {                                                                \
-        if (spiceqxl_io_port_debug_level >= _level) {                                    \
-            fprintf(stderr, _fmt, ## __VA_ARGS__);                      \
-        }                                                               \
-    } while (0)
+static void dprint(int _level, const char *_fmt, ...)
+{
+    if (spiceqxl_io_port_debug_level == -1) {
+        if (getenv("XSPICE_IO_PORT_DEBUG_LEVEL")) {
+            spiceqxl_io_port_debug_level = atoi(
+                getenv("XSPICE_IO_PORT_DEBUG_LEVEL"));
+        } else {
+            spiceqxl_io_port_debug_level = 0;
+        }
+    }
+    if (spiceqxl_io_port_debug_level >= _level) {
+        va_list ap;
+        va_start(ap, _fmt);
+        vfprintf(stderr, _fmt, ap);
+        va_end(ap);
+    }
+}
 
 void xspice_init_qxl_ram(qxl_screen_t *qxl)
 {
