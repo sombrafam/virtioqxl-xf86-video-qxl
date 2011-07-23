@@ -101,14 +101,14 @@ cp -R /usr/share/X11/xkb $TEST/share/X11
 $XORG is either your own built $TEST/bin/Xorg or just the default Xorg
 
 Run server with:
-export XSPICE_PORT=6000
+export XSPICE_PORT=5900
 $XORG -noreset -config spiceqxl.xorg.conf :3.0
 
 Or equivalently:
-./xspice --port 6000 :3.0
+./xspice --port 5900 :3.0
 
 Run X clients as usual by setting DISPLAY=:3.0
-Run spice client with port 5912 (hardcoded currently):
 
-spicec -h localhost -p 5912
+Run a spice client:
+spicec -h localhost -p 5900
 
