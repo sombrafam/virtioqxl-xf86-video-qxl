@@ -27,9 +27,9 @@ def which(x):
             return candidate
     return None
 
-cgdb = which('cgdb') and os.path.exists(
+cgdb = which('cgdb') if os.path.exists(
     os.path.join(os.path.dirname(sys.modules[__name__].__file__),
-                 'configure.ac'))
+                 'Makefile.am')) else None
 
 def add_boolean(flag, *args, **kw):
     parser.add_argument(flag, action='store_const', const='1', default='0',
