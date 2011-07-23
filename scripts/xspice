@@ -37,7 +37,7 @@ def add_boolean(flag, *args, **kw):
 
 wan_compression_options = ['auto', 'never', 'always']
 parser = argparse.ArgumentParser("xspice",
-    description="X and Spice server. example usage: xspice --port 5900 :1.0",
+    description="X and Spice server. example usage: xspice --port 5900 --disable-ticketing :1.0",
     usage="xspice [xspice and Xorg options intermixed]",
     epilog="Any options not parsed by xspice get passed to Xorg as is.")
 parser.add_argument('--xorg', default=which('Xorg'))
@@ -48,9 +48,10 @@ parser.add_argument('--port', type=int, help='standard spice port')
 parser.add_argument('--tls-port', type=int, help='spice tls port')
 add_boolean('--disable-ticketing', help="do not require a client password")
 add_boolean('--sasl', help="enable sasl")
-parser.add_argument('--x509-dir', help="x509 directory for tls")
+parser.add_argument('--x509-dir', help="x509 directory for tls", default='.')
 parser.add_argument('--cacert-file', help="ca certificate file for tls")
-parser.add_argument('--x509-key-file', help="key file for tls")
+parser.add_argument('--x509-cert-file', help="server certificate file for tls")
+parser.add_argument('--x509-key-file', help="server key file for tls")
 parser.add_argument('--x509-key-password', help="key file password for tls")
 parser.add_argument('--tls-ciphers')
 parser.add_argument('--dh-file')
@@ -79,6 +80,26 @@ if cgdb:
 
 args, xorg_args = parser.parse_known_args(sys.argv[1:])
 
+def tls_files(args):
+    if args.tls_port == 0:
+        return {}
+    files = {}
+    for k, var in [('ca-cert', 'cacert_file'),
+                   ('server-key', 'x509_key_file'),
+                   ('server-cert', 'x509_cert_file')]:
+        files[k] = os.path.join(args.x509_dir, k + '.pem')
+        if getattr(args, var):
+            files[k] = getattr(args, var)
+    return files
+
+# XXX spice-server aborts if it can't find the certificates - avoid by checking
+# ourselves. This isn't exhaustive - if the server key requires a password
+# and it isn't supplied spice will still abort, and Xorg with it.
+for key, filename in tls_files(args).items():
+    if not os.path.exists(filename):
+        print "missing %s - %s does not exist" % (key, filename)
+        sys.exit(1)
+
 def error(msg, exit_code=1):
     print "xspice: %s" % msg
     sys.exit(exit_code)
@@ -87,7 +108,8 @@ if not args.xorg:
     error("Xorg missing")
 
 var_args = ['port', 'tls_port', 'disable_ticketing',
-    'x509_dir', 'sasl', 'cacert_file', 'x509_key_file', 'x509_key_password',
+    'x509_dir', 'sasl', 'cacert_file', 'x509_cert_file',
+    'x509_key_file', 'x509_key_password',
     'tls_ciphers', 'dh_file', 'password', 'image_compression',
     'jpeg_wan_compression', 'zlib_glz_wan_compression',
     'streaming_video']
