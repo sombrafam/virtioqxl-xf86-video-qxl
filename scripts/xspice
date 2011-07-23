@@ -45,7 +45,7 @@ parser.add_argument('--config', default='spiceqxl.xorg.conf')
 # Don't use any options that are already used by Xorg (unless we must)
 # specifically, don't use -p and -s.
 parser.add_argument('--port', type=int, help='standard spice port')
-parser.add_argument('--tls-port', type=int, help='spice tls port')
+parser.add_argument('--tls-port', type=int, help='spice tls port', default=0)
 add_boolean('--disable-ticketing', help="do not require a client password")
 add_boolean('--sasl', help="enable sasl")
 parser.add_argument('--x509-dir', help="x509 directory for tls", default='.')
