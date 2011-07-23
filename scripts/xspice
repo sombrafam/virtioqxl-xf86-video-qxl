@@ -90,7 +90,7 @@ var_args = ['port', 'tls_port', 'disable_ticketing',
     'x509_dir', 'sasl', 'cacert_file', 'x509_key_file', 'x509_key_password',
     'tls_ciphers', 'dh_file', 'password', 'image_compression',
     'jpeg_wan_compression', 'zlib_glz_wan_compression',
-    'playback_compression', 'streaming_video']
+    'streaming_video']
 for arg in var_args:
     if getattr(args, arg):
         os.environ['XSPICE_' + arg.upper()] = str(getattr(args, arg))
