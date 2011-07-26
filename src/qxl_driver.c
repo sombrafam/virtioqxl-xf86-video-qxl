@@ -1489,11 +1489,11 @@ enum qxl_class
 static const struct pci_id_match qxl_device_match[] = {
     {
 	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_0100, PCI_MATCH_ANY, PCI_MATCH_ANY,
-	0x00030000, 0x00ffffff, CHIP_QXL_1
+	0x00000000, 0x00000000, CHIP_QXL_1
     },
     {
 	PCI_VENDOR_RED_HAT, PCI_CHIP_QXL_01FF, PCI_MATCH_ANY, PCI_MATCH_ANY,
-	0x00030000, 0x00ffffff, CHIP_QXL_1
+	0x00000000, 0x00000000, CHIP_QXL_1
     },
 
     { 0 },
