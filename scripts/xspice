@@ -27,9 +27,12 @@ def which(x):
             return candidate
     return None
 
-cgdb = which('cgdb') if os.path.exists(
-    os.path.join(os.path.dirname(sys.modules[__name__].__file__),
-                 'Makefile.am')) else None
+if 'XSPICE_ENABLE_GDB' in os.environ:
+    cgdb = which('cgdb')
+    if not cgdb:
+        cgdb = which('gdb')
+else:
+    cgdb = None
 
 def add_boolean(flag, *args, **kw):
     parser.add_argument(flag, action='store_const', const='1', default='0',
