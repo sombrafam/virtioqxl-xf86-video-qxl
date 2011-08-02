@@ -1,17 +1,17 @@
 #!/usr/bin/python
 
 """
-xspice
+Xspice
 
-xspice is a standard X server that is also a Spice server.
+Xspice is a standard X server that is also a Spice server.
 
 It is implemented as a module with video, mouse and keyboard drivers.
 
 The video driver is mostly the same code as the qxl guest driver, hence
-xspice is kept in the same repository. It can also be used to debug the qxl
+Xspice is kept in the same repository. It can also be used to debug the qxl
 driver.
 
-xspice (this executable) will set a bunch of environment variables that are
+Xspice (this executable) will set a bunch of environment variables that are
 used by spiceqxl_drv.so, and then exec Xorg, giving it the default config file,
 which can be overridden as well.
 """
@@ -39,10 +39,10 @@ def add_boolean(flag, *args, **kw):
                         *args, **kw)
 
 wan_compression_options = ['auto', 'never', 'always']
-parser = argparse.ArgumentParser("xspice",
-    description="X and Spice server. example usage: xspice --port 5900 --disable-ticketing :1.0",
-    usage="xspice [xspice and Xorg options intermixed]",
-    epilog="Any options not parsed by xspice get passed to Xorg as is.")
+parser = argparse.ArgumentParser("Xspice",
+    description="X and Spice server. example usage: Xspice --port 5900 --disable-ticketing :1.0",
+    usage="Xspice [Xspice and Xorg options intermixed]",
+    epilog="Any options not parsed by Xspice get passed to Xorg as is.")
 parser.add_argument('--xorg', default=which('Xorg'))
 parser.add_argument('--config', default='spiceqxl.xorg.conf')
 # Don't use any options that are already used by Xorg (unless we must)
@@ -104,7 +104,7 @@ for key, filename in tls_files(args).items():
         sys.exit(1)
 
 def error(msg, exit_code=1):
-    print "xspice: %s" % msg
+    print "Xspice: %s" % msg
     sys.exit(exit_code)
 
 if not args.xorg:
