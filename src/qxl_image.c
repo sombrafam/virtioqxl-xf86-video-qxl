@@ -123,6 +123,9 @@ remove_image_info (image_info_t *info)
     free (info);
 }
 
+#define MAX(a,b)  (((a) > (b))? (a) : (b))
+#define MIN(a,b)  (((a) < (b))? (a) : (b))
+
 struct QXLImage *
 qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
@@ -133,6 +136,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 
     data += y * stride + x * Bpp;
 
+#if 0
     hash = hash_and_copy (data, stride, NULL, -1, Bpp, width, height);
 
     info = lookup_image_info (hash, width, height);
@@ -174,10 +178,13 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	return info->image;
     }
     else
+#endif
     {
 	struct QXLImage *image;
-	struct QXLDataChunk *chunk;
+	struct QXLDataChunk *head;
+	struct QXLDataChunk *tail;
 	int dest_stride = width * Bpp;
+	int h;
 
 #if 0
 	ErrorF ("Must create new image of size %d %d\n", width, height);
@@ -186,15 +193,40 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	/* Chunk */
 	
 	/* FIXME: Check integer overflow */
-	chunk = qxl_allocnf (qxl, sizeof *chunk + height * dest_stride);
-	
-	chunk->data_size = height * dest_stride;
-	chunk->prev_chunk = 0;
-	chunk->next_chunk = 0;
-	
-	hash_and_copy (data, stride,
-		       chunk->data, dest_stride,
-		       Bpp, width, height);
+
+	head = tail = NULL;
+
+	h = height;
+	while (h)
+	{
+	    int chunk_size = MAX (512 * 512, dest_stride);
+	    int n_lines = MIN ((chunk_size / dest_stride), h);
+	    QXLDataChunk *chunk =
+		qxl_allocnf (qxl, sizeof *chunk + n_lines * dest_stride);
+
+	    chunk->data_size = n_lines * dest_stride;
+	    hash_and_copy (data, stride,
+			   chunk->data, dest_stride,
+			   Bpp, width, n_lines);
+	    
+	    if (tail)
+	    {
+		tail->next_chunk = physical_address (qxl, chunk, qxl->main_mem_slot);
+		chunk->prev_chunk = physical_address (qxl, tail, qxl->main_mem_slot);
+		chunk->next_chunk = 0;
+		
+		tail = chunk;
+	    }
+	    else
+	    {
+		head = tail = chunk;
+		chunk->next_chunk = 0;
+		chunk->prev_chunk = 0;
+	    }
+
+	    data += n_lines * stride;
+	    h -= n_lines;
+	}
 
 	/* Image */
 	image = qxl_allocnf (qxl, sizeof *image);
@@ -219,14 +251,16 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	    image->bitmap.format = SPICE_BITMAP_FMT_32BIT;
 	}
 	else
-	  abort();
+	{
+	    abort();
+	}
 
 	image->bitmap.flags = SPICE_BITMAP_FLAGS_TOP_DOWN;
 	image->bitmap.x = width;
 	image->bitmap.y = height;
 	image->bitmap.stride = width * Bpp;
 	image->bitmap.palette = 0;
-	image->bitmap.data = physical_address (qxl, chunk, qxl->main_mem_slot);
+	image->bitmap.data = physical_address (qxl, head, qxl->main_mem_slot);
 
 #if 0
 	ErrorF ("%p has size %d %d\n", image, width, height);
@@ -256,11 +290,9 @@ void
 qxl_image_destroy (qxl_screen_t *qxl,
 		   struct QXLImage *image)
 {
-    struct QXLDataChunk *chunk;
     image_info_t *info;
+    uint64_t chunk;
 
-    chunk = virtual_address (qxl, u64_to_pointer (image->bitmap.data), qxl->main_mem_slot);
-    
     info = lookup_image_info (image->descriptor.id,
 			      image->descriptor.width,
 			      image->descriptor.height);
@@ -279,7 +311,19 @@ qxl_image_destroy (qxl_screen_t *qxl,
 	remove_image_info (info);
     }
 
-    qxl_free (qxl->mem, chunk);
+    
+    chunk = image->bitmap.data;
+    while (chunk)
+    {
+	struct QXLDataChunk *virtual;
+
+	virtual = virtual_address (qxl, (void *)chunk, qxl->main_mem_slot);
+
+	chunk = virtual->next_chunk;
+
+	qxl_free (qxl->mem, virtual);
+    }
+    
     qxl_free (qxl->mem, image);
 }
 
