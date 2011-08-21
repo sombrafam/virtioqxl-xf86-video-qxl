@@ -409,7 +409,8 @@ qxl_save_state(ScrnInfoPtr pScrn)
 {
     qxl_screen_t *qxl = pScrn->driverPrivate;
 
-    vgaHWSaveFonts(pScrn, &qxl->vgaRegs);
+    if (xf86IsPrimaryPci (qxl->pci))
+        vgaHWSaveFonts(pScrn, &qxl->vgaRegs);
 }
 
 static void
@@ -417,7 +418,8 @@ qxl_restore_state(ScrnInfoPtr pScrn)
 {
     qxl_screen_t *qxl = pScrn->driverPrivate;
 
-    vgaHWRestoreFonts(pScrn, &qxl->vgaRegs);
+    if (xf86IsPrimaryPci (qxl->pci))
+        vgaHWRestoreFonts(pScrn, &qxl->vgaRegs);
 }
 #endif /* XSPICE */
 
