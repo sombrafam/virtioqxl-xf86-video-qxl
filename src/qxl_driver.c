@@ -495,11 +495,13 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     pScreen->CreateScreenResources = qxl->create_screen_resources;
     pScreen->CloseScreen = qxl->close_screen;
     
-    
-
     result = pScreen->CloseScreen(scrnIndex, pScreen);
 
-    if (pScrn->vtSema) {
+    if (!xf86IsPrimaryPci (qxl->pci) && qxl->primary)
+       qxl_reset (qxl);
+    
+    if (pScrn->vtSema)
+    {
         qxl_restore_state(pScrn);
 	qxl_unmap_memory(qxl, scrnIndex);
     }
