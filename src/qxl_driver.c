@@ -102,6 +102,64 @@ const OptionInfoRec DefaultOptions[] = {
     { -1, NULL, OPTV_NONE, {0}, FALSE }
 };
 
+static void qxl_wait_for_io_command(qxl_screen_t *qxl)
+{
+    struct QXLRam *ram_header = (void *)(
+        (unsigned long)qxl->ram + qxl->rom->ram_header_offset);
+
+    while (!(ram_header->int_pending & QXL_INTERRUPT_IO_CMD)) {
+        usleep(1);
+    }
+    ram_header->int_pending &= ~QXL_INTERRUPT_IO_CMD;
+}
+
+void qxl_update_area(qxl_screen_t *qxl)
+{
+#ifndef XSPICE
+    if (qxl->pci->revision >= 3) {
+        ioport_write(qxl, QXL_IO_UPDATE_AREA_ASYNC, 0);
+        qxl_wait_for_io_command(qxl);
+    } else {
+        ioport_write(qxl, QXL_IO_UPDATE_AREA, 0);
+    }
+#else
+    ioport_write(qxl, QXL_IO_UPDATE_AREA, 0);
+#endif
+}
+
+void qxl_memslot_add(qxl_screen_t *qxl, uint8_t id)
+{
+#ifndef XSPICE
+    if (qxl->pci->revision >= 3) {
+        ioport_write(qxl, QXL_IO_MEMSLOT_ADD_ASYNC, id);
+        qxl_wait_for_io_command(qxl);
+    } else {
+        ioport_write(qxl, QXL_IO_MEMSLOT_ADD, id);
+    }
+#else
+    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, id);
+#endif
+}
+
+void qxl_create_primary(qxl_screen_t *qxl)
+{
+#ifndef XSPICE
+    if (qxl->pci->revision >= 3) {
+        ioport_write(qxl, QXL_IO_CREATE_PRIMARY_ASYNC, 0);
+        qxl_wait_for_io_command(qxl);
+    } else {
+        ioport_write(qxl, QXL_IO_CREATE_PRIMARY, 0);
+    }
+#else
+    ioport_write(qxl, QXL_IO_CREATE_PRIMARY, 0);
+#endif
+}
+
+void qxl_notify_oom(qxl_screen_t *qxl)
+{
+    ioport_write(qxl, QXL_IO_NOTIFY_OOM, 0);
+}
+
 int
 qxl_garbage_collect (qxl_screen_t *qxl)
 {
@@ -190,8 +248,8 @@ qxl_usleep (int useconds)
 int
 qxl_handle_oom (qxl_screen_t *qxl)
 {
-    ioport_write(qxl, QXL_IO_NOTIFY_OOM, 0);
-    
+    qxl_notify_oom(qxl);
+
 #if 0
     ErrorF (".");
     qxl_usleep (10000);
@@ -228,7 +286,7 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	ram_header->update_area.right = qxl->virtual_x;
 	ram_header->update_surface = 0;		/* Only primary for now */
 	
-	ioport_write(qxl, QXL_IO_UPDATE_AREA, 0);
+        qxl_update_area(qxl);
 	
 #if 0
  	ErrorF ("eliminated memory (%d)\n", nth_oom++);
@@ -471,7 +529,7 @@ setup_slot(qxl_screen_t *qxl, uint8_t slot_index_offset,
     ram_header->mem_slot.mem_start = slot->start_phys_addr;
     ram_header->mem_slot.mem_end = slot->end_phys_addr;
 
-    ioport_write(qxl, QXL_IO_MEMSLOT_ADD, slot_index);
+    qxl_memslot_add(qxl, slot_index);
 
     slot->generation = qxl->rom->slot_generation;
     

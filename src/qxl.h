@@ -410,6 +410,14 @@ void *            qxl_allocnf          (qxl_screen_t           *qxl,
 					unsigned long           size);
 int		   qxl_garbage_collect (qxl_screen_t *qxl);
 
+/*
+ * I/O port commands
+ */
+void qxl_update_area(qxl_screen_t *qxl);
+void qxl_memslot_add(qxl_screen_t *qxl, uint8_t id);
+void qxl_create_primary(qxl_screen_t *qxl);
+void qxl_notify_oom(qxl_screen_t *qxl);
+
 #ifdef XSPICE
 /* device to spice-server, now xspice to spice-server */
 void ioport_write(qxl_screen_t *qxl, uint32_t io_port, uint32_t val);

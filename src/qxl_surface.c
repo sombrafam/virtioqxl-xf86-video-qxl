@@ -378,7 +378,7 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
     create->type = QXL_SURF_TYPE_PRIMARY;
     create->mem = physical_address (cache->qxl, cache->qxl->ram, cache->qxl->main_mem_slot);
 
-    ioport_write(qxl, QXL_IO_CREATE_PRIMARY, 0);
+    qxl_create_primary(qxl);
 
     dev_addr = (uint8_t *)qxl->ram + mode->stride * (mode->y_res - 1);
 
@@ -920,7 +920,7 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     ErrorF ("Issuing update command for %d\n", surface->id);
 #endif
 
-    ioport_write(surface->cache->qxl, QXL_IO_UPDATE_AREA, 0);
+    qxl_update_area(surface->cache->qxl);
 
     pixman_image_composite (PIXMAN_OP_SRC,
      			    surface->dev_image,
