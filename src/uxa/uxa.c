@@ -143,19 +143,19 @@ Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t ac
 {
 	ScreenPtr pScreen = pDrawable->pScreen;
 	uxa_screen_t *uxa_screen = uxa_get_screen(pScreen);
-	PixmapPtr pPixmap = uxa_get_drawable_pixmap(pDrawable);
-	Bool offscreen = uxa_pixmap_is_offscreen(pPixmap);
+	int xoff, yoff;
+	PixmapPtr pPixmap = uxa_get_offscreen_pixmap(pDrawable, &xoff, &yoff);
 	BoxRec box;
 	RegionRec region_rec;
 	Bool result;
 
-	if (!offscreen)
+	if (!pPixmap)
 	    return TRUE;
 
 	box.x1 = 0;
 	box.y1 = 0;
-	box.x2 = pPixmap->drawable.width;
-	box.y2 = pPixmap->drawable.height;
+	box.x2 = pDrawable->width;
+	box.y2 = pDrawable->height;
 	
 	REGION_INIT (pScreen, &region_rec, &box, 1);
 	if (!region)
@@ -168,7 +168,8 @@ Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t ac
 	 */
 	REGION_INTERSECT (pScreen, region, region, &region_rec);
 #endif
-	
+	REGION_TRANSLATE (pScreen, region, xoff, yoff);
+
 	result = TRUE;
 
 	if (uxa_screen->info->prepare_access)
