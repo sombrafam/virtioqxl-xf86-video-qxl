@@ -152,24 +152,22 @@ Bool uxa_prepare_access(DrawablePtr pDrawable, RegionPtr region, uxa_access_t ac
 	if (!pPixmap)
 	    return TRUE;
 
-	box.x1 = 0;
-	box.y1 = 0;
-	box.x2 = pDrawable->width;
-	box.y2 = pDrawable->height;
-	
-	REGION_INIT (pScreen, &region_rec, &box, 1);
 	if (!region)
+	{
+	    box.x1 = 0;
+	    box.y1 = 0;
+	    box.x2 = pDrawable->width;
+	    box.y2 = pDrawable->height;
+
+	    REGION_INIT (pScreen, &region_rec, &box, 1);
 	    region = &region_rec;
-
-#if 0
-	/* Confine to the size of the drawable pixmap. The original
-	 * drawable may be bigger than the underlying one. For example,
-	 * the root window might be bigger than the screen pixmap.
-	 */
-	REGION_INTERSECT (pScreen, region, region, &region_rec);
-#endif
-	REGION_TRANSLATE (pScreen, region, xoff, yoff);
-
+	}
+	else
+	{
+	    /* The driver expects a region in drawable coordinates */
+	    REGION_TRANSLATE (pScreen, region, xoff, yoff);
+	}
+	
 	result = TRUE;
 
 	if (uxa_screen->info->prepare_access)
