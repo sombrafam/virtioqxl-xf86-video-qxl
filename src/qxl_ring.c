@@ -26,6 +26,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sched.h>
 #include "qxl.h"
 
 struct ring
@@ -78,7 +79,7 @@ qxl_ring_push (struct qxl_ring *ring,
 #ifdef XSPICE
 	/* in gtkperf, circles, this is a major bottleneck. Can't be that good in a vm either
 	 * Adding the yield reduces cpu usage, but doesn't improve throughput. */
-	pthread_yield();
+	sched_yield();
 #endif
 	mem_barrier();
     }

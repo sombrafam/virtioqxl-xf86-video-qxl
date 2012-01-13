@@ -46,6 +46,8 @@
 #include "spiceqxl_spice_server.h"
 #endif /* XSPICE */
 
+extern void compat_init_scrn(ScrnInfoPtr);
+
 #if 0
 #define CHECK_POINT() ErrorF ("%s: %d  (%s)\n", __FILE__, __LINE__, __FUNCTION__);
 #endif

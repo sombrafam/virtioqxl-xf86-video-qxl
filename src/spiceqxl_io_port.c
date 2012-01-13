@@ -21,6 +21,7 @@
  */
 
 #include <pthread.h>
+#include <sched.h>
 
 #include <spice.h>
 
@@ -230,7 +231,7 @@ void ioport_write(qxl_screen_t *qxl, uint32_t io_port, uint32_t val)
         if (!SPICE_RING_IS_EMPTY(&header->release_ring)) {
             break;
         }
-        pthread_yield();
+        sched_yield();
         if (!SPICE_RING_IS_EMPTY(&header->release_ring)) {
             break;
         }
