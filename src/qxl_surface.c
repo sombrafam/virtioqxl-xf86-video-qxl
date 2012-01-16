@@ -688,6 +688,9 @@ qxl_surface_create (surface_cache_t *    cache,
 {
     qxl_surface_t *surface;
 
+    if (!cache->qxl->enable_surfaces)
+	return NULL;
+    
     if ((bpp & 3) != 0)
     {
 	ErrorF ("   Bad bpp: %d (%d)\n", bpp, bpp & 7);
