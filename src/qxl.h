@@ -122,6 +122,10 @@ enum {
     OPTION_SPICE_TLS_CIPHERS,
     OPTION_SPICE_CACERT_FILE,
     OPTION_SPICE_DH_FILE,
+#else
+    OPTION_ENABLE_IMAGE_CACHE = 0,
+    OPTION_ENABLE_FALLBACK_CACHE,
+    OPTION_ENABLE_SURFACES,
 #endif
     OPTION_COUNT,
 };
@@ -207,6 +211,10 @@ struct _qxl_screen_t
 
     OptionInfoRec	options[OPTION_COUNT + 1];
 
+    int				enable_image_cache;
+    int				enable_fallback_cache;
+    int				enable_surfaces;
+    
 #ifdef XSPICE
     /* XSpice specific */
     struct QXLRom		shadow_rom;    /* Parameter RAM */

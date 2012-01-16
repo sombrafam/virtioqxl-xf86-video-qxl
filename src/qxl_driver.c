@@ -100,9 +100,20 @@ const OptionInfoRec DefaultOptions[] = {
         "SpiceCacertFile",          OPTV_STRING,    {0}, FALSE},
     { OPTION_SPICE_DH_FILE,
         "SpiceDhFile",              OPTV_STRING,    {0}, FALSE},
+#else
+    { OPTION_ENABLE_IMAGE_CACHE,    "EnableImageCache",    OPTV_BOOLEAN, { 0 }, TRUE },
+    { OPTION_ENABLE_FALLBACK_CACHE, "EnableFallbackCache", OPTV_BOOLEAN, { 0 }, TRUE },
+    { OPTION_ENABLE_SURFACES,	    "EnableSurfaces",	   OPTV_BOOLEAN, { 0 }, TRUE },
 #endif
+
     { -1, NULL, OPTV_NONE, {0}, FALSE }
 };
+
+static const OptionInfoRec *
+qxl_available_options (int chipid, int busid)
+{
+    return DefaultOptions;
+}
 
 static void qxl_wait_for_io_command(qxl_screen_t *qxl)
 {
@@ -1399,7 +1410,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
 	return FALSE;
     
     CHECK_POINT();
-    
+
     /* zaphod mode is for suckers and i choose not to implement it */
     if (xf86IsEntityShared(pScrn->entityList[0])) {
 	xf86DrvMsg(scrnIndex, X_ERROR, "No Zaphod mode for you\n");
@@ -1428,6 +1439,20 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     xf86CollectOptions(pScrn, NULL);
     memcpy(qxl->options, DefaultOptions, sizeof(DefaultOptions));
     xf86ProcessOptions(scrnIndex, pScrn->options, qxl->options);
+
+    qxl->enable_image_cache =
+	xf86ReturnOptValBool (qxl->options, OPTION_ENABLE_IMAGE_CACHE, FALSE);
+    qxl->enable_fallback_cache =
+	xf86ReturnOptValBool (qxl->options, OPTION_ENABLE_FALLBACK_CACHE, FALSE);
+    qxl->enable_surfaces =
+	xf86ReturnOptValBool (qxl->options, OPTION_ENABLE_SURFACES, FALSE);
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Offscreen Surfaces: %s\n",
+	       qxl->enable_surfaces? "Enabled" : "Disabled");
+    xf86DrvMsg(scrnIndex, X_INFO, "Image Cache: %s\n",
+	       qxl->enable_image_cache? "Enabled" : "Disabled");
+    xf86DrvMsg(scrnIndex, X_INFO, "Fallback Cache: %s\n",
+	       qxl->enable_fallback_cache? "Enabled" : "Disabled");
     
     if (!qxl_map_memory(qxl, scrnIndex))
 	goto out;
@@ -1715,7 +1740,7 @@ static DriverRec qxl_driver = {
     QXL_DRIVER_NAME,
     qxl_identify,
     qxl_probe,
-    NULL,
+    qxl_available_options,
     NULL,
     0,
 #ifdef XSPICE
