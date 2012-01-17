@@ -389,13 +389,14 @@ get_ram_header (qxl_screen_t *qxl)
  * Images
  */
 struct QXLImage *qxl_image_create     (qxl_screen_t           *qxl,
-					const uint8_t          *data,
-					int                     x,
-					int                     y,
-					int                     width,
-					int                     height,
-					int                     stride,
-					int                     Bpp);
+				       const uint8_t          *data,
+				       int                     x,
+				       int                     y,
+				       int                     width,
+				       int                     height,
+				       int                     stride,
+				       int                     Bpp,
+				       Bool		       fallback);
 void              qxl_image_destroy    (qxl_screen_t           *qxl,
 					struct QXLImage       *image);
 void		  qxl_drop_image_cache (qxl_screen_t	       *qxl);

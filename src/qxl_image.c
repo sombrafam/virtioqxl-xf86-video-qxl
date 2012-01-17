@@ -45,9 +45,9 @@ static image_info_t *image_table[HASH_SIZE];
 static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
 	       uint8_t *dest, int dest_stride,
-	       int bytes_per_pixel, int width, int height)
+	       int bytes_per_pixel, int width, int height,
+	       unsigned int hash)
 {
-    unsigned int hash = 0;
     int i;
   
     for (i = 0; i < height; ++i)
@@ -93,7 +93,6 @@ lookup_image_info (unsigned int hash,
     return NULL;
 }
 
-#if 0
 static image_info_t *
 insert_image_info (unsigned int hash)
 {
@@ -107,7 +106,6 @@ insert_image_info (unsigned int hash)
     
     return info;
 }
-#endif
 
 static void
 remove_image_info (image_info_t *info)
@@ -129,56 +127,13 @@ remove_image_info (image_info_t *info)
 struct QXLImage *
 qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
-		  int stride, int Bpp)
+		  int stride, int Bpp, Bool fallback)
 {
     unsigned int hash;
     image_info_t *info;
 
     data += y * stride + x * Bpp;
 
-#if 0
-    hash = hash_and_copy (data, stride, NULL, -1, Bpp, width, height);
-
-    info = lookup_image_info (hash, width, height);
-    if (info)
-    {
-	int i, j;
-	
-#if 0
-	ErrorF ("reusing image %p with hash %u (%d x %d)\n", info->image, hash, width, height);
-#endif
-	
-	info->ref_count++;
-
-	for (i = 0; i < height; ++i)
-	{
-	    struct QXLDataChunk *chunk;
-	    const uint8_t *src_line = data + i * stride;
-	    uint32_t *dest_line;
-		
-	    chunk = virtual_address (qxl, u64_to_pointer (info->image->bitmap.data), qxl->main_mem_slot);
-	    
-	    dest_line = (uint32_t *)chunk->data + width * i;
-
-	    for (j = 0; j < width; ++j)
-	    {
-		uint32_t *s = (uint32_t *)src_line;
-		uint32_t *d = (uint32_t *)dest_line;
-		
-		if (d[j] != s[j])
-		{
-#if 0
-		    ErrorF ("bad collision at (%d, %d)! %d != %d\n", j, i, s[j], d[j]);
-#endif
-		    goto out;
-		}
-	    }
-	}
-    out:
-	return info->image;
-    }
-    else
-#endif
     {
 	struct QXLImage *image;
 	struct QXLDataChunk *head;
@@ -196,6 +151,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 
 	head = tail = NULL;
 
+	hash = 0;
 	h = height;
 	while (h)
 	{
@@ -205,9 +161,9 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		qxl_allocnf (qxl, sizeof *chunk + n_lines * dest_stride);
 
 	    chunk->data_size = n_lines * dest_stride;
-	    hash_and_copy (data, stride,
-			   chunk->data, dest_stride,
-			   Bpp, width, n_lines);
+	    hash = hash_and_copy (data, stride,
+				  chunk->data, dest_stride,
+				  Bpp, width, n_lines, hash);
 	    
 	    if (tail)
 	    {
@@ -266,21 +222,23 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	ErrorF ("%p has size %d %d\n", image, width, height);
 #endif
 	
-#if 0
-	/* Add to hash table */
-	if ((info = insert_image_info (hash)))
+	/* Add to hash table if caching is enabled */
+	if ((fallback && qxl->enable_fallback_cache)	||
+	    (!fallback && qxl->enable_image_cache))
 	{
-	    info->image = image;
-	    info->ref_count = 1;
+	    if ((info = insert_image_info (hash)))
+	    {
+		info->image = image;
+		info->ref_count = 1;
 
-	    image->descriptor.id = hash;
-	    image->descriptor.flags = SPICE_IMAGE_CACHE;
+		image->descriptor.id = hash;
+		image->descriptor.flags = QXL_IMAGE_CACHE;
 
 #if 0
-	    ErrorF ("added with hash %u\n", hash);
+		ErrorF ("added with hash %u\n", hash);
 #endif
+	    }
 	}
-#endif
 
 	return image;
     }

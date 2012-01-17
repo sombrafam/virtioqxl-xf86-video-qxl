@@ -1056,7 +1056,7 @@ real_upload_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     
     image = qxl_image_create (
 	qxl, (const uint8_t *)data, x1, y1, x2 - x1, y2 - y1, stride, 
-	surface->bpp == 24 ? 4 : surface->bpp / 8);
+	surface->bpp == 24 ? 4 : surface->bpp / 8, TRUE);
     drawable->u.copy.src_bitmap =
 	physical_address (qxl, image, qxl->main_mem_slot);
     
@@ -1463,7 +1463,7 @@ qxl_surface_put_image (qxl_surface_t *dest,
 
     image = qxl_image_create (
 	qxl, (const uint8_t *)src, 0, 0, width, height, src_pitch,
-	dest->bpp == 24 ? 4 : dest->bpp / 8);
+	dest->bpp == 24 ? 4 : dest->bpp / 8, FALSE);
     drawable->u.copy.src_bitmap =
 	physical_address (qxl, image, qxl->main_mem_slot);
     
