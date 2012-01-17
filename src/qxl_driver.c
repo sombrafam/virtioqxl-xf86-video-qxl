@@ -481,35 +481,6 @@ qxl_restore_state(ScrnInfoPtr pScrn)
 }
 #endif /* XSPICE */
 
-static Bool
-qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
-{
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
-    qxl_screen_t *qxl = pScrn->driverPrivate;
-    Bool result;
-    
-    ErrorF ("Freeing %p\n", qxl->fb);
-    free(qxl->fb);
-    qxl->fb = NULL;
-    
-    pScreen->CreateScreenResources = qxl->create_screen_resources;
-    pScreen->CloseScreen = qxl->close_screen;
-    
-    result = pScreen->CloseScreen(scrnIndex, pScreen);
-
-    if (!xf86IsPrimaryPci (qxl->pci) && qxl->primary)
-       qxl_reset (qxl);
-    
-    if (pScrn->vtSema)
-    {
-        qxl_restore_state(pScrn);
-	qxl_unmap_memory(qxl, scrnIndex);
-    }
-    pScrn->vtSema = FALSE;
-
-    return result;
-}
-
 static uint8_t
 setup_slot(qxl_screen_t *qxl, uint8_t slot_index_offset,
     unsigned long start_phys_addr, unsigned long end_phys_addr,
@@ -574,6 +545,35 @@ qxl_reset (qxl_screen_t *qxl)
         (uint64_t)(uintptr_t)qxl->vram,
         (uint64_t)(uintptr_t)qxl->vram + (uint64_t)qxl->vram_size);
 #endif
+}
+
+static Bool
+qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
+{
+    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+    qxl_screen_t *qxl = pScrn->driverPrivate;
+    Bool result;
+    
+    ErrorF ("Freeing %p\n", qxl->fb);
+    free(qxl->fb);
+    qxl->fb = NULL;
+    
+    pScreen->CreateScreenResources = qxl->create_screen_resources;
+    pScreen->CloseScreen = qxl->close_screen;
+    
+    result = pScreen->CloseScreen(scrnIndex, pScreen);
+
+    if (!xf86IsPrimaryPci (qxl->pci) && qxl->primary)
+       qxl_reset (qxl);
+    
+    if (pScrn->vtSema)
+    {
+        qxl_restore_state(pScrn);
+	qxl_unmap_memory(qxl, scrnIndex);
+    }
+    pScrn->vtSema = FALSE;
+
+    return result;
 }
 
 static void
