@@ -1529,6 +1529,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     /* VGA hardware initialisation */
     if (!vgaHWGetHWRec(pScrn))
         return FALSE;
+    vgaHWSetStdFuncs(VGAHWPTR(pScrn));
 #endif
 
     /* hate */
