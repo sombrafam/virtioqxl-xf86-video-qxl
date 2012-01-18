@@ -563,8 +563,10 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     
     result = pScreen->CloseScreen(scrnIndex, pScreen);
 
+#ifndef XSPICE
     if (!xf86IsPrimaryPci (qxl->pci) && qxl->primary)
        qxl_reset (qxl);
+#endif
     
     if (pScrn->vtSema)
     {
