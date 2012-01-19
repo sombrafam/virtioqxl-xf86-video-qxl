@@ -208,23 +208,30 @@ uxa_check_poly_lines(DrawablePtr pDrawable, GCPtr pGC,
 		     int mode, int npt, DDXPointPtr ppt)
 {
 	ScreenPtr screen = pDrawable->pScreen;
+	RegionRec region;
+
+	REGION_INIT (screen, &region, (BoxPtr)NULL, 0);
+	uxa_damage_poly_lines (&region, pDrawable, pGC, mode, npt, ppt);
 
 	UXA_FALLBACK(("to %p (%c), width %d, mode %d, count %d\n",
 		      pDrawable, uxa_drawable_location(pDrawable),
 		      pGC->lineWidth, mode, npt));
 
 	if (pGC->lineWidth == 0) {
-	    if (uxa_prepare_access(pDrawable, NULL, UXA_ACCESS_RW)) {
+		if (uxa_prepare_access(pDrawable, &region, UXA_ACCESS_RW)) {
 			if (uxa_prepare_access_gc(pGC)) {
 				fbPolyLine(pDrawable, pGC, mode, npt, ppt);
 				uxa_finish_access_gc(pGC);
 			}
 			uxa_finish_access(pDrawable);
 		}
-		return;
+		goto out;
 	}
 	/* fb calls mi functions in the lineWidth != 0 case. */
 	fbPolyLine(pDrawable, pGC, mode, npt, ppt);
+
+ out:
+	REGION_UNINIT (screen, &region);
 }
 
 void
