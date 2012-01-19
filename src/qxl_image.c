@@ -317,7 +317,7 @@ qxl_image_destroy (qxl_screen_t *qxl,
     {
 	struct QXLDataChunk *virtual;
 
-	virtual = virtual_address (qxl, (void *)chunk, qxl->main_mem_slot);
+	virtual = virtual_address (qxl, u64_to_pointer (chunk), qxl->main_mem_slot);
 
 	chunk = virtual->next_chunk;
 
