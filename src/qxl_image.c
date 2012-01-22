@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "qxl.h"
-#include "lookup3.h"
+#include "murmurhash3.h"
 
 typedef struct image_info_t image_info_t;
 
@@ -46,7 +46,7 @@ static unsigned int
 hash_and_copy (const uint8_t *src, int src_stride,
 	       uint8_t *dest, int dest_stride,
 	       int bytes_per_pixel, int width, int height,
-	       unsigned int hash)
+	       uint32_t hash)
 {
     int i;
   
@@ -59,7 +59,7 @@ hash_and_copy (const uint8_t *src, int src_stride,
 	if (dest)
 	    memcpy (dest_line, src_line, n_bytes);
 
-	hash = hashlittle (src_line, n_bytes, hash);
+	MurmurHash3_x86_32 (src_line, n_bytes, hash, &hash);
     }
 
     return hash;
@@ -129,7 +129,7 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride, int Bpp, Bool fallback)
 {
-	unsigned int hash;
+	uint32_t hash;
 	image_info_t *info;
 	struct QXLImage *image;
 	struct QXLDataChunk *head;

@@ -45,8 +45,8 @@ qxl_drv_la_SOURCES =				\
 	qxl_mem.c				\
 	mspace.c				\
 	mspace.h				\
-	lookup3.c				\
-	lookup3.h				\
+	murmurhash3.c				\
+	murmurhash3.h				\
 	qxl_cursor.c
 endif
 
@@ -81,7 +81,7 @@ spiceqxl_drv_la_SOURCES =				\
 	qxl_mem.c				\
 	mspace.c				\
 	mspace.h				\
-	lookup3.c				\
-	lookup3.h				\
+	murmurhash3.c				\
+	murmurhash3.h				\
 	qxl_cursor.c
 endif
