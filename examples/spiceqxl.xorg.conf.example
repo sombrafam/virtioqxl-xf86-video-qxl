@@ -99,3 +99,8 @@ Section "ServerLayout"
     InputDevice "XSPICE KEYBOARD"
     InputDevice "XSPICE POINTER"
 EndSection
+
+# Prevent udev from loading vmmouse in a vm and crashing.
+Section "ServerFlags"
+    Option "AutoAddDevices" "False"
+EndSection
