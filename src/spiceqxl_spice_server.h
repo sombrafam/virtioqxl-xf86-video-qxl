@@ -29,7 +29,6 @@
 #ifndef SPICEQXL_SPICE_SERVER_H
 #define SPICEQXL_SPICE_SERVER_H
 
-SpiceServer *xspice_get_spice_server(void);
 void xspice_set_spice_server_options(OptionInfoPtr options);
 
 #endif // SPICEQXL_SPICE_SERVER_H
