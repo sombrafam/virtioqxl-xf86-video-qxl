@@ -129,24 +129,22 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 		  int x, int y, int width, int height,
 		  int stride, int Bpp, Bool fallback)
 {
-    unsigned int hash;
-    image_info_t *info;
-
-    data += y * stride + x * Bpp;
-
-    {
+	unsigned int hash;
+	image_info_t *info;
 	struct QXLImage *image;
 	struct QXLDataChunk *head;
 	struct QXLDataChunk *tail;
 	int dest_stride = width * Bpp;
 	int h;
 
+	data += y * stride + x * Bpp;
+
 #if 0
 	ErrorF ("Must create new image of size %d %d\n", width, height);
 #endif
 	
 	/* Chunk */
-	
+
 	/* FIXME: Check integer overflow */
 
 	head = tail = NULL;
@@ -241,7 +239,6 @@ qxl_image_create (qxl_screen_t *qxl, const uint8_t *data,
 	}
 
 	return image;
-    }
 }
 
 void
