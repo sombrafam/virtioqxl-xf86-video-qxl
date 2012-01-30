@@ -54,6 +54,12 @@ extern void compat_init_scrn(ScrnInfoPtr);
 #define CHECK_POINT()
 
 const OptionInfoRec DefaultOptions[] = {
+    { OPTION_ENABLE_IMAGE_CACHE,
+        "EnableImageCache",    OPTV_BOOLEAN, { 0 }, TRUE },
+    { OPTION_ENABLE_FALLBACK_CACHE,
+        "EnableFallbackCache", OPTV_BOOLEAN, { 0 }, TRUE },
+    { OPTION_ENABLE_SURFACES,
+        "EnableSurfaces",	   OPTV_BOOLEAN, { 0 }, TRUE },
 #ifdef XSPICE
     { OPTION_SPICE_PORT,
         "SpicePort",                OPTV_INTEGER,   {5900}, FALSE },
@@ -100,10 +106,6 @@ const OptionInfoRec DefaultOptions[] = {
         "SpiceCacertFile",          OPTV_STRING,    {0}, FALSE},
     { OPTION_SPICE_DH_FILE,
         "SpiceDhFile",              OPTV_STRING,    {0}, FALSE},
-#else
-    { OPTION_ENABLE_IMAGE_CACHE,    "EnableImageCache",    OPTV_BOOLEAN, { 0 }, TRUE },
-    { OPTION_ENABLE_FALLBACK_CACHE, "EnableFallbackCache", OPTV_BOOLEAN, { 0 }, TRUE },
-    { OPTION_ENABLE_SURFACES,	    "EnableSurfaces",	   OPTV_BOOLEAN, { 0 }, TRUE },
 #endif
 
     { -1, NULL, OPTV_NONE, {0}, FALSE }
