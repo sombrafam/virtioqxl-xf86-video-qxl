@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include "qxl.h"
 #include "assert.h"
+#include "qxl_option_helpers.h"
 
 #ifdef XSPICE
 #include "spiceqxl_driver.h"

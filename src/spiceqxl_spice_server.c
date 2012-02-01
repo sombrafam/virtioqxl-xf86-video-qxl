@@ -27,6 +27,7 @@
  */
 
 #include "qxl.h"
+#include "qxl_option_helpers.h"
 #include "spiceqxl_spice_server.h"
 
 /* Single instance of spice server per Xorg executable.
@@ -38,40 +39,6 @@ SpiceServer *xspice_get_spice_server(void)
         spice_server = spice_server_new();
     }
     return spice_server;
-}
-
-static
-int get_int_option(OptionInfoPtr options, int option_index,
-                   const char *env_name)
-{
-    if (getenv(env_name)) {
-        return atoi(getenv(env_name));
-    }
-    return options[option_index].value.num;
-}
-
-static
-const char *get_str_option(OptionInfoPtr options, int option_index,
-                           const char *env_name)
-{
-    if (getenv(env_name)) {
-        return getenv(env_name);
-    }
-    return options[option_index].value.str;
-}
-
-static
-int get_bool_option(OptionInfoPtr options, int option_index,
-                     const char *env_name)
-{
-    if (getenv(env_name)) {
-        /* we don't support the whole range of boolean true and
-         * false values documented in man xorg.conf, just the c
-         * convention - 0 is false, anything else is true, so
-         * just like a number. */
-        return !!atoi(getenv(env_name));
-    }
-    return options[option_index].value.bool;
 }
 
 #define X509_CA_CERT_FILE "ca-cert.pem"
