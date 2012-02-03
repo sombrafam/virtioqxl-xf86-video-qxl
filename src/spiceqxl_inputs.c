@@ -149,11 +149,18 @@ static void xspice_keyboard_control(DeviceIntPtr device, KeybdCtrl *ctrl)
 static int xspice_keyboard_proc(DeviceIntPtr pDevice, int onoff)
 {
     DevicePtr pDev = (DevicePtr)pDevice;
+    XkbRMLVOSet rmlvo = {
+        .rules = "evdev",
+        .model = "pc105",
+        .layout = "us",
+        .variant = "",
+        .options = "",
+    };
 
     switch (onoff) {
         case DEVICE_INIT:
             InitKeyboardDeviceStruct(
-                pDevice, NULL, xspice_keyboard_bell, xspice_keyboard_control
+                pDevice, &rmlvo, xspice_keyboard_bell, xspice_keyboard_control
             );
             break;
         case DEVICE_ON:
