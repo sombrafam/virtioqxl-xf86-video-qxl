@@ -66,6 +66,8 @@
 #define PCI_CHIP_QXL_0100	0x0100
 #define PCI_CHIP_QXL_01FF	0x01ff
 
+#define DEBUG_LOG_COMMAND 0
+
 #pragma pack(push,1)
 
 struct qxl_ring_header {
@@ -434,6 +436,12 @@ static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
     outb(qxl->io_base + port, val);
 }
 #endif
+
+/*
+ * Debug
+ */
+void qxl_log_command(qxl_screen_t *qxl, QXLCommand *cmd, char *direction);
+
 
 #ifdef XSPICE
 

@@ -72,6 +72,11 @@ qxl_ring_push (struct qxl_ring *ring,
     volatile struct qxl_ring_header *header = &(ring->ring->header);
     volatile uint8_t *elt;
     int idx;
+#ifdef DEBUG_LOG_COMMAND
+    struct QXLCommand *cmd = (QXLCommand *)new_elt;
+
+    qxl_log_command(ring->qxl, cmd, "");
+#endif
 
     while (header->prod - header->cons == header->num_items)
     {
