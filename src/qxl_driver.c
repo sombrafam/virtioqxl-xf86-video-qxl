@@ -806,9 +806,6 @@ qxl_check_copy (PixmapPtr source, PixmapPtr dest,
 	return FALSE;
     }
     
-    if (!get_surface (source) || !get_surface (dest))
-	return FALSE;
-
     return TRUE;
 }
 

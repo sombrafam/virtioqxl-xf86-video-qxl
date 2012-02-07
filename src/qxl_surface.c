@@ -1321,23 +1321,9 @@ qxl_surface_prepare_copy (qxl_surface_t *dest,
     if (!REGION_NIL (&(dest->access_region))	||
 	!REGION_NIL (&(source->access_region)))
     {
-#if 0
-	ErrorF (" copy not in vmvm\n");
-#endif
-	
 	return FALSE;
     }
 
-#if 0
-    if (dest->id != source->id)
-	return FALSE;
-#endif
-
-#ifdef DEBUG_REGIONS
-    print_region ("prepare copy src", &(source->access_region));
-    print_region ("prepare copy dest", &(dest->access_region));
-#endif
-    
     dest->u.copy_src = source;
 
     return TRUE;
