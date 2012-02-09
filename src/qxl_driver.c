@@ -38,6 +38,15 @@
 #include "assert.h"
 #include "qxl_option_helpers.h"
 
+#ifdef VIRTIO_QXL
+#include <linux/virtio_bridge.h>
+#include "spiceqxl_driver.h"
+#define VIRTIO_DEV "/dev/virtioqxl0"
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#endif
+
 #ifdef XSPICE
 #include "spiceqxl_driver.h"
 #include "spiceqxl_main_loop.h"
@@ -129,9 +138,16 @@ static void qxl_wait_for_io_command(qxl_screen_t *qxl)
     ram_header->int_pending &= ~QXL_INTERRUPT_IO_CMD;
 }
 
-void qxl_update_area(qxl_screen_t *qxl)
+void qxl_update_area(qxl_screen_t *qxl, qxl_surface_t *surface)
 {
-#ifndef XSPICE
+
+#ifdef VIRTIO_QXL
+    QXLRam *ram_header = get_ram_header(qxl);
+    virtioqxl_push_ram(qxl, &ram_header->update_area, sizeof(QXLRect));
+    virtioqxl_push_ram(qxl, &ram_header->update_surface, sizeof(int));
+#endif
+
+#if !defined XSPICE && !defined VIRTIO_QXL
     if (qxl->pci->revision >= 3) {
         ioport_write(qxl, QXL_IO_UPDATE_AREA_ASYNC, 0);
         qxl_wait_for_io_command(qxl);
@@ -141,11 +157,20 @@ void qxl_update_area(qxl_screen_t *qxl)
 #else
     ioport_write(qxl, QXL_IO_UPDATE_AREA, 0);
 #endif
+
+#ifdef VIRTIO_QXL
+    if (!surface || !surface->id) {   //Primary
+        virtioqxl_pull_ram(qxl, qxl->surface0_area, qxl->surface0_size);
+    } else {
+        virtioqxl_pull_ram(qxl, surface->address,
+                (intptr_t)surface->end - (intptr_t)surface->address);
+    }
+#endif
 }
 
 void qxl_memslot_add(qxl_screen_t *qxl, uint8_t id)
 {
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     if (qxl->pci->revision >= 3) {
         ioport_write(qxl, QXL_IO_MEMSLOT_ADD_ASYNC, id);
         qxl_wait_for_io_command(qxl);
@@ -159,7 +184,7 @@ void qxl_memslot_add(qxl_screen_t *qxl, uint8_t id)
 
 void qxl_create_primary(qxl_screen_t *qxl)
 {
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     if (qxl->pci->revision >= 3) {
         ioport_write(qxl, QXL_IO_CREATE_PRIMARY_ASYNC, 0);
         qxl_wait_for_io_command(qxl);
@@ -301,9 +326,9 @@ qxl_allocnf (qxl_screen_t *qxl, unsigned long size)
 	ram_header->update_area.left = 0;
 	ram_header->update_area.right = qxl->virtual_x;
 	ram_header->update_surface = 0;		/* Only primary for now */
-	
-        qxl_update_area(qxl);
-	
+
+    qxl_update_area(qxl,0);
+
 #if 0
  	ErrorF ("eliminated memory (%d)\n", nth_oom++);
 #endif
@@ -334,7 +359,94 @@ qxl_blank_screen(ScreenPtr pScreen, int mode)
     return TRUE;
 }
 
-#ifdef XSPICE
+#ifdef VIRTIO_QXL
+
+#undef SPICE_RING_PROD_ITEM
+#define SPICE_RING_PROD_ITEM(r, ret) {                      \
+    typeof(r) start = r;                                    \
+    typeof(r) end = r + 1;                                  \
+    uint32_t prod = (r)->prod & SPICE_RING_INDEX_MASK(r);   \
+    typeof(&(r)->items[prod]) m_item = &(r)->items[prod];   \
+    if (!((uint8_t *)m_item >= (uint8_t *)(start) && (uint8_t *)(m_item + 1) <= (uint8_t *)(end))) { \
+        abort();                                            \
+    }                                                       \
+    ret = &m_item->el;                                      \
+}
+
+#undef SPICE_RING_CONS_ITEM
+#define SPICE_RING_CONS_ITEM(r, ret) {                      \
+    typeof(r) start = r;                                    \
+    typeof(r) end = r + 1;                                  \
+    uint32_t cons = (r)->cons & SPICE_RING_INDEX_MASK(r);   \
+    typeof(&(r)->items[cons]) m_item = &(r)->items[cons];   \
+    if (!((uint8_t *)m_item >= (uint8_t *)(start) && (uint8_t *)(m_item + 1) <= (uint8_t *)(end))) { \
+        abort();                                            \
+    }                                                       \
+    ret = &m_item->el;                                      \
+}
+
+static void virtio_init_qxl_ram(qxl_screen_t *qxl)
+{
+    QXLRam *ram = get_ram_header(qxl);
+    uint64_t *item;
+
+    ram->magic       = QXL_RAM_MAGIC;
+    ram->int_pending = 0;
+    ram->int_mask    = 0;
+    SPICE_RING_INIT(&ram->cmd_ring);
+    SPICE_RING_INIT(&ram->cursor_ring);
+    SPICE_RING_INIT(&ram->release_ring);
+    SPICE_RING_PROD_ITEM(&ram->release_ring, item);
+    *item = 0;
+}
+
+static void unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
+{
+    int memlen = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+                qxl->virtio_config.romsize;
+
+    munmap(qxl->vmem_start, memlen);
+    close(qxl->virtiofd);
+}
+
+static void map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
+{
+    void *vmem_start;
+    int memlen, bytes;
+    struct QXLRom *rom;
+    CHECK_POINT();
+
+    qxl->virtiofd = open(VIRTIO_DEV, O_RDWR | O_SYNC);
+    if (qxl->virtiofd < 0) {
+        xf86DrvMsg(scrnIndex, X_ERROR, "Error opening virtio device. Check if "
+                " virtio-qxl-bridge is loaded\n");
+        return;
+    }
+
+    bytes = read(qxl->virtiofd, &qxl->virtio_config, sizeof(struct virtioqxl_config));
+
+    memlen = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+        qxl->virtio_config.romsize;
+
+    vmem_start = mmap(0, memlen, PROT_READ | PROT_WRITE, MAP_FILE | MAP_SHARED,
+            qxl->virtiofd, 0);
+    if (!vmem_start) {
+        xf86DrvMsg(scrnIndex, X_ERROR, "Error mapping device\n");
+    }
+
+    qxl->vmem_start = vmem_start;
+    qxl->ram = vmem_start;
+    qxl->ram_physical = qxl->ram;
+    qxl->vram = (uint8_t *)vmem_start + qxl->virtio_config.ramsize;
+    qxl->vram_size = qxl->virtio_config.vramsize;
+    qxl->vram_physical = qxl->vram;
+    qxl->rom = (void *)((uint8_t *)vmem_start + qxl->virtio_config.ramsize +
+            qxl->virtio_config.vramsize);
+
+    rom = qxl->rom;
+}
+
+#elif defined XSPICE
 static void
 unmap_memory_helper(qxl_screen_t *qxl, int scrnIndex)
 {
@@ -417,7 +529,7 @@ map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
     qxl->io_base = qxl->pci->ioBase[3];
 #endif
 }
-#endif /* XSPICE */
+#endif /* VIRTIO_QXL */
 
 static void
 qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
@@ -438,10 +550,20 @@ qxl_unmap_memory(qxl_screen_t *qxl, int scrnIndex)
 static Bool
 qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
 {
+    QXLRam *ram_header;
+
     map_memory_helper(qxl, scrnIndex);
+#ifdef VIRTIO_QXL
+    ram_header = get_ram_header(qxl);
+#endif
 
     if (!qxl->ram || !qxl->vram || !qxl->rom)
 	return FALSE;
+
+#ifdef VIRTIO_QXL
+    virtioqxl_pull_ram(qxl,qxl->rom,qxl->virtio_config.romsize);
+    virtioqxl_pull_ram(qxl,ram_header,sizeof(*ram_header));
+#endif
 
     xf86DrvMsg(scrnIndex, X_INFO, "framebuffer at %p (%d KB)\n",
 	       qxl->ram, qxl->rom->surface0_area_size / 1024);
@@ -467,7 +589,7 @@ qxl_map_memory(qxl_screen_t *qxl, int scrnIndex)
     return TRUE;
 }
 
-#ifdef XSPICE
+#if defined XSPICE || defined VIRTIO_QXL
 static void
 qxl_save_state(ScrnInfoPtr pScrn)
 {
@@ -546,7 +668,10 @@ qxl_reset (qxl_screen_t *qxl)
 
     qxl->mem_slots = xnfalloc (qxl->n_mem_slots * sizeof (qxl_memslot_t));
 
-#ifdef XSPICE
+#ifdef VIRTIO_QXL
+    virtio_init_qxl_ram(qxl);
+    qxl->main_mem_slot = qxl->vram_mem_slot = setup_slot(qxl, 0, 0, ~0, 0, ~0);
+#elif defined XSPICE
     qxl->main_mem_slot = qxl->vram_mem_slot = setup_slot(qxl, 0, 0, ~0, 0, ~0);
 #else /* QXL */
     qxl->main_mem_slot = setup_slot(qxl, 0,
@@ -579,7 +704,7 @@ qxl_close_screen(int scrnIndex, ScreenPtr pScreen)
     
     result = pScreen->CloseScreen(scrnIndex, pScreen);
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     if (!xf86IsPrimaryPci (qxl->pci) && qxl->primary)
        qxl_reset (qxl);
 #endif
@@ -1119,20 +1244,20 @@ qxl_screen_init(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     qxl_reset (qxl);
     ErrorF ("done reset\n");
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     qxl->io_pages = (void *)((unsigned long)qxl->ram);
     qxl->io_pages_physical = (void *)((unsigned long)qxl->ram_physical);
 #endif
 
     qxl->command_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cmd_ring),
 					 sizeof (struct QXLCommand),
-					 QXL_COMMAND_RING_SIZE, QXL_IO_NOTIFY_CMD, qxl);
+					 QXL_COMMAND_RING_SIZE, QXL_IO_NOTIFY_CMD, qxl,"command");
     qxl->cursor_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->cursor_ring),
 					sizeof (struct QXLCommand),
-					QXL_CURSOR_RING_SIZE, QXL_IO_NOTIFY_CURSOR, qxl);
+					QXL_CURSOR_RING_SIZE, QXL_IO_NOTIFY_CURSOR, qxl,"cursor");
     qxl->release_ring = qxl_ring_create ((struct qxl_ring_header *)&(ram_header->release_ring),
 					 sizeof (uint64_t),
-					 QXL_RELEASE_RING_SIZE, 0, qxl);
+					 QXL_RELEASE_RING_SIZE, 0, qxl,"release");
 
     qxl->surface_cache = qxl_surface_cache_create (qxl);
     
@@ -1260,7 +1385,7 @@ print_modes (qxl_screen_t *qxl, int scrnIndex)
     }
 }
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
 static Bool
 qxl_check_device(ScrnInfoPtr pScrn, qxl_screen_t *qxl)
 {
@@ -1422,8 +1547,8 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     qxl = pScrn->driverPrivate;
 
     qxl->entity = xf86GetEntityInfo(pScrn->entityList[0]);
-    
-#ifndef XSPICE
+
+#if !defined XSPICE && !defined VIRTIO_QXL
     qxl->pci = xf86GetPciInfoForEntity(qxl->entity->index);
 #ifndef XSERVER_LIBPCIACCESS
     qxl->pci_tag = pciTag(qxl->pci->bus, qxl->pci->device, qxl->pci->func);
@@ -1456,11 +1581,12 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     if (!qxl_map_memory(qxl, scrnIndex))
 	goto out;
-    
-#ifndef XSPICE
+
+
+#if !defined XSPICE && !defined VIRTIO_QXL
     if (!qxl_check_device(pScrn, qxl))
 	goto out;
-#else
+#elif defined XSPICE
     xspice_init_qxl_ram(qxl); /* initialize the rings */
 #endif
     pScrn->videoRam = (qxl->rom->num_pages * 4096) / 1024;
@@ -1539,7 +1665,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     xf86SetDpi(pScrn, 0, 0);
     
     if (!xf86LoadSubModule(pScrn, "fb")
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
 	|| !xf86LoadSubModule(pScrn, "ramdac")
 	|| !xf86LoadSubModule(pScrn, "vgahw")
 #endif
@@ -1550,7 +1676,7 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     
     print_modes (qxl, scrnIndex);
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     /* VGA hardware initialisation */
     if (!vgaHWGetHWRec(pScrn))
         return FALSE;
@@ -1577,7 +1703,7 @@ out:
     return FALSE;
 }
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
 #ifdef XSERVER_LIBPCIACCESS
 enum qxl_class
 {
@@ -1616,7 +1742,7 @@ static PciChipsets qxlPciChips[] =
 static void
 qxl_identify(int flags)
 {
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     xf86PrintChipsets("qxl", "Driver for QXL virtual graphics", qxlChips);
 #endif
 }
@@ -1634,14 +1760,14 @@ qxl_init_scrn(ScrnInfoPtr pScrn)
     pScrn->LeaveVT	    = qxl_leave_vt;
 }
 
-#ifdef XSPICE
+#if defined VIRTIO_QXL || defined XSPICE
 static Bool
 qxl_probe(struct _DriverRec *drv, int flags)
 {
     ScrnInfoPtr pScrn;
     int entityIndex;
     EntityInfoPtr pEnt;
-    GDevPtr* device;
+    GDevPtr *device;
 
     if (flags & PROBE_DETECT) {
         return TRUE;
@@ -1657,11 +1783,6 @@ qxl_probe(struct _DriverRec *drv, int flags)
 
     xf86AddEntityToScreen(pScrn, entityIndex);
 
-    return TRUE;
-}
-static Bool qxl_driver_func(ScrnInfoPtr screen_info_ptr, xorgDriverFuncOp xorg_driver_func_op, pointer hw_flags)
-{
-    *(xorgHWFlags*)hw_flags = (xorgHWFlags)HW_SKIP_CONSOLE;
     return TRUE;
 }
 #else /* normal, not XSPICE */
@@ -1733,7 +1854,15 @@ qxl_pci_probe(DriverPtr drv, int entity, struct pci_device *dev, intptr_t match)
 #define qxl_probe NULL
 
 #endif
-#endif /* XSPICE */
+#endif /* VIRTIO_QXL || XSPICE */
+
+#ifdef XSPICE
+static Bool qxl_driver_func(ScrnInfoPtr screen_info_ptr, xorgDriverFuncOp xorg_driver_func_op, pointer hw_flags)
+{
+    *(xorgHWFlags*)hw_flags = (xorgHWFlags)HW_SKIP_CONSOLE;
+    return TRUE;
+}
+#endif
 
 static DriverRec qxl_driver = {
     0,
@@ -1743,7 +1872,11 @@ static DriverRec qxl_driver = {
     qxl_available_options,
     NULL,
     0,
-#ifdef XSPICE
+#ifdef VIRTIO_QXL
+    NULL,
+    NULL,
+    NULL
+#elif defined XSPICE
     qxl_driver_func,
     NULL,
     NULL
@@ -1791,6 +1924,8 @@ static XF86ModuleVersionInfo qxl_module_info = {
 _X_EXPORT XF86ModuleData
 #ifdef XSPICE
 spiceqxlModuleData
+#elif VIRTIO_QXL
+virtioqxlModuleData
 #else
 qxlModuleData
 #endif

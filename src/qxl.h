@@ -32,6 +32,18 @@
 #include <spice.h>
 #endif
 
+#ifdef VIRTIO_QXL
+#include <linux/virtio_bridge.h>
+#include <sys/ioctl.h>
+
+#define DEBUG_RINGS 0
+#define DEBUG_CURSOR_RING 0
+#define DEBUG_COMMAND_RING 0
+#define DEBUG_RELEASE_RING 0
+#define DEBUG_RAM_UPDATES 0
+
+#endif // VIRTIO_QXL
+
 #include "compiler.h"
 #include "xf86.h"
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
@@ -54,7 +66,10 @@
 
 #define hidden _X_HIDDEN
 
-#ifdef XSPICE
+#ifdef VIRTIO_QXL
+#define QXL_NAME        "virtioqxl"
+#define QXL_DRIVER_NAME "virtioqxl"
+#elif defined XSPICE
 #define QXL_NAME		"spiceqxl"
 #define QXL_DRIVER_NAME		"spiceqxl"
 #else
@@ -66,9 +81,13 @@
 #define PCI_CHIP_QXL_0100	0x0100
 #define PCI_CHIP_QXL_01FF	0x01ff
 
-#define DEBUG_LOG_COMMAND 0
-
 #pragma pack(push,1)
+
+enum {
+    COMMAND_RING,
+    CURSOR_RING,
+    RELEASE_RING
+};
 
 struct qxl_ring_header {
     uint32_t num_items;
@@ -95,6 +114,38 @@ typedef struct
 
 typedef struct qxl_surface_t qxl_surface_t;
 
+struct qxl_surface_t
+{
+    surface_cache_t    *cache;
+
+    uint32_t	        id;
+
+    pixman_image_t *	dev_image;
+    pixman_image_t *	host_image;
+
+    uxa_access_t	access_type;
+    RegionRec		access_region;
+
+    void *		address;
+    void *		end;
+
+    qxl_surface_t *	next;
+    qxl_surface_t *	prev;	/* Only used in the 'live'
+				 * chain in the surface cache
+				 */
+
+    int			in_use;
+    int			bpp;		/* bpp of the pixmap */
+    int			ref_count;
+
+    PixmapPtr		pixmap;
+
+    union
+    {
+	qxl_surface_t *copy_src;
+	Pixel	       solid_pixel;
+    } u;
+};
 /*
  * Config Options
  */
@@ -167,7 +218,7 @@ struct _qxl_screen_t
     
     EntityInfoPtr		entity;
 
-#ifndef XSPICE
+#if !defined XSPICE && !defined VIRTIO_QXL
     void *			io_pages;
     void *			io_pages_physical;
 
@@ -214,7 +265,13 @@ struct _qxl_screen_t
     int				enable_image_cache;
     int				enable_fallback_cache;
     int				enable_surfaces;
-    
+
+#ifdef VIRTIO_QXL
+    int virtiofd;
+    struct virtioqxl_config virtio_config;
+    void *vmem_start;
+#endif
+
 #ifdef XSPICE
     /* XSpice specific */
     struct QXLRom		shadow_rom;    /* Parameter RAM */
@@ -243,6 +300,52 @@ struct _qxl_screen_t
 #endif /* XSPICE */
 };
 
+#ifdef VIRTIO_QXL
+static inline uint64_t
+physical_address(qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
+{
+    char *ram;
+    uint64_t offset;
+    int maplen;
+
+    ram = (char *)qxl->ram;
+    maplen = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+        qxl->virtio_config.romsize;
+    offset = (char *)virtual - ram;
+
+    if (offset >= 0 && offset < maplen) {
+        return offset;
+    }
+
+    // Die
+    fprintf(stderr, "GUEST (%s): Memory %p (%ld) out of bounds [%p - %p]\n",
+            __func__, virtual, (char *)virtual - ram, ram, ram + maplen);
+    exit(1);
+}
+
+static inline void *
+virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
+{
+    char *ram;
+    uint64_t offset;
+    void *local;
+    int memlen = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+        qxl->virtio_config.romsize;
+
+    ram = (char *)qxl->ram;
+    offset = (uint64_t)physical;
+
+    if (offset >= 0 && offset < memlen) {
+        local = (void *)(ram + offset);
+    } else {
+        fprintf(stderr, "GUEST (%s): Memory %p (%ld) out of bounds [%p - %p]\n",
+                __func__, (uint64_t)physical + ram, offset, ram, ram + memlen);
+        exit(1);
+    }
+
+    return local;
+}
+#else
 static inline uint64_t
 physical_address (qxl_screen_t *qxl, void *virtual, uint8_t slot_id)
 {
@@ -262,6 +365,7 @@ virtual_address (qxl_screen_t *qxl, void *physical, uint8_t slot_id)
 
     return (void *)virt;
 }
+#endif // VIRTIO_QXL
 
 static inline void *
 u64_to_pointer (uint64_t u)
@@ -291,7 +395,8 @@ struct qxl_ring * qxl_ring_create      (struct qxl_ring_header *header,
 					int                     element_size,
 					int                     n_elements,
 					int                     prod_notify,
-					qxl_screen_t            *qxl);
+					qxl_screen_t            *qxl,
+                                        const char *label);
 void              qxl_ring_push        (struct qxl_ring        *ring,
 					const void             *element);
 Bool              qxl_ring_pop         (struct qxl_ring        *ring,
@@ -422,7 +527,7 @@ int		   qxl_garbage_collect (qxl_screen_t *qxl);
 /*
  * I/O port commands
  */
-void qxl_update_area(qxl_screen_t *qxl);
+void qxl_update_area(qxl_screen_t *qxl,qxl_surface_t *surface);
 void qxl_memslot_add(qxl_screen_t *qxl, uint8_t id);
 void qxl_create_primary(qxl_screen_t *qxl);
 void qxl_notify_oom(qxl_screen_t *qxl);
@@ -430,6 +535,12 @@ void qxl_notify_oom(qxl_screen_t *qxl);
 #ifdef XSPICE
 /* device to spice-server, now xspice to spice-server */
 void ioport_write(qxl_screen_t *qxl, uint32_t io_port, uint32_t val);
+#elif defined VIRTIO_QXL
+static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
+{
+    int cmd = _IOW(QXLMAGIC, port, unsigned int);
+    ioctl(qxl->virtiofd, cmd, val);
+}
 #else
 static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
 {
@@ -442,6 +553,61 @@ static inline void ioport_write(qxl_screen_t *qxl, int port, int val)
  */
 void qxl_log_command(qxl_screen_t *qxl, QXLCommand *cmd, char *direction);
 
+#ifdef VIRTIO_QXL
+/* Write guest memory on host*/
+static inline void virtioqxl_push_ram(qxl_screen_t *qxl, void *ptr, int len)
+{
+    char *start, *end;
+    struct qxl_ram_area ram_area;
+    int memlen = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+        qxl->virtio_config.romsize;
+
+    start = (char *)ptr;
+    end = (char *)ptr + len;
+
+    if (start < (char *)qxl->ram ||
+        end > ((char *)qxl->ram + memlen)) {
+        fprintf(stderr,"%s: Error pushing memory [%p - %p] out of bounds "
+                "[%p - %p]\n", __func__, start, end, qxl->ram,
+                (char *)qxl->ram + memlen);
+        return;
+    }
+
+    ram_area.offset = start - (char *)qxl->ram;
+    ram_area.len = len;
+
+    if (DEBUG_RAM_UPDATES)
+        fprintf(stderr,"%s: pushing area[%d->%d]. %d bytes\n",
+                __func__, ram_area.offset, ram_area.offset + ram_area.len,
+                ram_area.len);
+
+    ioctl(qxl->virtiofd, QXL_IOCTL_QXL_IO_PUSH_AREA, &ram_area);
+}
+
+/* Read from memory on host*/
+static inline void virtioqxl_pull_ram(qxl_screen_t *qxl, void *ptr, int len)
+{
+    struct qxl_ram_area ram_area;
+    int mem_size = qxl->virtio_config.ramsize + qxl->virtio_config.vramsize +
+        qxl->virtio_config.romsize;
+
+    if ((uint8_t *)ptr < (uint8_t *)qxl->ram ||
+        (uint8_t *)ptr+len > ((uint8_t *)qxl->ram + mem_size)) {
+        fprintf(stderr,"%s: Error pulling memory out of bounds\n",__func__);
+        return;
+    }
+
+    ram_area.offset = (uint8_t *)ptr - (uint8_t *)qxl->ram;
+    ram_area.len = len;
+
+    if(DEBUG_RAM_UPDATES)
+        fprintf(stderr,"%s: pulling area[%d->%d]. %d bytes\n",
+                __func__, ram_area.offset, ram_area.offset + ram_area.len,
+                ram_area.len);
+
+    ioctl(qxl->virtiofd, QXL_IOCTL_QXL_IO_PULL_AREA, &ram_area);
+}
+#endif // VIRTIO_QXL
 
 #ifdef XSPICE
 

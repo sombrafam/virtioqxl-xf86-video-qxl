@@ -1,0 +1,24 @@
+Section "Device"
+    Identifier "QXL_device"
+    Driver "virtioqxl"
+    Option "virtiodev" "/dev/virtioqxl0"
+EndSection
+
+Section "InputDevice"
+    Identifier  "Mouse"
+    Driver      "mouse"
+    Option      "Protocol" "PS/2"
+    Option      "Device" "/dev/input/mice"
+EndSection
+
+Section "Monitor"
+    Identifier  "Configured Monitor"
+EndSection
+
+Section "Screen"
+    Identifier      "Screen"
+    Monitor         "Configured Monitor"
+    Device          "QXL_device"
+    DefaultDepth    24
+EndSection
+

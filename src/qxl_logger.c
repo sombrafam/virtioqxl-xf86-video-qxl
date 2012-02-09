@@ -176,6 +176,7 @@ static void
 qxl_log_cmd_surface(qxl_screen_t *qxl, QXLSurfaceCmd *cmd)
 {
     uint64_t offset;
+    void *data;
 
     fprintf(stderr," %s id %d",
             qxl_name(qxl_surface_cmd, cmd->type),
@@ -185,7 +186,13 @@ qxl_log_cmd_surface(qxl_screen_t *qxl, QXLSurfaceCmd *cmd)
         return;
     }
 
+#ifdef VIRTIO_QXL
     offset = cmd->u.surface_create.data;
+#else
+    data = virtual_address(qxl, (void *)cmd->u.surface_create.data,
+                           qxl->vram_mem_slot);
+    offset = virtual_address(qxl, data, qxl->vram_mem_slot);
+#endif
     fprintf(stderr," size %dx%d stride %d format %s data @ %llu",
             cmd->u.surface_create.width,
             cmd->u.surface_create.height,

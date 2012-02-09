@@ -51,6 +51,32 @@ qxl_drv_la_SOURCES =				\
 	qxl_logger.c
 endif
 
+if BUILD_VIRTIO_QXL
+virtioqxl_drv_la_LTLIBRARIES = virtioqxl_drv.la
+virtioqxl_drv_la_LDFLAGS = -module -avoid-version
+virtioqxl_drv_ladir = @moduledir@/drivers
+
+virtioqxl_drv_la_CFLAGS = -DVIRTIO_QXL $(AM_CFLAGS)
+
+virtioqxl_drv_la_LIBADD = uxa/libuxa.la
+
+virtioqxl_drv_la_SOURCES =				\
+	qxl.h					\
+	qxl_driver.c				\
+	qxl_image.c				\
+	qxl_surface.c				\
+	qxl_ring.c				\
+	qxl_mem.c				\
+	mspace.c				\
+	mspace.h				\
+	murmurhash3.c				\
+	murmurhash3.h				\
+	qxl_logger.c				\
+	qxl_cursor.c
+endif
+
+qxl_drv_la_CFLAGS = $(AM_CFLAGS) -g -O0
+
 if BUILD_XSPICE
 spiceqxl_drv_la_LTLIBRARIES = spiceqxl_drv.la
 spiceqxl_drv_la_LDFLAGS = -module -avoid-version $(SPICE_LIBS)

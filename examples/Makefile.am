@@ -19,6 +19,8 @@
 #  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 if BUILD_XSPICE
-doc_DATA = spiceqxl.xorg.conf.example
+doc_DATA = spiceqxl.xorg.conf.example	\
+		   virtioqxl.xorg.conf.example
 endif
-EXTRA_DIST = spiceqxl.xorg.conf.example
+EXTRA_DIST = spiceqxl.xorg.conf.example	\
+			 virtioqxl.xorg.conf.example

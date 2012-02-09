@@ -47,39 +47,6 @@
 
 typedef struct evacuated_surface_t evacuated_surface_t;
 
-struct qxl_surface_t
-{
-    surface_cache_t    *cache;
-    
-    uint32_t	        id;
-
-    pixman_image_t *	dev_image;
-    pixman_image_t *	host_image;
-
-    uxa_access_t	access_type;
-    RegionRec		access_region;
-
-    void *		address;
-    void *		end;
-    
-    qxl_surface_t *	next;
-    qxl_surface_t *	prev;	/* Only used in the 'live'
-				 * chain in the surface cache
-				 */
-
-    int			in_use;
-    int			bpp;		/* bpp of the pixmap */
-    int			ref_count;
-
-    PixmapPtr		pixmap;
-    
-    union
-    {
-	qxl_surface_t *copy_src;
-	Pixel	       solid_pixel;
-    } u;
-};
-
 struct evacuated_surface_t
 {
     pixman_image_t	*image;
@@ -377,6 +344,10 @@ qxl_surface_cache_create_primary (surface_cache_t	*cache,
     create->flags = 0;
     create->type = QXL_SURF_TYPE_PRIMARY;
     create->mem = physical_address (cache->qxl, cache->qxl->ram, cache->qxl->main_mem_slot);
+
+#ifdef VIRTIO_QXL
+    virtioqxl_push_ram(qxl, create, sizeof(*create));
+#endif
 
     qxl_create_primary(qxl);
 
@@ -926,7 +897,7 @@ download_box (qxl_surface_t *surface, int x1, int y1, int x2, int y2)
     ErrorF ("Issuing update command for %d\n", surface->id);
 #endif
 
-    qxl_update_area(surface->cache->qxl);
+    qxl_update_area(surface->cache->qxl,surface);
 
     pixman_image_composite (PIXMAN_OP_SRC,
      			    surface->dev_image,

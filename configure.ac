@@ -102,7 +102,28 @@ if test "x$enable_xspice" = "xyes"; then
 else
     enable_xspice=no
 fi
+
+AC_ARG_ENABLE(virtio_qxl,
+[  --enable-virtio-qxl[[=(no|yes|only)]]  Build the virtio-qxl driver
+                   no      (default) Do not build
+                   yes     Build in addition to qxl
+                   only    Only build virtio-qxl],
+[  if test "x$enableval" = "xyes"; then
+        enable_virtio_qxl=yes
+   elif test "x$enableval" = "xonly"; then
+        enable_virtio_qxl=yes
+        enable_qxl=no
+   else
+        enable_virtio_qxl=no
+   fi
+])
+
+if test ! "x$enable_virtio_qxl" = "xyes"; then
+    enable_virtio_qxl=no
+fi
+
 AM_CONDITIONAL(BUILD_XSPICE, test "x$enable_xspice" = "xyes")
+AM_CONDITIONAL(BUILD_VIRTIO_QXL, test "x$enable_virtio_qxl" = "xyes")
 AM_CONDITIONAL(BUILD_QXL, test "x$enable_qxl" = "xyes")
 
 PKG_CHECK_MODULES([SPICE_PROTOCOL], [spice-protocol >= 0.8.1])
@@ -133,4 +154,5 @@ echo "
 
         Build qxl:                ${enable_qxl}
         Build xspice:             ${enable_xspice}
+        Build virtio-qxl:         ${enable_virtio_qxl}
 "

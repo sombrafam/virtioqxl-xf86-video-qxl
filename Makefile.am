@@ -35,4 +35,6 @@ EXTRA_DIST = \
 	README			\
 	README.xspice
 
-DISTCHECK_CONFIGURE_FLAGS=--enable-xspice
+DISTCHECK_CONFIGURE_FLAGS = \
+	--enable-xspice \
+	--enable-virtio-qxl
