@@ -589,21 +589,9 @@ surface_send_create (surface_cache_t *cache,
     int n_attempts = 0;
     qxl_screen_t *qxl = cache->qxl;
     qxl_surface_t *surface;
+    void *address;
 
     get_formats (bpp, &format, &pformat);
-    
-retry:
-    surface = surface_get_from_free_list (cache);
-    if (!surface)
-    {
-	if (!qxl_handle_oom (cache->qxl))
-	{
-	    ErrorF ("  Out of surfaces\n");
-	    return NULL;
-	}
-	else
-	    goto retry;
-    }
     
     width = align (width);
     height = align (height);
@@ -616,9 +604,9 @@ retry:
      */
     qxl_garbage_collect (cache->qxl);
 retry2:
-    surface->address = qxl_alloc (qxl->surf_mem, stride * height + stride);
+    address = qxl_alloc (qxl->surf_mem, stride * height + stride);
 
-    if (!surface->address)
+    if (!address)
     {
 	ErrorF ("- %dth attempt\n", n_attempts++);
 
@@ -641,7 +629,22 @@ retry2:
 	return NULL;
     }
 
-    surface->end = (char *)surface->address + stride * height;
+retry:
+    surface = surface_get_from_free_list (cache);
+    if (!surface)
+    {
+	if (!qxl_handle_oom (cache->qxl))
+	{
+	    ErrorF ("  Out of surfaces\n");
+	    qxl_free (qxl->surf_mem, address);
+	    return NULL;
+	}
+	else
+	    goto retry;
+    }
+
+    surface->address = address;    
+    surface->end = (char *)address + stride * height;
     
     cmd = make_surface_cmd (cache, surface->id, QXL_SURFACE_CMD_CREATE);
 
