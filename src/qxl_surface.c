@@ -605,12 +605,6 @@ retry:
 	    goto retry;
     }
     
-    if (width == 0 || height == 0)
-    {
-	ErrorF ("   Zero width or height\n");
-	return NULL;
-    }
-
     width = align (width);
     height = align (height);
     
@@ -712,6 +706,12 @@ qxl_surface_create (surface_cache_t *    cache,
     if (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 24)
     {
 	ErrorF ("   Unknown bpp\n");
+	return NULL;
+    }
+
+    if (width == 0 || height == 0)
+    {
+	ErrorF ("   Zero width or height\n");
 	return NULL;
     }
 
