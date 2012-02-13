@@ -207,6 +207,8 @@ qxl_garbage_collect (qxl_screen_t *qxl)
     uint64_t id;
     int i = 0;
 
+    QXLRam *ram = get_ram_header(qxl);;
+
     while (qxl_ring_pop (qxl->release_ring, &id))
     {
 	while (id)
@@ -261,7 +263,12 @@ qxl_garbage_collect (qxl_screen_t *qxl)
 		qxl_surface_cache_sanity_check (qxl->surface_cache);
 	    }
 	    
-	    id = info->next;
+#ifdef VIRTIO_QXL
+		virtioqxl_pull_ram(qxl,&info->next,sizeof(info->next));
+		id = info->next;
+#else
+		id = info->next;
+#endif
 	    
 	    qxl_free (qxl->mem, info);
 

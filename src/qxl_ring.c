@@ -272,12 +272,12 @@ qxl_ring_pop (struct qxl_ring *ring,
     volatile uint8_t *ring_elt;
     int idx;
 
-    if (header->cons == header->prod)
-	return FALSE;
-
 #ifdef VIRTIO_QXL
     update_release_ring(ring->qxl);
 #endif
+
+    if (header->cons == header->prod)
+	return FALSE;
 
     idx = header->cons & (ring->n_elements - 1);
     ring_elt = ring->ring->elements + idx * ring->element_size;
