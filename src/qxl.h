@@ -270,6 +270,7 @@ struct _qxl_screen_t
     int virtiofd;
     struct virtioqxl_config virtio_config;
     void *vmem_start;
+    char *device_name;
 #endif
 
 #ifdef XSPICE

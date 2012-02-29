@@ -423,7 +423,10 @@ static void map_memory_helper(qxl_screen_t *qxl, int scrnIndex)
     struct QXLRom *rom;
     CHECK_POINT();
 
-    qxl->virtiofd = open(VIRTIO_DEV, O_RDWR | O_SYNC);
+    xf86DrvMsg(scrnIndex, X_INFO, "Opening device %s.\n", qxl->device_name);
+
+    qxl->virtiofd = open(qxl->device_name, O_RDWR | O_SYNC);
+
     if (qxl->virtiofd < 0) {
         xf86DrvMsg(scrnIndex, X_ERROR, "Error opening virtio device. Check if "
                 " virtio-qxl-bridge is loaded\n");
@@ -1586,6 +1589,15 @@ qxl_pre_init(ScrnInfoPtr pScrn, int flags)
     xf86DrvMsg(scrnIndex, X_INFO, "Fallback Cache: %s\n",
 	       qxl->enable_fallback_cache? "Enabled" : "Disabled");
     
+#ifdef VIRTIO_QXL
+    qxl->device_name = xf86FindOptionValue(pScrn->options,"virtiodev");
+
+    if (!qxl->device_name)
+        qxl->device_name = VIRTIO_DEV;
+
+    xf86DrvMsg(scrnIndex, X_INFO, "Using virtio device %s.\n", qxl->device_name);
+#endif
+
     if (!qxl_map_memory(qxl, scrnIndex))
 	goto out;
 
